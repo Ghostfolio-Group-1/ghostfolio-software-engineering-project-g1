@@ -105,6 +105,34 @@ describe('SingleStockConcentration', () => {
     expect(result.evaluation).toContain('No individual stock');
   });
 
+  it('aggregates the same symbol held as separate positions across accounts (Tharun review, PR #51)', () => {
+    // AAPL at 6% in one account + 6% in another must be seen as 12% total
+    // concentration, not two separate 6% positions that each individually
+    // pass a 10% threshold. Without aggregation, the largest single position
+    // would be 6% (passes); aggregated, AAPL is 12% (fails).
+    const holdings = [
+      holding('AAPL', 'STOCK', 6000), // account A
+      holding('AAPL', 'STOCK', 6000), // account B
+      holding('MSFT', 'STOCK', 4000),
+      holding('VTI', 'ETF', 84000)
+    ];
+    const rule = new SingleStockConcentration(
+      exchangeRateDataServiceMock,
+      holdings
+    );
+
+    const result = rule.evaluate({
+      baseCurrency: 'USD',
+      locale: 'en',
+      isActive: true,
+      thresholdMax: 0.1
+    });
+
+    expect(result.value).toBe(false);
+    expect(result.evaluation).toContain('AAPL');
+    expect(result.evaluation).toContain('12.0%');
+  });
+
   it('defaults thresholdMax to 10% when the user has not customized it', () => {
     const rule = new SingleStockConcentration(exchangeRateDataServiceMock, []);
     const settings = rule.getSettings({ baseCurrency: 'USD' });

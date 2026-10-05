@@ -42,31 +42,46 @@ export class SingleStockConcentration extends Rule<Settings> {
       );
     });
 
-    let maxHolding: PortfolioPosition | undefined;
-    let maxValue = 0;
+    // Grouped by symbol, not scanned holding-by-holding: the same symbol can
+    // appear as more than one PortfolioPosition in a hand-built holdings
+    // array (tests, or any future caller), and concentration is about total
+    // exposure to the symbol, not to any one position of it. Production
+    // callers of this rule already pass a symbol-deduplicated array (see
+    // PortfolioService.getDetails(), which keys positions by
+    // getAssetProfileIdentifier()), so this is a correctness-by-construction
+    // fix rather than a fix for an observed production bug.
+    const valueBySymbol = new Map<string, number>();
 
     for (const holding of eligibleHoldings) {
+      const symbol = holding.assetProfile.symbol;
       const value = this.getValueInBaseCurrency(
         holding,
         ruleSettings.baseCurrency
       );
 
+      valueBySymbol.set(symbol, (valueBySymbol.get(symbol) ?? 0) + value);
+    }
+
+    let maxSymbol: string | undefined;
+    let maxValue = 0;
+
+    for (const [symbol, value] of valueBySymbol) {
       if (value > maxValue) {
         maxValue = value;
-        maxHolding = holding;
+        maxSymbol = symbol;
       }
     }
 
     const ratio = totalValue > 0 ? maxValue / totalValue : 0;
 
-    if (!maxHolding) {
+    if (!maxSymbol) {
       return {
         evaluation: 'No individual stock or cryptocurrency holdings found.',
         value: true
       };
     }
 
-    const symbol = maxHolding.assetProfile.symbol;
+    const symbol = maxSymbol;
     const percentage = (ratio * 100).toFixed(1);
     const thresholdPercentage = (ruleSettings.thresholdMax * 100).toFixed(0);
 
