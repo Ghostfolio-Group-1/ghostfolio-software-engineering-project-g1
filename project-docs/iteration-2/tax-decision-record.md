@@ -347,11 +347,11 @@ Cover:
 
 ## Decision Summary
 
-| Decision | Final Rule |
-| --- | --- |
-| DR-1 | Unknown withholding means `netDividend = null`; known zero withholding means `netDividend = grossDividend`. |
-| DR-2 | Persist withholding in transaction currency; derive other currencies using historical conversion; missing FX stays unavailable with a diagnostic. |
-| DR-3 | Deterministic activity order is `date ASC`, then `id ASC`. |
+| Decision | Final Rule                                                                                                                                        |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DR-1     | Unknown withholding means `netDividend = null`; known zero withholding means `netDividend = grossDividend`.                                       |
+| DR-2     | Persist withholding in transaction currency; derive other currencies using historical conversion; missing FX stays unavailable with a diagnostic. |
+| DR-3     | Deterministic activity order is `date ASC`, then `id ASC`.                                                                                        |
 
 ## Implementation Gate
 
@@ -377,6 +377,7 @@ project-docs/iteration-1/tax/tax-lot-data-model.md
 project-docs/iteration-1/tax/yearly-tax-summary-data-structure.md
 project-docs/iteration-1/tax/tax-design-architecture-report-section.md
 ```
+
 ## Oct 5 Addendum — DR-4 to DR-6
 
 **Owner:** Tharun Swaminathan
@@ -704,14 +705,14 @@ Numeric tests must include:
 
 ## Oct 5 Decision Summary
 
-| Decision | Final Rule |
-| --- | --- |
-| DR-1 | Unknown withholding keeps `netDividend = null`; known zero withholding gives `netDividend = grossDividend`. |
-| DR-2 | Withholding is stored in transaction currency; missing FX remains unavailable with a diagnostic. |
-| DR-3 | Deterministic order is `date ASC`, then `id ASC`. |
-| DR-4 | Keep gross values and attached activity fees separate; expose a separate fee-adjusted gain; never guess standalone FEE linkage. |
-| DR-5 | Average-cost pool scope is `userId + symbolProfileId` (`user + asset`), superseding the provisional account-aware average-cost scope from Iteration 1. |
-| DR-6 | Use `Big`, no intermediate rounding, reconcile allocation residuals on the final allocation, and round only for presentation when required. |
+| Decision | Final Rule                                                                                                                                             |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DR-1     | Unknown withholding keeps `netDividend = null`; known zero withholding gives `netDividend = grossDividend`.                                            |
+| DR-2     | Withholding is stored in transaction currency; missing FX remains unavailable with a diagnostic.                                                       |
+| DR-3     | Deterministic order is `date ASC`, then `id ASC`.                                                                                                      |
+| DR-4     | Keep gross values and attached activity fees separate; expose a separate fee-adjusted gain; never guess standalone FEE linkage.                        |
+| DR-5     | Average-cost pool scope is `userId + symbolProfileId` (`user + asset`), superseding the provisional account-aware average-cost scope from Iteration 1. |
+| DR-6     | Use `Big`, no intermediate rounding, reconcile allocation residuals on the final allocation, and round only for presentation when required.            |
 
 ## Tax Coding Gate
 

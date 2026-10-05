@@ -46,42 +46,49 @@ For Tharun's PRs, the assigned reviewer is Arthur unless a substitute is recorde
 **Time:** 9:30–9:45 AM CT
 
 ### Attendance
+
 - Sesha:
 - Tharun:
 - Arthur:
 - Raniya:
 
 ### PR Check From Previous Working Day
+
 - Unmerged PRs:
 - PRs waiting for review:
 - Failed CI:
 - Action owner / deadline:
 
 ### Sesha — Risk
+
 - Yesterday merged PR:
 - Today's issue:
 - Blockers:
 - Next action:
 
 ### Tharun — Tax / Scrum Master
+
 - Yesterday merged PR:
 - Today's issue:
 - Blockers:
 - Next action:
 
 ### Arthur — Charts
+
 - Yesterday merged PR:
 - Today's issue:
 - Blockers:
 - Next action:
 
 ### Raniya — Architecture / QA / Dashboard
+
 - Yesterday merged PR:
 - Today's issue:
 - Blockers:
 - Next action:
 
 ### GitHub State Readout
+
 - Open PRs:
 - PRs waiting for review:
 - Issues closed since last standup:
@@ -90,12 +97,14 @@ For Tharun's PRs, the assigned reviewer is Arthur unless a substitute is recorde
 - Substitute reviewer assignments:
 
 ### Evidence
+
 - PR links:
 - Issue links:
 - CI links:
 - Other evidence:
 
 ### Next Actions
+
 -
 ```
 
@@ -325,6 +334,7 @@ Oct 29 — Standup + Sprint Review
 Oct 30 — Standup + Retrospective
 Oct 31 — Final Report Review Call
 ```
+
 # 2026-10-05 — Daily Standup / Tax Decision Gate
 
 **Time:** 9:30–9:45 AM CT
