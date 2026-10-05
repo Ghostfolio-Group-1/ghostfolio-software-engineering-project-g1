@@ -325,3 +325,151 @@ Oct 29 — Standup + Sprint Review
 Oct 30 — Standup + Retrospective
 Oct 31 — Final Report Review Call
 ```
+# 2026-10-05 — Daily Standup / Tax Decision Gate
+
+**Time:** 9:30–9:45 AM CT
+
+## Attendance
+
+Fill from the actual meeting. Do not infer attendance from GitHub activity.
+
+```text
+Sesha:
+Tharun:
+Arthur:
+Raniya:
+```
+
+## Previous Work / PR Check
+
+Verified repository evidence:
+
+```text
+PR #48 — [Tax][Iteration 2] Close DR-1–3 and add Scrum notes
+Status: merged
+Merge commit: c80ad512a36513da28fd1f1c64deed87f78274cf
+Issue #45: linked by the PR
+```
+
+GitHub records the approval on PR #48 under the shared `Error404IsFound` account. If the team attributes that review to Arthur, keep the repository identity limitation visible in the evidence rather than rewriting the GitHub record.
+
+## Sesha — Risk Review Assigned to Tharun
+
+```text
+PR #51 — [Risk] Single-stock concentration rule
+Issue #30
+Reviewer: Tharun
+```
+
+Initial review found that duplicate positions for the same symbol were not aggregated.
+
+Sesha updated PR #51 with commit:
+
+```text
+2c062a0 — aggregate single-stock concentration by symbol
+```
+
+The re-review found that the blocking issue was corrected and a numeric regression test was added for:
+
+```text
+AAPL 6% + AAPL 6% = 12% concentration
+```
+
+Final approval/merge evidence should be added only after GitHub shows the submitted approval and green checks.
+
+## Tharun — Tax / Scrum Master
+
+**Current issue:**
+
+```text
+#52 — [Tax][Mon Oct 5] Close DR-4–6 and file remaining tax issues
+```
+
+**Branch:**
+
+```text
+tharun/2026-10-05-52-tax-decisions
+```
+
+**Oct 5 task:**
+
+```text
+Close DR-4 — fee treatment
+Close DR-5 — average-cost pool scope
+Close DR-6 — decimal-safe rounding rule
+File remaining tax issues
+Update tax decision record
+```
+
+### DR-5 Sprint-Plan Correction
+
+The authoritative Iteration 2 sprint plan specifies the average-cost pool as:
+
+```text
+user + asset
+```
+
+Therefore DR-5 uses:
+
+```text
+userId + symbolProfileId
+```
+
+This supersedes the provisional Iteration 1 account-aware average-cost proposal.
+
+Issue #52 currently contains an older acceptance-criteria line saying the average-cost scope is "account-aware". That line must be corrected in GitHub before #52 is closed.
+
+## Existing Tax Issues
+
+```text
+#46 — [Tax][Tue Oct 6] Add nullable withholdingTax to Order and DTOs
+#47 — [Tax][Fri Oct 9] Implement FIFO ordering and TaxLot creation
+#52 — [Tax][Mon Oct 5] Close DR-4–6 and file remaining tax issues
+```
+
+## Remaining Issue Evidence To Record Today
+
+Fill the real GitHub issue numbers after creation:
+
+```text
+Average-cost implementation: #53 — [Tax][Fri Oct 16] Implement average-cost running pool
+Tax-lot tracker: #54 — [Tax][Wed Oct 21] Add derived tax-lot tracker and view endpoint
+Tax-relevant flag/filter: #55 — [Tax][Thu Oct 22] Add tax-relevant activity flag and filtering
+Yearly tax summary: #56 — [Tax][Fri Oct 23] Implement YearlyTaxSummary with numeric tests
+CSV export: #57 — [Tax][Mon Oct 26] Implement CSV tax export with golden-file test
+PDF export: #58 — [Tax][Tue Oct 27] Implement PDF tax export and tax export tests
+```
+
+## Blockers / Risks
+
+```text
+- No tax calculation code should start until #52 is reviewed and merged.
+- Shared decimal/API serialization belongs to Raniya; tax code must consume the shared convention rather than edit the shared contract independently.
+- Issue #52 wording must be corrected from account-aware average-cost scope to user + asset before closure.
+```
+
+## Next Actions
+
+```text
+1. Finalize DR-4–6 in the tax decision record.
+2. File remaining tax implementation issues and record their numbers here.
+3. Run documentation checks.
+4. Commit with #52 reference.
+5. Push branch and open PR.
+6. Request Arthur review.
+7. Merge only after approval and green CI.
+8. Pull latest main before starting #46 on Oct 6.
+```
+
+## Evidence To Add Before Closing Oct 5
+
+```text
+Decision-record commit:
+Remaining issue numbers:
+PR:
+Arthur review:
+CI/check result:
+Merge commit:
+Issue #52 closed:
+PR #51 review/merge result:
+```
