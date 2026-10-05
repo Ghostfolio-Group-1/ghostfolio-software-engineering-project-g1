@@ -16,6 +16,7 @@ export interface XRayRulesSettings {
   RegionalMarketClusterRiskEurope?: RuleSettings;
   RegionalMarketClusterRiskJapan?: RuleSettings;
   RegionalMarketClusterRiskNorthAmerica?: RuleSettings;
+  SingleStockConcentration?: RuleSettings;
 }
 
 interface RuleSettings {
