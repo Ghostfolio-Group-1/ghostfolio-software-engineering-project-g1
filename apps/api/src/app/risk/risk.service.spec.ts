@@ -54,7 +54,7 @@ describe('RiskService concentration rules (sector + country)', () => {
     )
   ];
 
-  it('flags sector concentration once FX conversion is applied: Healthcare is $10,000 ($2,000 US + $8,800 EUR-converted) of $21,000 total', () => {
+  it('flags sector concentration once FX conversion is applied: Healthcare is $13,000 ($2,000 US + $11,000 EUR-converted) of $21,000 total', () => {
     const rule = new SectorConcentration(exchangeRateDataServiceMock, holdings);
 
     const result = rule.evaluate({
