@@ -1,0 +1,27 @@
+name: daily-pr-fallback
+on:
+  schedule:
+    - cron: '0 23 * * 1-5'
+  workflow_dispatch:
+jobs:
+  open-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Open and auto-merge PRs for branches ahead of main
+        env:
+          GH_TOKEN: ${{ secrets.PR_BOT_TOKEN }}
+        run: |
+          declare -A REVIEWER=( [sesha]=TharunSwaminathan [tharun]=Error404IsFound [arthur]=Raniyafs [raniya]=sesha456 )
+          for b in $(git branch -r --format="%(refname:short)" | grep -E "^origin/(sesha|tharun|arthur|raniya)/"); do
+            br=${b#origin/}; who=${br%%/*}
+            ahead=$(git rev-list --count origin/main..$b)
+            open=$(gh pr list --head "$br" --state open --json number --jq length)
+            if [ "$ahead" -gt 0 ] && [ "$open" -eq 0 ]; then
+               gh pr create --base main --head "$br" --title "Daily PR: $br" \
+                 --body "Auto-opened by daily fallback. Closes the issue named in the branch." \
+                 --reviewer "${REVIEWER[$who]}"
+               gh pr merge "$br" --auto --merge
+            fi
+          done

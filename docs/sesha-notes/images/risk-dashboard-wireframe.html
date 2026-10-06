@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Risk dashboard wireframe</title>
+    <style>
+      :root {
+        --ink: #222;
+        --muted: #666;
+        --line: #b9bec6;
+        --bg: #f3f4f6;
+        --card: #fff;
+        --green: #2e7d32;
+        --yellow: #f9a825;
+        --red: #c62828;
+        --grey: #8a8f98;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        width: 1200px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          14px/1.35 Arial,
+          Helvetica,
+          sans-serif;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 14px;
+      }
+      .card {
+        position: relative;
+        background: var(--card);
+        border: 1.5px solid var(--line);
+        border-radius: 6px;
+        padding: 14px 16px;
+      }
+      .card h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+      .grid {
+        display: grid;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      .r1 {
+        grid-template-columns: 330px 1fr;
+      }
+      .r2 {
+        grid-template-columns: 1fr 1fr;
+      }
+      .r3 {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+      .n {
+        position: absolute;
+        top: -11px;
+        left: -11px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #1a3a6b;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+        line-height: 24px;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+      .topbar .right {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .btn {
+        display: inline-block;
+        border: 1.5px solid var(--ink);
+        border-radius: 4px;
+        padding: 4px 12px;
+        font-size: 12px;
+        background: #fff;
+      }
+      .btn.primary {
+        background: var(--ink);
+        color: #fff;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 9px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        white-space: nowrap;
+      }
+      .g {
+        background: var(--green);
+      }
+      .y {
+        background: var(--yellow);
+        color: #222;
+      }
+      .r {
+        background: var(--red);
+      }
+      .x {
+        background: var(--grey);
+      }
+      .gauge {
+        text-align: center;
+        padding: 6px 0 2px;
+      }
+      .ring {
+        width: 150px;
+        height: 150px;
+        margin: 0 auto 10px;
+        border-radius: 50%;
+        border: 14px solid var(--yellow);
+        border-right-color: #e1e3e7;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .ring b {
+        font-size: 40px;
+        line-height: 1;
+      }
+      .ring span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 150px 1fr 90px;
+        gap: 10px;
+        align-items: center;
+        margin: 7px 0;
+        font-size: 13px;
+      }
+      .bar {
+        position: relative;
+        height: 12px;
+        background: #e6e8ec;
+        border-radius: 6px;
+      }
+      .bar i {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 12px;
+        border-radius: 6px;
+      }
+      .tick {
+        position: absolute;
+        top: -4px;
+        width: 2px;
+        height: 20px;
+      }
+      .tick.ty {
+        background: var(--yellow);
+      }
+      .tick.tr {
+        background: var(--red);
+      }
+      .warn {
+        display: grid;
+        grid-template-columns: 78px 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 0;
+        border-top: 1px solid #e3e5e9;
+        font-size: 13px;
+      }
+      .warn:first-of-type {
+        border-top: 0;
+      }
+      .link {
+        text-decoration: underline;
+        color: #1a3a6b;
+        font-size: 12px;
+      }
+      .cc {
+        margin: 9px 0;
+        font-size: 13px;
+      }
+      .cc .lbl {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      .big {
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .empty {
+        border: 1.5px dashed var(--line);
+        border-radius: 6px;
+        padding: 14px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .slider {
+        position: relative;
+        height: 6px;
+        background: #d5d8de;
+        border-radius: 3px;
+        margin: 14px 8px;
+      }
+      .slider i {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 6px;
+        width: 40%;
+        background: var(--ink);
+        border-radius: 3px;
+      }
+      .slider u {
+        position: absolute;
+        left: 40%;
+        top: -6px;
+        width: 18px;
+        height: 18px;
+        margin-left: -9px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid var(--ink);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px 4px;
+        border-top: 1px solid #e3e5e9;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        border-top: 0;
+        font-size: 12px;
+      }
+      .select {
+        display: inline-block;
+        border: 1.5px solid var(--ink);
+        border-radius: 4px;
+        padding: 4px 26px 4px 10px;
+        font-size: 13px;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Portfolio Risk: desktop wireframe (sample data)</h1>
+    <div class="sub">
+      Numbered circles match the component table in
+      09-risk-dashboard-wireframe.md. Numbers shown are placeholders, not real
+      calculations.
+    </div>
+
+    <div class="card topbar" style="margin-bottom: 14px">
+      <span class="n">1</span>
+      <div>
+        <b style="font-size: 16px">Portfolio Risk</b>
+        <span class="muted"
+          >&nbsp;&nbsp;Overview · Warnings · What-if · Settings</span
+        >
+      </div>
+      <div class="right">
+        Last calculated 2026-09-26 09:14 &nbsp; <span class="btn">Refresh</span>
+      </div>
+    </div>
+
+    <div class="grid r1">
+      <div class="card">
+        <span class="n">2</span>
+        <h2>Health score</h2>
+        <div class="gauge">
+          <div class="ring"><b>72</b><span>out of 100</span></div>
+          <span class="badge y">▲ Watch</span>
+          <div class="muted" style="margin-top: 6px">
+            Grade C · based on 100% of active rule weight
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="n">3</span>
+        <h2>Category scores</h2>
+        <div class="row">
+          <span>Concentration</span>
+          <div class="bar">
+            <i style="width: 45%; background: var(--red)"></i>
+          </div>
+          <span><span class="badge r">✖ Act</span> 45</span>
+        </div>
+        <div class="row">
+          <span>Currency</span>
+          <div class="bar">
+            <i style="width: 50%; background: var(--red)"></i>
+          </div>
+          <span><span class="badge r">✖ Act</span> 50</span>
+        </div>
+        <div class="row">
+          <span>Regional markets</span>
+          <div class="bar">
+            <i style="width: 60%; background: var(--yellow)"></i>
+          </div>
+          <span><span class="badge y">▲ Watch</span> 60</span>
+        </div>
+        <div class="row">
+          <span>Asset class</span>
+          <div class="bar">
+            <i style="width: 100%; background: var(--green)"></i>
+          </div>
+          <span><span class="badge g">✔ OK</span> 100</span>
+        </div>
+        <div class="row">
+          <span>Volatility</span>
+          <div class="bar">
+            <i style="width: 100%; background: var(--green)"></i>
+          </div>
+          <span><span class="badge g">✔ OK</span> 100</span>
+        </div>
+        <div class="row">
+          <span>Fees</span>
+          <div class="bar">
+            <i style="width: 100%; background: var(--green)"></i>
+          </div>
+          <span><span class="badge g">✔ OK</span> 100</span>
+        </div>
+        <div class="row">
+          <span>Target allocation</span>
+          <div class="bar"></div>
+          <span><span class="badge x">– No data</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid r2">
+      <div class="card">
+        <span class="n">4</span>
+        <h2>Warnings (3), worst first</h2>
+        <div class="warn">
+          <span class="badge r">✖ Act</span>
+          <span>AAPL is 33.3% of your portfolio, above the 25% red limit.</span>
+          <span class="link">Run what-if</span>
+        </div>
+        <div class="warn">
+          <span class="badge y">▲ Watch</span>
+          <span
+            >MSFT is 22.2% of your portfolio, above the 10% yellow limit.</span
+          >
+          <span class="link">Run what-if</span>
+        </div>
+        <div class="warn">
+          <span class="badge y">▲ Watch</span>
+          <span
+            >58% of your portfolio is in USD, above the 50% yellow limit.</span
+          >
+          <span class="link">Details</span>
+        </div>
+        <div class="muted" style="margin-top: 8px">
+          Filter: All · Red · Yellow &nbsp;|&nbsp; page 1 of 1
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="n">5</span>
+        <h2>Top concentration</h2>
+        <div class="muted" style="margin: -4px 0 6px">
+          Yellow tick = yellow limit, red tick = red limit
+        </div>
+        <div class="cc">
+          <div class="lbl">
+            <span>Stock: AAPL</span
+            ><span>33.3% <span class="badge r">✖ Act</span></span>
+          </div>
+          <div class="bar">
+            <i style="width: 33%; background: var(--red)"></i>
+            <span class="tick ty" style="left: 10%"></span>
+            <span class="tick tr" style="left: 25%"></span>
+          </div>
+        </div>
+        <div class="cc">
+          <div class="lbl">
+            <span>Sector: Technology</span
+            ><span>41% <span class="badge y">▲ Watch</span></span>
+          </div>
+          <div class="bar">
+            <i style="width: 41%; background: var(--yellow)"></i>
+            <span class="tick ty" style="left: 30%"></span>
+            <span class="tick tr" style="left: 50%"></span>
+          </div>
+        </div>
+        <div class="cc">
+          <div class="lbl">
+            <span>Country: United States</span
+            ><span>48% <span class="badge g">✔ OK</span></span>
+          </div>
+          <div class="bar">
+            <i style="width: 48%; background: var(--green)"></i>
+            <span class="tick ty" style="left: 50%"></span>
+            <span class="tick tr" style="left: 75%"></span>
+          </div>
+        </div>
+        <div class="cc">
+          <div class="lbl">
+            <span>Currency: USD</span
+            ><span>58% <span class="badge y">▲ Watch</span></span>
+          </div>
+          <div class="bar">
+            <i style="width: 58%; background: var(--yellow)"></i>
+            <span class="tick ty" style="left: 50%"></span>
+            <span class="tick tr" style="left: 75%"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid r3">
+      <div class="card">
+        <span class="n">6</span>
+        <h2>Volatility (annualized)</h2>
+        <div class="big">18.4%</div>
+        <div class="muted" style="margin: 4px 0 8px">
+          Green band 10% to 25% · based on 90 days
+        </div>
+        <div class="bar">
+          <i style="width: 18.4%; background: var(--green)"></i>
+          <span class="tick tr" style="left: 5%"></span>
+          <span class="tick ty" style="left: 10%"></span>
+          <span class="tick ty" style="left: 25%"></span>
+          <span class="tick tr" style="left: 35%"></span>
+        </div>
+        <div style="margin-top: 10px"><span class="badge g">✔ OK</span></div>
+      </div>
+
+      <div class="card">
+        <span class="n">7</span>
+        <h2>Cash allocation</h2>
+        <div class="big">10.0%</div>
+        <div class="muted" style="margin: 4px 0 8px">
+          Green band 2% to 15% of portfolio
+        </div>
+        <div class="bar">
+          <i style="width: 10%; background: var(--green)"></i>
+          <span class="tick tr" style="left: 0.5%"></span>
+          <span class="tick ty" style="left: 2%"></span>
+          <span class="tick ty" style="left: 15%"></span>
+          <span class="tick tr" style="left: 30%"></span>
+        </div>
+        <div style="margin-top: 10px"><span class="badge g">✔ OK</span></div>
+      </div>
+
+      <div class="card">
+        <span class="n">8</span>
+        <h2>Target allocation</h2>
+        <div class="empty">
+          No target set yet.<br /><br />
+          <span class="btn primary">Set a target</span>
+        </div>
+        <div class="muted" style="margin-top: 8px">
+          When set: one row per bucket with actual vs target and a badge.
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 14px">
+      <span class="n">9</span>
+      <h2>What-if simulator</h2>
+      <div style="display: flex; gap: 18px; align-items: center">
+        <div>
+          <div class="muted">Holding</div>
+          <span class="select">AAPL ▾</span>
+        </div>
+        <div style="flex: 1">
+          <div class="muted">Drop: <b style="color: var(--ink)">40%</b></div>
+          <div class="slider"><i></i><u></u></div>
+        </div>
+        <span class="btn primary">Run simulation</span>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 1fr 1fr">
+      <div class="card">
+        <span class="n">10</span>
+        <h2>Result: before and after</h2>
+        <table>
+          <tr>
+            <th></th>
+            <th>Before</th>
+            <th>After</th>
+            <th>Change</th>
+          </tr>
+          <tr>
+            <td>Portfolio value</td>
+            <td>$100,000</td>
+            <td>$88,000</td>
+            <td>−12.0%</td>
+          </tr>
+          <tr>
+            <td>AAPL share</td>
+            <td>33.3%</td>
+            <td>23.1%</td>
+            <td>−10.2 pts</td>
+          </tr>
+          <tr>
+            <td>Health score</td>
+            <td>72</td>
+            <td>70</td>
+            <td>−2</td>
+          </tr>
+        </table>
+        <div class="muted" style="margin-top: 8px">
+          Score values are placeholders in this wireframe.
+        </div>
+      </div>
+      <div class="card">
+        <h2>What changed</h2>
+        <div class="warn">
+          <span class="badge y">▲ Watch</span>
+          <span>AAPL: was red, now yellow</span
+          ><span class="muted">improved</span>
+        </div>
+        <div class="warn">
+          <span class="badge r">✖ Act</span>
+          <span>MSFT: was yellow, now red (its share grew)</span
+          ><span class="muted">new red</span>
+        </div>
+        <div class="warn">
+          <span class="badge x">– Skipped</span>
+          <span>Fee ratio: not affected by price drops</span
+          ><span class="muted">unchanged</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="n">11</span>
+      <b>Settings:</b>
+      <span class="link">Warning thresholds</span> &nbsp;·&nbsp;
+      <span class="link">Target allocation</span> &nbsp;·&nbsp;
+      <span class="link">Reset to defaults</span>
+    </div>
+  </body>
+</html>

@@ -43,6 +43,7 @@ import { AssetModule } from './asset/asset.module';
 import { AuthDeviceModule } from './auth-device/auth-device.module';
 import { AuthModule } from './auth/auth.module';
 import { CacheModule } from './cache/cache.module';
+import { ChartsModule } from './charts/charts.module';
 import { AiModule } from './endpoints/ai/ai.module';
 import { ApiKeysModule } from './endpoints/api-keys/api-keys.module';
 import { AssetProfilesModule } from './endpoints/asset-profiles/asset-profiles.module';
@@ -65,13 +66,18 @@ import { LogoModule } from './logo/logo.module';
 import { PlatformModule } from './platform/platform.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { RedisCacheModule } from './redis-cache/redis-cache.module';
+import { RiskModule } from './risk/risk.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SymbolModule } from './symbol/symbol.module';
+import { TaxModule } from './tax/tax.module';
 import { UserModule } from './user/user.module';
 
 @Module({
   controllers: [AppController],
   imports: [
+    ChartsModule,
+    RiskModule,
+    TaxModule,
     AdminModule,
     AccessModule,
     AccountModule,
