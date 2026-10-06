@@ -52,7 +52,7 @@
     "watch:server": "nx run api:copy-assets && nx run api:build --watch",
     "watch:test": "nx test --watch",
     "workspace-generator": "nx workspace-generator",
-    "format-fix": "npx prettier --write $(git diff --name-only --cached)"
+    "format-fix": "node ./tools/format-staged.mjs"
   },
   "dependencies": {
     "@angular/animations": "22.1.2",
