@@ -540,6 +540,7 @@ export class ActivitiesService {
           symbolProfileId: account.currency,
           type: ActivityType.BUY,
           unitPrice: 1,
+          withholdingTax: null,
           unitPriceInAssetProfileCurrency: 1,
           updatedAt: new Date(balanceItem.date),
           valueInBaseCurrency: 0,
