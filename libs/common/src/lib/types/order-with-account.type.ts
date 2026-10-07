@@ -6,4 +6,5 @@ export type OrderWithAccount = Order & {
   account?: AccountWithPlatform;
   SymbolProfile?: SymbolProfile;
   tags?: Tag[];
+  withholdingTax?: number | null;
 };

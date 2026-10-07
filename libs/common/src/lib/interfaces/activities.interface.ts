@@ -13,6 +13,7 @@ export interface Activity extends Order {
   tags?: Tag[];
   unitPriceInAssetProfileCurrency: number;
   updateAccountBalance?: boolean;
+  withholdingTax: number | null;
   value: number;
   valueInBaseCurrency: number;
 }
