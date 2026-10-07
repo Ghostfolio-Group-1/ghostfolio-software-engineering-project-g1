@@ -47,7 +47,7 @@ import {
 } from '@ghostfolio/common/interfaces';
 import { OrderWithAccount } from '@ghostfolio/common/types';
 
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   AssetClass,
@@ -184,6 +184,13 @@ export class ActivitiesService {
       userId: string;
     }
   ): Promise<Order> {
+    this.validateWithholdingTax({
+      quantity: data.quantity,
+      type: data.type,
+      unitPrice: data.unitPrice,
+      withholdingTax: data.withholdingTax
+    });
+
     const tags = data.tags ?? [];
 
     await this.tagService.validateTagIds({
@@ -866,6 +873,7 @@ export class ActivitiesService {
   public async updateActivity({
     data,
     originalDate,
+    originalWithholdingTax,
     userId,
     where
   }: {
@@ -878,9 +886,22 @@ export class ActivitiesService {
       type?: ActivityType;
     };
     originalDate: Date;
+    originalWithholdingTax: number | null;
     userId: string;
     where: Prisma.OrderWhereUniqueInput;
   }): Promise<Order> {
+    const withholdingTax =
+      data.withholdingTax === undefined
+        ? originalWithholdingTax
+        : (data.withholdingTax as number | null);
+
+    this.validateWithholdingTax({
+      quantity: data.quantity as number,
+      type: data.type as ActivityType,
+      unitPrice: data.unitPrice as number,
+      withholdingTax
+    });
+
     const areTagsProvided = data.tags !== undefined;
     const tags = data.tags ?? [];
 
@@ -967,6 +988,44 @@ export class ActivitiesService {
     );
 
     return activity;
+  }
+
+  private validateWithholdingTax({
+    quantity,
+    type,
+    unitPrice,
+    withholdingTax
+  }: {
+    quantity: number;
+    type: ActivityType;
+    unitPrice: number;
+    withholdingTax?: number | null;
+  }): void {
+    if (withholdingTax === undefined || withholdingTax === null) {
+      return;
+    }
+
+    const withholdingTaxValue = new Big(withholdingTax);
+
+    if (withholdingTaxValue.lt(0)) {
+      throw new BadRequestException(
+        'Withholding tax must be greater than or equal to zero.'
+      );
+    }
+
+    if (type !== ActivityType.DIVIDEND) {
+      throw new BadRequestException(
+        'Withholding tax is only valid for dividend activities.'
+      );
+    }
+
+    const grossDividend = new Big(quantity).mul(unitPrice);
+
+    if (withholdingTaxValue.gt(grossDividend)) {
+      throw new BadRequestException(
+        'Withholding tax cannot exceed the gross dividend.'
+      );
+    }
   }
 
   private getWhereClause({
