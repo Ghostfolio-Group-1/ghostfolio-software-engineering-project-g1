@@ -37,6 +37,7 @@ const activities: Activity[] = [
     unitPrice: 103.543,
     updatedAt: new Date('2025-05-31T18:43:01.840Z'),
     userId: '081aa387-487d-4438-83a4-3060eb2a016e',
+    withholdingTax: null,
     account: {
       comment: null,
       createdAt: new Date('2025-05-31T13:00:13.940Z'),
@@ -101,6 +102,7 @@ const activities: Activity[] = [
     unitPrice: 110.24,
     updatedAt: new Date('2025-05-31T18:46:14.175Z'),
     userId: '081aa387-487d-4438-83a4-3060eb2a016e',
+    withholdingTax: null,
     account: {
       comment: null,
       createdAt: new Date('2025-05-31T13:00:13.940Z'),
@@ -165,6 +167,7 @@ const activities: Activity[] = [
     unitPrice: 41.0596,
     updatedAt: new Date('2025-05-31T18:49:54.064Z'),
     userId: '081aa387-487d-4438-83a4-3060eb2a016e',
+    withholdingTax: null,
     account: {
       comment: null,
       createdAt: new Date('2025-05-31T13:00:13.940Z'),
@@ -229,6 +232,7 @@ const activities: Activity[] = [
     unitPrice: 67.995,
     updatedAt: new Date('2025-05-31T18:48:48.209Z'),
     userId: '081aa387-487d-4438-83a4-3060eb2a016e',
+    withholdingTax: null,
     account: {
       comment: null,
       createdAt: new Date('2025-05-31T13:00:13.940Z'),
@@ -293,6 +297,7 @@ const activities: Activity[] = [
     unitPrice: 89.48,
     updatedAt: new Date('2025-05-31T18:46:44.616Z'),
     userId: '081aa387-487d-4438-83a4-3060eb2a016e',
+    withholdingTax: null,
     account: {
       comment: null,
       createdAt: new Date('2025-05-31T13:00:13.940Z'),
