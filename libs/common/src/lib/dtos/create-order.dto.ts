@@ -83,6 +83,11 @@ export class CreateOrderDto {
   @Min(0)
   unitPrice: number;
 
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  withholdingTax?: number | null;
+
   @IsBoolean()
   @IsOptional()
   updateAccountBalance?: boolean;

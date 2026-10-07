@@ -83,4 +83,9 @@ export class UpdateOrderDto {
   @IsNumber()
   @Min(0)
   unitPrice: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  withholdingTax?: number | null;
 }
