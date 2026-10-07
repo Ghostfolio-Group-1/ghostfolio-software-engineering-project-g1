@@ -743,8 +743,7 @@ export class ActivitiesService {
           feeInBaseCurrency,
           unitPriceInAssetProfileCurrency,
           value,
-          valueInBaseCurrency,
-          withholdingTax: order.withholdingTax ?? null
+          valueInBaseCurrency
         };
       })
     );
