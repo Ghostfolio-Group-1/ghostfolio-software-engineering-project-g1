@@ -11,6 +11,11 @@ import type { AssetProfileIdentifier } from './asset-profile-identifier.interfac
 import type { AssetProfileItem } from './asset-profile-item.interface';
 import type { BenchmarkProperty } from './benchmark-property.interface';
 import type { Benchmark } from './benchmark.interface';
+import type {
+  ChartSeriesKind,
+  ChartSeriesPoint,
+  ChartSeriesResponse
+} from './chart-series-response.interface';
 import type { Coupon } from './coupon.interface';
 import type { DataProviderInfo } from './data-provider-info.interface';
 import type { EnhancedAssetProfile } from './enhanced-asset-profile.interface';
@@ -132,6 +137,9 @@ export {
   BenchmarkMarketDataDetailsResponse,
   BenchmarkProperty,
   BenchmarkResponse,
+  ChartSeriesKind,
+  ChartSeriesPoint,
+  ChartSeriesResponse,
   Coupon,
   CreateStripeCheckoutSessionResponse,
   DataEnhancerHealthResponse,
