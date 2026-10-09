@@ -53,9 +53,9 @@ export function createSuccessResponse<T>(
   return { data, error: null, meta };
 }
 
-export function createErrorResponse(
+export function createErrorResponse<T = unknown>(
   code: ApiErrorCode,
   message: string
-): ApiResponse<never> {
+): ApiResponse<T> {
   return { data: null, error: { code, message }, meta: {} };
 }
