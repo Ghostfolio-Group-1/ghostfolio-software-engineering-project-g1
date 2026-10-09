@@ -1,0 +1,1125 @@
+story_id,github_issue_number,github_issue_url,title,full_story_text_and_acceptance_criteria,acceptance_criteria,feature_area,owner,priority,estimate,status,iteration_planned,iteration_completed,change_history
+US-18,18,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/18,"[Risk][Iteration 2] Extend the rule engine with concentration, volatility, cash and target-deviation rule types","### Goal
+
+Add the new rule classes the health score depends on, all extending the existing
+`Rule` base class so they share its interface with the 17 current X-Ray rules.
+
+### Scope
+
+- `SingleStockConcentration`, `SectorConcentration`, `CountryConcentration` rules,
+  grouping holdings by the shared formula (largest bucket's share of portfolio value).
+- Restrict `SingleStockConcentration` to holdings with `assetSubClass` `STOCK` or
+  `CRYPTOCURRENCY` — not ETFs or mutual funds.
+- `PortfolioVolatility` and `CashAllocation` rules as band checks (min/max, not a
+  single ceiling).
+- `TargetAllocationDeviation` rule, only evaluated when a target is set.
+- Each rule returns the existing `EvaluationResult` shape (`evaluation`, `value`).
+
+### Implementation Notes
+
+Reuse `groupCurrentHoldingsByAttribute()` where the grouping is a flat field
+(stock, currency); sector and country need a variant that splits a holding's value
+proportionally across its `sectors[]`/`countries[]` weights before grouping.
+
+Likely touch:
+
+- `apps/api/src/models/rule.ts`
+- `apps/api/src/models/rules/` (new subfolders per rule)
+- `apps/api/src/app/portfolio/portfolio.service.ts` (wiring into `getReport()`)
+
+### Acceptance Criteria
+
+- Every new rule extends `Rule` and returns `EvaluationResult`.
+- Single-stock concentration excludes ETFs and mutual funds.
+- Sector/country grouping correctly splits multi-sector/country holdings.
+- Target-deviation rule does not run, and does not fail, when no target is set.
+
+### Tests
+
+Diversified ETF is not flagged by single-stock concentration; a holding split
+70/30 across two sectors contributes proportionally to each bucket; volatility and
+cash allocation both fail correctly above and below their bands; target deviation
+returns no result with no target configured.
+
+### Dependencies
+
+None — builds directly on the existing rule engine.
+
+### Out of Scope
+
+Health score aggregation (Issue 2), warning severity (Issue 5), API endpoints
+(Issue 7).
+
+### Design Sources
+
+`docs/sesha-notes/01-xray-current-logic.md`,
+`docs/sesha-notes/03-concentration-formula-spec.md`,
+`docs/sesha-notes/04-volatility-cash-allocation-spec.md`,
+`docs/sesha-notes/05-deviation-from-target-allocation-spec.md`
+
+---","- Every new rule extends `Rule` and returns `EvaluationResult`.
+- Single-stock concentration excludes ETFs and mutual funds.
+- Sector/country grouping correctly splits multi-sector/country holdings.
+- Target-deviation rule does not run, and does not fail, when no target is set.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:05Z)
+US-19,19,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/19,[Risk][Iteration 2] Build the weighted Portfolio Health Score calculator,"### Goal
+
+Aggregate every active rule's pass/fail result into one 0-100 score, using the
+category and rule weights from the Sep 16 data model. This is the piece the
+Iteration 2/3 plan does not otherwise schedule a build slot for — flagged during
+Iteration 1's retrospective prep.
+
+### Scope
+
+- `HealthScoreCalculator` service: `score = (sum of weights of PASSED active
+  rules) / (sum of weights of ALL active rules) × 100`.
+- Inactive rules excluded from both sides of the fraction, so weights renormalize.
+- Category sub-scores using the same formula, scoped to one category.
+- `score: null` with a reason when zero rules are active.
+- Grade letter (A/B/C/D/F) derived from the score, not stored separately.
+
+### Implementation Notes
+
+Consumes only the existing `RuleInterface` output — no changes to individual
+rule logic. Should be usable by the summary endpoint, the full score endpoint,
+and the what-if simulator (Issue 6) without three separate implementations.
+
+Likely touch: new `apps/api/src/app/risk/` module (per
+`project-docs/target-architecture.md`).
+
+### Acceptance Criteria
+
+- Score matches the hand-worked example in `02-health-score-data-model.md`.
+- Turning off a rule never lowers the score for a portfolio that would otherwise pass.
+- Zero active rules produces `null`, not `0` or `100`.
+
+### Tests
+
+All rules pass (100); mixed pass/fail matches the weighted formula by hand;
+all rules inactive returns null; one category fully excluded (e.g. no holdings)
+does not corrupt other categories' weights.
+
+### Dependencies
+
+Issue 1 (rule types must exist to be aggregated).
+
+### Out of Scope
+
+Severity bands (Issue 5), API surface (Issue 7).
+
+### Design Source
+
+`docs/sesha-notes/02-health-score-data-model.md`
+
+---","- Score matches the hand-worked example in `02-health-score-data-model.md`.
+- Turning off a rule never lowers the score for a portfolio that would otherwise pass.
+- Zero active rules produces `null`, not `0` or `100`.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:07Z)
+US-20,20,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/20,[Risk][Iteration 2] Precompute portfolio volatility and covariance data nightly,"### Goal
+
+Move the expensive N×N covariance calculation out of the request path into a
+scheduled job, so `PortfolioVolatility` (Issue 1) and the what-if simulator
+(Issue 6) can read a cached value instead of recomputing it per request.
+
+### Scope
+
+- Nightly job computing annualized per-holding volatility and the covariance
+  matrix from `MarketData.marketPrice` history (90-day lookback default).
+- Cache keyed so the what-if simulator can recompute portfolio-level volatility
+  from new weights without redoing the covariance matrix itself.
+- Graceful `NO_DATA` / `skippedRules` behavior when a symbol has under ~20 days
+  of history.
+
+### Implementation Notes
+
+Reuses existing `MarketData` — no new data collection. Should follow the same
+scheduling pattern as other existing nightly market-data jobs in the codebase.
+
+### Acceptance Criteria
+
+- A full covariance matrix, not a naive weighted average, is used for portfolio
+  volatility, so diversification correctly lowers the estimate.
+- A stale or missing cache degrades to `NO_DATA` rather than blocking the score.
+
+### Tests
+
+Two negatively-correlated holdings produce lower portfolio volatility than either
+alone; a newly-added symbol with 5 days of history returns `NO_DATA`, not a
+misleadingly precise number.
+
+### Dependencies
+
+None directly, but Issue 1's `PortfolioVolatility` rule and Issue 6's what-if
+engine both read this cache.
+
+### Out of Scope
+
+Risk-tolerance-adjusted bands (open question, not in Iteration 2 v1).
+
+### Design Source
+
+`docs/sesha-notes/04-volatility-cash-allocation-spec.md`, Section 2.5
+
+---","- A full covariance matrix, not a naive weighted average, is used for portfolio
+  volatility, so diversification correctly lowers the estimate.
+- A stale or missing cache degrades to `NO_DATA` rather than blocking the score.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:09Z)
+US-21,21,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/21,[Risk][Iteration 2] Store and validate user-defined target allocation,"### Goal
+
+Let a user optionally set a target allocation (by asset class, sector, country,
+currency or symbol), stored the same way X-Ray rule thresholds already are.
+
+### Scope
+
+- `user.settings.targetAllocation` shape: `isActive`, `groupBy`, `targets[]`.
+- Validation: percentages sum to 1 (0.0001 tolerance), no duplicate keys, every
+  key valid for the chosen `groupBy`, rejected (not silently rescaled) on failure.
+- No new Prisma table/migration.
+
+### Implementation Notes
+
+Follows the exact settings pattern `xRayRules` already uses on `User.settings`.
+
+### Acceptance Criteria
+
+- Invalid sums are rejected with a clear error, not auto-normalized.
+- Buckets held but not present in the target are treated as an implicit 0%
+  target by the deviation rule (Issue 1), not silently ignored.
+
+### Tests
+
+Sum = 0.9999 accepted (tolerance); sum = 0.9 rejected; unknown `groupBy` key
+rejected; deleting the target makes the deviation rule stop running entirely.
+
+### Dependencies
+
+None.
+
+### Out of Scope
+
+The deviation calculation itself (Issue 1).
+
+### Design Source
+
+`docs/sesha-notes/05-deviation-from-target-allocation-spec.md`, Section 2
+
+---","- Invalid sums are rejected with a clear error, not auto-normalized.
+- Buckets held but not present in the target are treated as an implicit 0%
+  target by the deviation rule (Issue 1), not silently ignored.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:12Z)
+US-22,22,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/22,[Risk][Iteration 2] Add yellow/red severity thresholds on top of existing pass/fail,"### Goal
+
+Turn each rule's binary pass/fail into a three-level severity (plus `NO_DATA`),
+without introducing a second, disconnected threshold concept.
+
+### Scope
+
+- Add `redThresholdMax`/`redThresholdMin` alongside the existing
+  `thresholdMax`/`thresholdMin` in `RuleSettings`.
+- Severity logic: ceiling rules (concentration, target deviation) vs band rules
+  (volatility, cash allocation) per the Sep 22 formulas.
+- Health score severity bands (80/60 cutoffs) on the aggregate score.
+- `RiskWarning` generation, sorted worst-first, with the message templates from
+  the design doc.
+- `topConcentrationRisk` tie-break logic for the dashboard summary field.
+
+### Implementation Notes
+
+The invariant to preserve: a rule fails if and only if its severity is yellow or
+red — the yellow line is always the existing pass/fail threshold, never a
+separate number.
+
+### Acceptance Criteria
+
+- Existing `thresholdMax` continues to determine pass/fail exactly as it does today.
+- Single-stock concentration example from the proposal (25% red) and the Sep 17
+  spec (10% yellow) are both correct simultaneously.
+- Validation rejects thresholds in the wrong order (e.g. `redMax` below `max`).
+
+### Tests
+
+Value exactly on the yellow line stays green (per ""fail if above,"" not
+""at or above""); a value between yellow and red is yellow; band rule below the
+red-min edge is red; invalid threshold ordering is rejected on save.
+
+### Dependencies
+
+Issue 1 (rules must exist), Issue 2 (score severity bands apply to the aggregate).
+
+### Out of Scope
+
+Frontend rendering of severity badges (Iteration 3, Issue 9).
+
+### Design Source
+
+`docs/sesha-notes/07-warning-threshold-rules.md`
+
+---","- Existing `thresholdMax` continues to determine pass/fail exactly as it does today.
+- Single-stock concentration example from the proposal (25% red) and the Sep 17
+  spec (10% yellow) are both correct simultaneously.
+- Validation rejects thresholds in the wrong order (e.g. `redMax` below `max`).",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:14Z)
+US-23,23,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/23,[Risk][Iteration 2] Build the what-if (holding drop) simulation engine,"### Goal
+
+Let a user simulate one holding dropping by X% and see the before/after impact
+on portfolio value and the health score, without touching real data.
+
+### Scope
+
+- Pure function: copy holdings, shrink one holding's value, recompute weights
+  for every holding in the copy, re-run Issue 1's rules and Issue 2's calculator
+  on the copy.
+- Split rules into value-based (re-evaluated) vs investment/fee-based (left
+  unchanged) per the Sep 23 doc's table.
+- Result includes `ruleChanges`, `newWarnings`, `resolvedWarnings`,
+  `changedWarnings` — not just a before/after score.
+
+### Implementation Notes
+
+Must reuse Issue 1's rule classes and Issue 2's calculator directly — no
+parallel scoring logic that could drift from the real score.
+
+### Acceptance Criteria
+
+- Running the same request twice gives the same answer (pure, no side effects).
+- The worked example (40% AAPL drop pushing MSFT from yellow to red because the
+  total shrank) reproduces exactly.
+- Fee-ratio and buying-power rules are listed as unaffected, not silently rerun.
+
+### Tests
+
+Reproduce the worked example from `08-what-if-simulation-structure.md` Section 7
+exactly; 100% drop zeroes the holding without erroring; invalid `dropPercentage`
+(0, negative, above 1) is rejected; missing volatility cache lists that rule
+under `skippedRules` instead of failing the whole simulation.
+
+### Dependencies
+
+Issue 1, Issue 2, Issue 3 (volatility cache), Issue 5 (severity for
+`ruleChanges`).
+
+### Out of Scope
+
+What-if UI (Iteration 3, Issue 9).
+
+### Design Source
+
+`docs/sesha-notes/08-what-if-simulation-structure.md`
+
+---","- Running the same request twice gives the same answer (pure, no side effects).
+- The worked example (40% AAPL drop pushing MSFT from yellow to red because the
+  total shrank) reproduces exactly.
+- Fee-ratio and buying-power rules are listed as unaffected, not silently rerun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:17Z)
+US-24,24,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/24,"[Risk][Iteration 2] Implement the risk API contract (summary, score, warnings, concentration, target-allocation, thresholds, what-if)","### Goal
+
+Implement the eleven endpoints specified in the Sep 25 API contract as a new
+`risk` module following the target architecture.
+
+### Scope
+
+- `apps/api/src/app/risk/`: `risk.controller.ts`, `risk.module.ts`,
+  `risk.service.ts`, plus DTOs per endpoint (`get-risk-warnings.dto.ts`,
+  `update-target-allocation.dto.ts`, `run-what-if.dto.ts`, etc.).
+- Auth matching existing patterns: `portfolio:read` scope for reads,
+  `portfolio:read:values` for money fields, `updateUserSettings` for writes.
+- All error codes from the contract's Section 7.
+
+### Implementation Notes
+
+Depends on the shared `{ data, meta, error }` response envelope existing
+somewhere in the codebase first — this does not exist yet anywhere in the
+current implementation (verified while writing the contract) and needs to be
+built as shared infrastructure, not duplicated per module. Flagging as a
+blocking dependency rather than building a risk-only version of it.
+
+### Acceptance Criteria
+
+- Every endpoint in the contract exists with the exact request/response shape specified.
+- Restricted-view users get `null` money values but real percentages/severities.
+- Basic-subscription gating matches the existing X-Ray report's behavior
+  (rules hidden, score visible) pending the open question in the contract.
+
+### Tests
+
+One test per endpoint against its documented example payload; restricted-view
+and Basic-subscription variants; every documented error code triggers correctly.
+
+### Dependencies
+
+Issues 1, 2, 4, 5, 6. **Blocked on:** the shared response envelope
+(interceptor + exception filter), owned by Raniya's architecture work per the
+API contract's Section 10.
+
+### Out of Scope
+
+Frontend consumption (Iteration 3).
+
+### Design Source
+
+`docs/sesha-notes/10-risk-api-contract.md`
+
+---","- Every endpoint in the contract exists with the exact request/response shape specified.
+- Restricted-view users get `null` money values but real percentages/severities.
+- Basic-subscription gating matches the existing X-Ray report's behavior
+  (rules hidden, score visible) pending the open question in the contract.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:19Z)
+US-25,25,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/25,[Risk][Iteration 2] Unit test suite for the risk engine (Week 4 wrap-up),"### Goal
+
+Cover the full risk engine with unit tests before Iteration 3 builds UI on top
+of it, per the Iteration 2 Week 4 plan (""Unit tests for risk engine; write up
+results"").
+
+### Scope
+
+Test suites for every rule in Issue 1, the health score calculator (Issue 2),
+severity logic (Issue 5), and the what-if engine (Issue 6), using the worked
+examples already documented in each design doc as the source of expected values.
+
+### Implementation Notes
+
+Every design doc under `docs/sesha-notes/03` through `08` already contains at
+least one hand-worked numeric example specifically so it can be turned directly
+into a test case.
+
+### Acceptance Criteria
+
+Every worked example in the design docs has a corresponding passing test.
+
+### Dependencies
+
+Issues 1, 2, 5, 6.
+
+### Out of Scope
+
+Integration tests against the live API (covered by Raniya's cross-feature
+integration suite, per `project-docs/target-architecture.md`).
+
+### Design Sources
+
+`docs/sesha-notes/02` through `08`, ""worked example"" sections.
+
+---",Every worked example in the design docs has a corresponding passing test.,risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:22Z)
+US-26,26,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/26,[Risk][Iteration 3] Build the risk dashboard as React components,"### Goal
+
+Implement the wireframed risk dashboard (score gauge, category bars, warnings,
+concentration panel, volatility/cash cards, target-allocation card, what-if
+panel, threshold settings) as React components wired to the Issue 7 endpoints.
+
+### Scope
+
+Components listed in `09-risk-dashboard-wireframe.md` Section 8:
+`RiskScoreGauge`, `CategoryScoreBar`, `WarningList`, `ConcentrationPanel`,
+`MetricCard`, `TargetAllocationCard`, `WhatIfPanel`/`WhatIfResult`,
+`ThresholdSettingsForm`. Requests `SeverityBadge` and `BandMeter` as shared
+components from Raniya's component library rather than building risk-only
+copies.
+
+### Implementation Notes
+
+Every screen state in Section 5 of the wireframe doc (loading, empty portfolio,
+no active rules, no target set, `NO_DATA`, restricted view, Basic subscription,
+API error) must be handled, not only the happy path.
+
+### Acceptance Criteria
+
+Every component's data maps to the exact API field listed in the wireframe's
+Section 4 table; no displayed value lacks a backing field.
+
+### Dependencies
+
+Issue 7 (API must exist first). `SeverityBadge`/`BandMeter` from Raniya's
+shared component library.
+
+### Out of Scope
+
+Backend logic (Issues 1-8, already complete by Iteration 3).
+
+### Design Source
+
+`docs/sesha-notes/09-risk-dashboard-wireframe.md`","Every component's data maps to the exact API field listed in the wireframe's
+Section 4 table; no displayed value lacks a backing field.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 3 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-09-30T14:57:25Z)
+US-30,30,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/30,[Risk][Mon Oct 5] ConcentrationRule — single stock: evaluate(settings) with numeric tests,"Build the single-stock concentration rule. `evaluate(settings)` returns the holding's percentage of portfolio and a pass/fail status. Numeric unit tests, e.g. a 30% holding against a 25% limit.
+
+Parent spec: #18 (concentration/volatility/cash/target-deviation rule types), `docs/sesha-notes/03-concentration-formula-spec.md`.
+Definition of Done: merged PR linked to this issue (""Closes #<n>""), numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue (""Closes #<n>""), numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done,Iteration 2 (per issue title),Iteration 2 (closed 2026-10-05T18:04:15Z),"NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:13Z, closed 2026-10-05T18:04:15Z)"
+US-31,31,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/31,[Risk][Tue Oct 6] Replace placeholder risk.service.spec.ts; sector + country concentration calculators,"Replace the placeholder `apps/api/src/app/risk/risk.service.spec.ts` (currently `expect(true).toBe(true)`, added in PR #29) with real tests. Add sector and country concentration calculators with numeric tests covering the proportional multi-sector/country split.
+
+Parent spec: #18, `docs/sesha-notes/03-concentration-formula-spec.md` Section 4.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done,Iteration 2 (per issue title),Iteration 2 (closed 2026-10-06T15:58:20Z),"NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:16Z, closed 2026-10-06T15:58:20Z)"
+US-32,32,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/32,[Risk][Wed Oct 7] Currency and asset-class exposure calculators (multi-currency tests),"Currency and asset-class exposure calculators. Unit tests including a multi-currency portfolio.
+
+Parent spec: #18, `docs/sesha-notes/01-xray-current-logic.md` (existing currency rule), `docs/sesha-notes/04-volatility-cash-allocation-spec.md`.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done (closed 2026-10-09T03:13:30Z via PR #77),Iteration 2 (per issue title),Iteration 2,"2026-10-08: closed via merged PR #77 (see gaps.md item 7 re: per-issue edit history not pulled)"
+US-33,33,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/33,[Risk][Thu Oct 8] ExposureService: combine concentration + exposure into RiskSummary,"ExposureService combining concentration (Oct 5-6) and exposure (Oct 7) calculators into one RiskSummary. Integration test.
+
+Parent spec: #19 (health score calculator).
+Definition of Done: merged PR linked to this issue, integration test passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, integration test passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done (closed 2026-10-09T03:46:59Z via PR #88),Iteration 2 (per issue title),Iteration 2,"2026-10-08: closed via merged PR #88 (see gaps.md item 7 re: per-issue edit history not pulled)"
+US-34,34,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/34,[Risk][Fri Oct 9] Volatility input model: returns series + standard-deviation function,"Volatility input model: returns series + window parameter, and a standard-deviation function. Tests against a known series with a hand-computable expected value.
+
+Parent spec: #20 (precompute volatility/covariance), `docs/sesha-notes/04-volatility-cash-allocation-spec.md` Section 2.2.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:21Z)
+US-35,35,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/35,[Risk][Mon Oct 12] VolatilityRule.evaluate(settings) -> RuleScore against thresholds,"VolatilityRule.evaluate(settings) -> RuleScore, checked against the band thresholds (yellow/red per docs/sesha-notes/07). Tests.
+
+Parent spec: #18, #20, #22 (severity thresholds).
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:24Z)
+US-36,36,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/36,[Risk][Tue Oct 13] CashAllocationRule.evaluate() with scoring bands,"CashAllocationRule.evaluate() with scoring bands (2%-15% green, per docs/sesha-notes/04). Tests.
+
+Parent spec: #18.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:26Z)
+US-37,37,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/37,[Risk][Wed Oct 14] TargetDeviationRule + TargetAllocation input (no-op with no target set),"TargetDeviationRule plus the TargetAllocation settings input. Rule must not run (not even fail) when the user has no target set — this is the one category optional at the data level, not just toggle level.
+
+Parent spec: #18, #21 (target allocation storage), `docs/sesha-notes/05-deviation-from-target-allocation-spec.md`.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI (including the no-target-set case), reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI (including the no-target-set case), reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:27Z)
+US-38,38,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/38,"[Risk][Thu Oct 15] HealthScoreCalculator.calculate(results, weights)","HealthScoreCalculator.calculate(results, weights). ""No active rules"" must return score: null with a reason, never a fake 100.
+
+Parent spec: #19, `docs/sesha-notes/02-health-score-data-model.md`.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI (including the zero-active-rules case), reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI (including the zero-active-rules case), reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:30Z)
+US-39,39,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/39,[Risk][Fri Oct 16] WarningThreshold model with defaults and validation,"WarningThreshold model with defaults (e.g. >25% in one stock = red) and validation (yellow line must sit below red line, etc). Tests.
+
+Parent spec: #22, `docs/sesha-notes/07-warning-threshold-rules.md`.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:32Z)
+US-40,40,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/40,[Risk][Mon Oct 19] Threshold engine -> warnings with red/yellow/green severity,"Threshold engine that turns rule results into warnings with green/yellow/red severity. Tests.
+
+Parent spec: #22.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:34Z)
+US-41,41,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/41,"[Risk][Tue Oct 20] What-if simulator: copy holdings, apply drop-by-X% shock","What-if simulator: copy holdings, apply a drop-by-X% shock to one holding, recompute weights on the copy. Must never mutate real data. Tests, including the worked example from docs/sesha-notes/08 (40% AAPL drop pushing MSFT from yellow to red).
+
+Parent spec: #23, `docs/sesha-notes/08-what-if-simulation-structure.md`.
+Definition of Done: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, numeric unit tests passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:36Z)
+US-42,42,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/42,[Risk][Wed Oct 21] What-if endpoint: recompute health score on the shocked copy,"What-if endpoint: recompute the health score on the shocked copy, report ruleChanges/newWarnings/resolvedWarnings/changedWarnings per the Sep 25 API contract. Integration test.
+
+Parent spec: #23, #24 (risk API contract), `docs/sesha-notes/10-risk-api-contract.md` Section 6.11.
+Definition of Done: merged PR linked to this issue, integration test passing in CI, reviewed by Tharun.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, integration test passing in CI, reviewed by Tharun.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:39Z)
+US-43,43,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/43,"[Risk][Thu Oct 22] Volatility cache refresh job (Redis, TTL)","Volatility cache refresh job (Redis, TTL) — the nightly precomputation job that makes PortfolioVolatility and the what-if simulator cheap to evaluate per-request. Tests.
+
+Parent spec: #20, `docs/sesha-notes/04-volatility-cash-allocation-spec.md` Section 2.5.
+Definition of Done: merged PR linked to this issue, tests passing in CI, review comments addressed.","No explicit ""Acceptance Criteria"" section; Definition of Done line: merged PR linked to this issue, tests passing in CI, review comments addressed.",risk,Sesha Siva Sankar (sesha456),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T12:07:41Z)
+US-45,45,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/45,[Tax][Iteration 2] Close DR-1–3 and create Scrum notes template,"## Goal
+
+Complete the Oct 2 Iteration 2 tax/process task before tax implementation begins.
+
+## Scope
+
+- Create `project-docs/iteration-2/scrum-notes.md`.
+- Write tax decision record DR-1–3:
+  - DR-1 — net-dividend nullability
+  - DR-2 — currency handling
+  - DR-3 — same-date ordering tie-breaker
+- File the first tax implementation issues:
+  - withholding-tax support
+  - FIFO capital-gains engine
+- Keep this task documentation/process-only.
+
+## Acceptance Criteria
+
+- DR-1–3 each contain:
+  - decision
+  - rationale
+  - consequences
+  - implementation impact
+  - test impact
+- Scrum notes template contains:
+  - date
+  - attendance
+  - merged PR links
+  - current issue/task
+  - blockers
+  - next actions
+  - CI/evidence links
+- Withholding and FIFO implementation issues exist in GitHub.
+- PR links this issue.
+- Arthur is requested as reviewer.
+- No tax calculation code is implemented before DR-1–6 are closed.
+
+## Testing
+
+Documentation-only task.
+
+Before commit:
+
+`git diff --cached --check`
+
+## Out of Scope
+
+- Prisma migration
+- withholding persistence implementation
+- FIFO implementation
+- DR-4–6, which are scheduled for Oct 5","- DR-1–3 each contain:
+  - decision
+  - rationale
+  - consequences
+  - implementation impact
+  - test impact
+- Scrum notes template contains:
+  - date
+  - attendance
+  - merged PR links
+  - current issue/task
+  - blockers
+  - next actions
+  - CI/evidence links
+- Withholding and FIFO implementation issues exist in GitHub.
+- PR links this issue.
+- Arthur is requested as reviewer.
+- No tax calculation code is implemented before DR-1–6 are closed.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done,Iteration 2 (per issue title),Iteration 2 (closed 2026-10-03T14:56:47Z),"NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T15:05:03Z, closed 2026-10-03T14:56:47Z)"
+US-46,46,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/46,[Tax][Tue Oct 6] Add nullable withholdingTax to Order and DTOs,"## Goal
+
+Add the source withholding-tax field required for dividend tax analytics.
+
+## Scope
+
+- Add nullable `withholdingTax` to Prisma `Order`.
+- Create the database migration.
+- Add the field to `CreateOrderDto`.
+- Add the field to `UpdateOrderDto`.
+- Preserve:
+  - `null` = unknown withholding
+  - `0` = known no withholding
+- Keep the value in the activity transaction currency.
+- Add migration/schema-focused tests.
+
+## Acceptance Criteria
+
+- Existing activities remain valid after migration.
+- `withholdingTax = null` is valid.
+- `withholdingTax = 0` remains distinct from null.
+- Positive withholding values are accepted for dividend activities.
+- DTO validation allows optional non-negative withholding.
+- No net-dividend value is persisted.
+- Migration/test coverage is included.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.
+
+## Dependencies
+
+- DR-1–3: #45
+- DR-4–6 must be closed on Oct 5 before tax coding begins.
+
+## Out of Scope
+
+- withholding persistence service behavior
+- `DividendRecord`
+- FIFO calculations
+- frontend controls
+
+## Design Source
+
+`project-docs/iteration-1/tax/withholding-tax-schema.md`","- Existing activities remain valid after migration.
+- `withholdingTax = null` is valid.
+- `withholdingTax = 0` remains distinct from null.
+- Positive withholding values are accepted for dividend activities.
+- DTO validation allows optional non-negative withholding.
+- No net-dividend value is persisted.
+- Migration/test coverage is included.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done,Iteration 2 (per issue title),Iteration 2 (closed 2026-10-07T01:09:24Z),"NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T15:22:09Z, closed 2026-10-07T01:09:24Z)"
+US-47,47,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/47,[Tax][Fri Oct 9] Implement FIFO ordering and TaxLot creation,"## Goal
+
+Implement the first FIFO calculation step using deterministic source ordering
+and BUY-derived tax lots.
+
+## Scope
+
+- Consume normalized eligible BUY/SELL activities.
+- Order activities by:
+  - date ascending
+  - activity id ascending
+- Create FIFO `TaxLot` state from eligible BUY activities.
+- Preserve source BUY activity ids.
+- Preserve quantity, acquisition date, currency, and scope information.
+- Add numeric unit tests including same-date ties.
+
+## Acceptance Criteria
+
+- BUY activities create deterministic FIFO lots.
+- Same-date activities always resolve by activity id.
+- Repeated execution produces the same lot ordering.
+- Source activity ids remain traceable.
+- Fractional quantities are supported.
+- No SELL lot consumption is implemented in this issue.
+- Numeric tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.
+
+## Dependencies
+
+- DR-1–6 closed before coding.
+- shared tax normalization/source contract
+- withholding/source-field work does not change FIFO ordering
+
+## Out of Scope
+
+- partial SELL consumption
+- realized gain calculation
+- average cost
+- tax-lot API endpoint
+
+## Design Source
+
+`project-docs/iteration-1/tax/fifo-capital-gains-spec.md`","- BUY activities create deterministic FIFO lots.
+- Same-date activities always resolve by activity id.
+- Repeated execution produces the same lot ordering.
+- Source activity ids remain traceable.
+- Fractional quantities are supported.
+- No SELL lot consumption is implemented in this issue.
+- Numeric tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-02T15:22:22Z)
+US-52,52,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/52,[Tax][Mon Oct 5] Close DR-4–6 and file remaining tax issues,"## Goal
+
+Complete the Oct 5 Iteration 2 tax decision gate so backend implementation can
+start on Oct 6.
+
+## Scope
+
+- Close DR-4 — fee treatment.
+- Close DR-5 — average-cost pool scope.
+- Close DR-6 — rounding / decimal-safe calculation rule.
+- Update `project-docs/iteration-2/tax-decision-record.md`.
+- Update `project-docs/iteration-2/scrum-notes.md`.
+- File all remaining Iteration 2 tax implementation issues.
+
+## Acceptance Criteria
+
+- DR-4–6 each document decision, rationale, consequences, implementation impact
+  and test impact.
+- Gross and fee-adjusted tax values remain separate.
+- Average-cost scope follows the Iteration 2 sprint plan:
+one pool per user + asset (userId + symbolProfileId).
+The decision record explains that this supersedes the provisional
+Iteration 1 account-aware average-cost proposal.
+- Calculations are decimal-safe and do not round intermediate values.
+- Remaining tax issues exist in GitHub.
+- No tax implementation code is added in this PR.
+- `git diff --cached --check` is clean.
+- Arthur reviews the PR.
+- PR is merged to main.
+
+## Dependencies
+
+- #45 / PR #48 — DR-1–3 and Scrum notes setup.
+- Iteration 1 tax specifications.
+
+## Out of Scope
+
+- withholding implementation (#46)
+- FIFO implementation (#47)
+- frontend work","- DR-4–6 each document decision, rationale, consequences, implementation impact
+  and test impact.
+- Gross and fee-adjusted tax values remain separate.
+- Average-cost scope follows the Iteration 2 sprint plan:
+one pool per user + asset (userId + symbolProfileId).
+The decision record explains that this supersedes the provisional
+Iteration 1 account-aware average-cost proposal.
+- Calculations are decimal-safe and do not round intermediate values.
+- Remaining tax issues exist in GitHub.
+- No tax implementation code is added in this PR.
+- `git diff --cached --check` is clean.
+- Arthur reviews the PR.
+- PR is merged to main.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done,Iteration 2 (per issue title),Iteration 2 (closed 2026-10-06T03:59:07Z),"NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T17:53:40Z, closed 2026-10-06T03:59:07Z)"
+US-53,53,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/53,[Tax][Fri Oct 16] Implement average-cost running pool,"## Goal
+
+Implement the average-cost pool state using the DR-5 decision that the pool is scoped per user + asset.
+
+## Scope
+
+- Group eligible BUY/SELL activities by:
+  - `userId`
+  - `symbolProfileId`
+- Maintain:
+  - pooled quantity
+  - gross cost
+  - acquisition-fee pool
+- BUY activities increase:
+  - quantity
+  - gross cost
+  - acquisition-fee pool
+- Preserve source activity ids.
+- Use deterministic activity ordering:
+  - date ascending
+  - activity id ascending
+- Use `Big` for decimal-safe calculations.
+- Add numeric unit tests.
+- Include a case where the same asset exists across multiple accounts.
+
+## Acceptance Criteria
+
+- Same user + same asset shares one average-cost pool across accounts.
+- Different assets never share a pool.
+- Different users never share a pool.
+- BUY activities update quantity, gross cost, and acquisition-fee pool correctly.
+- No intermediate rounding is applied.
+- Results are deterministic across repeated runs.
+- Numeric unit tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.
+
+## Dependencies
+
+- DR-1–6 closed in issue #52.
+- Shared tax source normalization.
+- Shared API/data contracts.
+
+## Out of Scope
+
+- SELL realized-gain calculation.
+- FIFO calculations.
+- Frontend work.
+- Jurisdiction-specific tax rules.","- Same user + same asset shares one average-cost pool across accounts.
+- Different assets never share a pool.
+- Different users never share a pool.
+- BUY activities update quantity, gross cost, and acquisition-fee pool correctly.
+- No intermediate rounding is applied.
+- Results are deterministic across repeated runs.
+- Numeric unit tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T18:27:17Z)
+US-54,54,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/54,[Tax][Wed Oct 21] Add derived tax-lot tracker and view endpoint,"## Goal
+
+Add a traceable tax-lot tracker for FIFO results without creating a second persisted source of truth.
+
+## Scope
+
+- Derive tax lots from source BUY activities.
+- Track lot status as:
+  - open
+  - partially consumed
+  - closed
+- Preserve source BUY activity ids.
+- Preserve related SELL activity ids for consumed quantities.
+- Track:
+  - original quantity
+  - consumed quantity
+  - remaining quantity
+  - acquisition date
+  - currency
+- Expose backend behavior for viewing tax lots.
+- Recalculate derived lot state from source activities when relevant activity data changes.
+- Add numeric unit tests.
+
+## Acceptance Criteria
+
+- Open, partially consumed, and closed lot states are numerically correct.
+- Lot state remains traceable to source activities.
+- Derived tax-lot state is not persisted as a second authoritative transaction source.
+- Partial-consumption tests pass.
+- Full-consumption tests pass.
+- Remaining quantity reconciles correctly.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.
+
+## Dependencies
+
+- FIFO engine.
+- DR-1–6 closed in issue #52.
+- Shared tax calculation contracts.
+
+## Out of Scope
+
+- React tax-lot screen.
+- Average-cost fake lots.
+- Jurisdiction-specific lot-selection rules.","- Open, partially consumed, and closed lot states are numerically correct.
+- Lot state remains traceable to source activities.
+- Derived tax-lot state is not persisted as a second authoritative transaction source.
+- Partial-consumption tests pass.
+- Full-consumption tests pass.
+- Remaining quantity reconciles correctly.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T18:27:37Z)
+US-55,55,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/55,[Tax][Thu Oct 22] Add tax-relevant activity flag and filtering,"## Goal
+
+Allow activities to be excluded from tax analytics without changing normal portfolio behavior.
+
+## Scope
+
+- Add `Order.isTaxRelevant Boolean @default(true)`.
+- Add support to create/update DTOs.
+- Preserve the current value when an update omits `isTaxRelevant`.
+- Apply the flag only to tax analytics.
+- Keep the existing Draft, Exclude from Analysis, and excluded-account behavior intact.
+- Exclude synthetic cash from tax calculations.
+- Add tax filtering behavior for BUY, SELL, and DIVIDEND activities.
+- Add a diagnostic when excluded historical BUY/SELL activity can make later tax calculations incomplete.
+- Add tests.
+
+## Acceptance Criteria
+
+- Existing rows behave as `isTaxRelevant = true`.
+- Explicit `false` excludes the activity from tax analytics only.
+- Normal portfolio calculations are unchanged.
+- Update operations that omit the flag preserve the existing value.
+- Tax filtering is deterministic.
+- Synthetic cash is not treated as tax activity.
+- Historical exclusion warnings are produced where required.
+- Tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.
+
+## Dependencies
+
+- Tax source normalization.
+- DR-1–6 closed in issue #52.
+
+## Out of Scope
+
+- React tax-relevant toggle.
+- Jurisdiction-specific taxable-event classification.
+- Changes to generic Exclude from Analysis behavior.","- Existing rows behave as `isTaxRelevant = true`.
+- Explicit `false` excludes the activity from tax analytics only.
+- Normal portfolio calculations are unchanged.
+- Update operations that omit the flag preserve the existing value.
+- Tax filtering is deterministic.
+- Synthetic cash is not treated as tax activity.
+- Historical exclusion warnings are produced where required.
+- Tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T18:27:55Z)
+US-56,56,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/56,[Tax][Fri Oct 23] Implement YearlyTaxSummary with numeric tests,"## Goal
+
+Implement a yearly tax summary that aggregates dividend, withholding, and realized-gain results while preserving historical acquisition basis.
+
+## Scope
+
+- Accept:
+  - requested year
+  - tax calculation method
+- Load acquisition history from the beginning through the selected year end.
+- Run the selected cost-basis method before filtering yearly realized results.
+- Include only realized SELL results belonging to the selected year in the yearly summary.
+- Aggregate:
+  - total gross dividends
+  - total withholding tax
+  - total net dividends
+  - gross proceeds
+  - gross cost basis
+  - gross realized gain
+  - allocated fees
+  - fee-adjusted realized gain
+  - counts
+  - completeness
+  - warnings/errors
+- Preserve null vs zero.
+- Keep detail rows traceable to source activities.
+- Add numeric unit tests.
+
+## Acceptance Criteria
+
+- Cross-year BUY/SELL basis is correct.
+- Historical BUYs before the selected year can contribute basis to SELLs inside the selected year.
+- Empty year returns valid known-zero totals when no error exists.
+- Unknown withholding remains unavailable rather than becoming zero.
+- Missing FX marks relevant base-currency results incomplete.
+- Detail rows reconcile exactly to summary totals.
+- Numeric tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.
+
+## Dependencies
+
+- FIFO and/or average-cost calculation results.
+- DividendRecord.
+- Tax-relevant filtering.
+- DR-1–6 closed in issue #52.
+
+## Out of Scope
+
+- Dashboard UI.
+- React yearly-summary screen.
+- Official tax filing rules.","- Cross-year BUY/SELL basis is correct.
+- Historical BUYs before the selected year can contribute basis to SELLs inside the selected year.
+- Empty year returns valid known-zero totals when no error exists.
+- Unknown withholding remains unavailable rather than becoming zero.
+- Missing FX marks relevant base-currency results incomplete.
+- Detail rows reconcile exactly to summary totals.
+- Numeric tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T18:28:16Z)
+US-57,57,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/57,[Tax][Mon Oct 26] Implement CSV tax export with golden-file test,"## Goal
+
+Generate deterministic CSV tax exports from the existing yearly tax summary and trace results without recalculating tax values.
+
+## Scope
+
+- Consume `YearlyTaxSummary`.
+- Consume method-specific trace data.
+- Support typed CSV records:
+  - SUMMARY
+  - DIVIDEND
+  - REALIZED_GAIN
+  - FIFO_MATCH
+  - AVERAGE_COST_EVENT
+  - WARNING
+  - ERROR
+- Use a fixed column order.
+- Preserve null vs zero.
+- Preserve incomplete-result diagnostics.
+- Keep row ordering deterministic.
+- Use plain decimal values.
+- Reuse the repository's existing CSV tooling where practical.
+- Add a golden-file test.
+- Add reconciliation tests.
+
+## Acceptance Criteria
+
+- CSV totals exactly match the source yearly summary.
+- CSV generation does not recalculate tax values.
+- FIFO match rows do not double-count sale totals.
+- Unknown values are not written as zero.
+- Row order and column order are deterministic.
+- Golden-file test passes.
+- Reconciliation tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.
+
+## Dependencies
+
+- YearlyTaxSummary.
+- FIFO / average-cost trace data.
+- Shared decimal serialization conventions.
+
+## Out of Scope
+
+- PDF export.
+- XLSX export.
+- Official government tax forms.
+- Frontend download controls.","- CSV totals exactly match the source yearly summary.
+- CSV generation does not recalculate tax values.
+- FIFO match rows do not double-count sale totals.
+- Unknown values are not written as zero.
+- Row order and column order are deterministic.
+- Golden-file test passes.
+- Reconciliation tests pass.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T18:28:32Z)
+US-58,58,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/58,[Tax][Tue Oct 27] Implement PDF tax export and tax export tests,"## Goal
+
+Generate a human-readable PDF tax report from the same yearly tax results used by the CSV export.
+
+## Scope
+
+- Consume `YearlyTaxSummary`.
+- Consume method-specific trace data.
+- Include:
+  - report metadata
+  - yearly summary
+  - dividend details
+  - realized-gain details
+  - FIFO or average-cost trace section
+  - warnings/errors
+  - incomplete-report notice
+  - report note
+- Preserve unavailable/null values.
+- Keep all tax calculations outside the PDF renderer.
+- Add PDF content tests.
+- Add reconciliation tests against the yearly summary.
+
+## Acceptance Criteria
+
+- PDF totals match the source yearly summary.
+- PDF values reconcile with the CSV source values.
+- Missing/unknown values are shown as unavailable rather than zero.
+- FIFO and average-cost sections reflect the selected method correctly.
+- PDF generation is deterministic enough for automated verification.
+- Tests pass in CI.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.
+
+## Dependencies
+
+- YearlyTaxSummary.
+- Tax export contract.
+- Method-specific trace data.
+- Shared architecture decision for the PDF approach.
+
+## Out of Scope
+
+- Official government tax forms.
+- Frontend download controls.
+- Email delivery.
+- Jurisdiction-specific filing logic.","- PDF totals match the source yearly summary.
+- PDF values reconcile with the CSV source values.
+- Missing/unknown values are shown as unavailable rather than zero.
+- FIFO and average-cost sections reflect the selected method correctly.
+- PDF generation is deterministic enough for automated verification.
+- Tests pass in CI.
+- CI passes.
+- PR is reviewed by Arthur and merged to `main`.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T18:28:49Z)
+US-60,60,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/60,"[Dashboard][Mon Oct 5] Add empty NestJS module/controller skeletons for risk, tax, and charts APIs",NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done,Iteration 2 (per issue title),Iteration 2 (closed 2026-10-05T20:47:05Z),"NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T20:24:57Z, closed 2026-10-05T20:47:05Z)"
+US-62,62,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/62,[Dashboard][Tue Oct 13] Build reusable dashboard Card component in the React library,NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T20:44:22Z)
+US-63,63,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/63,[Dashboard][Thu Oct 15] Build reusable chart-wrapper component in the React library,NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T20:44:44Z)
+US-64,64,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/64,"[Dashboard][Mon Oct 19] Create dashboard module, controller, and service skeleton with response types",NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T20:45:05Z)
+US-65,65,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/65,"[Dashboard][Wed Oct 21] Start aggregation endpoint calling risk, tax, and charts public APIs",NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T20:45:28Z)
+US-66,66,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/66,[Dashboard][Mon Oct 26] Finish aggregation endpoint and add unit tests with numeric assertions,NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T20:45:48Z)
+US-67,67,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/67,[Dashboard][Wed Oct 28] Integration test for risk + tax + charts into the dashboard response,NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T20:46:07Z)
+US-68,68,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/68,[Dashboard][Thu Oct 29] Build React dashboard page from shared Card and chart-wrapper components,NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),in progress / not started (OPEN on GitHub as of 2026-10-08; no PR work found if not mentioned elsewhere),Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-05T20:46:27Z)
+US-73,73,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/73,[Dashboard][Tue Oct 6] Add shared API convention types to the common library,NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done,Iteration 2 (per issue title),Iteration 2 (closed 2026-10-06T22:42:07Z),"NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-06T22:11:20Z, closed 2026-10-06T22:42:07Z)"
+US-79,79,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/79,[Tax][Wed Oct 7] Persist and validate withholdingTax on activity create/update,"## Goal
+
+Persist dividend withholding tax through Ghostfolio's existing activity
+create/update flow and enforce the agreed withholding validation rules.
+
+## Scope
+
+- Persist `withholdingTax` when creating an activity.
+- Persist an explicitly supplied `withholdingTax` when updating an activity.
+- Preserve the existing stored value when `withholdingTax` is omitted on update.
+- Preserve the distinction:
+  - `null` = withholding unknown
+  - `0` = known no withholding
+  - positive value = known withholding amount
+- Validate withholding against the dividend gross amount.
+- Keep withholding separate from the existing activity `fee`.
+- Return the persisted field through the existing Activity/Order response.
+- Add focused numeric unit tests.
+
+## Validation
+
+For dividend activities:
+
+`grossDividend = quantity * unitPrice`
+
+- `withholdingTax < 0` is invalid.
+- known withholding must not exceed the gross dividend.
+- `null` is valid.
+- `0` is valid.
+- omitted update input must preserve the previous persisted value.
+
+## Acceptance Criteria
+
+- Create with `null` persists `null`.
+- Create with `0` persists `0`.
+- Create with a positive valid withholding amount persists that amount.
+- Negative withholding is rejected.
+- Withholding greater than the dividend gross amount is rejected.
+- Update with a supplied value changes the stored value.
+- Update with explicit `null` records unknown withholding.
+- Update with the field omitted retains the existing value.
+- Existing fee behavior is unchanged.
+- Numeric unit tests verify the above cases.
+- Existing API/common tests remain green.
+- Production build is checked because the shared Order/Activity contract recently caused a CI regression.
+- CI is green.
+- Reviewed by Arthur and merged to main.
+
+## Dependencies
+
+- #46 / PR #72 — nullable withholdingTax schema and DTO support
+- DR-1–6 closed
+
+## Out of Scope
+
+- DividendRecord / net-dividend derivation (Oct 8)
+- FIFO
+- frontend controls
+- jurisdiction-specific tax rules
+- automatic withholding-rate lookup","- Create with `null` persists `null`.
+- Create with `0` persists `0`.
+- Create with a positive valid withholding amount persists that amount.
+- Negative withholding is rejected.
+- Withholding greater than the dividend gross amount is rejected.
+- Update with a supplied value changes the stored value.
+- Update with explicit `null` records unknown withholding.
+- Update with the field omitted retains the existing value.
+- Existing fee behavior is unchanged.
+- Numeric unit tests verify the above cases.
+- Existing API/common tests remain green.
+- Production build is checked because the shared Order/Activity contract recently caused a CI regression.
+- CI is green.
+- Reviewed by Arthur and merged to main.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done,Iteration 2 (per issue title),Iteration 2 (closed 2026-10-07T19:40:20Z),"NOT RECORDED (no per-issue edit/comment history pulled in this pass — see gaps.md; created 2026-10-07T14:31:30Z, closed 2026-10-07T19:40:20Z)"
+US-81,81,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/81,"[Dashboard][Wed Oct 7] Add Card, Button, and theme to React library; verify test-count claim",NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done (closed 2026-10-09T03:21:01Z via PR #82),Iteration 2 (per issue title),Iteration 2,"2026-10-08: closed via merged PR #82, which also resolved the test-count-claim verification part of this story (see gaps.md item 8, RESOLVED)"
+US-84,84,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/84,[Tax][Thu Oct 8] Derive DividendRecord from Order/activity model,"Implement the Oct 8 tax-domain DividendRecord as a derived result from Ghostfolio's persisted Order dividend activity (Order remains source of truth; no separate dividend table). Derives gross = quantity * unitPrice; net = gross - withholdingTax when known; preserves null (unknown) vs 0 (known zero) withholding; keeps fee separate; Big decimal-safe arithmetic.","gross 100/withholding 15 -> net 85; gross 100/withholding 0 -> net 100; gross 100/withholding null -> net null; activity fee does not alter netDividend; non-DIVIDEND input rejected; no intermediate rounding; numeric unit tests pass; existing API tests remain green; production build passes; CI passes; reviewed and merged to main today. Depends on #46/PR #72 and #79/PR #80.",tax,Tharun Swaminathan (TharunSwaminathan),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),"in progress (OPEN as of 2026-10-08; PR #86 opened same day, awaiting Arthur's review)",Iteration 2 (per issue title),NOT RECORDED (not yet closed),NOT RECORDED (no per-issue edit/comment history pulled in this pass; created 2026-10-08)
+US-85,85,https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/85,[Dashboard][Thu Oct 8] Add CI workflow running lint and unit tests on every PR,NOT RECORDED (issue body is empty on GitHub),NOT RECORDED (issue body empty),dashboard,Raniya Shaikh (Raniyafs),NOT RECORDED (no priority field/label set on this issue),NOT RECORDED (no estimate field/label set on this issue),done (closed 2026-10-08T21:47:05Z via PR #87),Iteration 2 (per issue title),Iteration 2,"2026-10-08: closed via merged PR #87 same day opened"
