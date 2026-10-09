@@ -99,3 +99,16 @@ the file has only Oct 2 and Oct 5 standups written; Oct 6, 7, 8 standups were no
 - **New date:** NOT RECORDED.
 - **Raised at standup:** N/A — this is the absence of standups.
 - See `scrum-meetings.md` and `gaps.md` for the full impact of this gap.
+
+## D-8 — PR #77/#88 required a two-step branch update after PR #87 landed mid-flight
+
+- **Date noticed:** 2026-10-08, while merging PR #77 and updating PR #88.
+- **Task ID:** T-32 / T-33
+- **Owner:** Sesha Siva Sankar
+- **Planned:** PR #77 (Issue #32) would merge on its own schedule; PR #88 (Issue #33), stacked on top of it, would then update from `main` once and be ready for Tharun's review.
+- **What happened:** PR #87 (Raniya, new required CI jobs - Lint and format / Unit tests / Build) merged into `main` while PR #77 was still open and running the old single `build` job. Tharun commented on PR #88 (2026-10-09T03:07:50Z) asking for PR #77 to be updated first so the new required checks would run, then merged, then PR #88 updated from `main` so its diff would narrow to just the Oct 8 changes. This required: (1) merging `main` into PR #77's branch, (2) letting PR #77 auto-merge once the new checks passed, (3) merging `main` into PR #88's branch a second time. An initial attempt to do step 1 accidentally included PR #88's own commit in PR #77's branch (a stale local branch pointer reused across both PRs) and had to be reset and redone before pushing.
+- **Reason:** Timing - a third party's PR (#87) changing CI requirements landed in the window between PR #77 being opened and merged, requiring an unplanned update cycle on two dependent PRs.
+- **Decision taken:** Update PR #77 from `main`, let it auto-merge, then update PR #88 from `main`; verify each diff before pushing rather than trusting the local branch state.
+- **Who decided:** Sesha Siva Sankar, following Tharun Swaminathan's explicit sequencing request on PR #88.
+- **New date:** N/A — resolved same day; PR #77 merged 2026-10-09T03:13:29Z, PR #88 merged 2026-10-09T03:46:58Z.
+- **Raised at standup:** NOT RECORDED — no Oct 8 standup entry exists (see D-7).

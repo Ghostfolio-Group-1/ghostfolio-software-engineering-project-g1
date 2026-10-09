@@ -1,6 +1,9 @@
 # Gaps — Everything NOT RECORDED Across This Record Set
 
 **Date flagged: 2026-10-08** (all items below, unless otherwise noted)
+**Updated: 2026-10-08 end of day** — item 8 resolved (PR #82 merged); item 4 reconfirmed still open
+(PR #83 repeated the same unlinked-issue pattern and was still approved/merged); item 22 added
+(PR #86 opened today, awaiting review).
 
 This file is the honest summary of everything that could NOT be verified from GitHub (`gh`/`git`)
 or committed repo docs while building `project-facts.md`, `product-backlog.csv`,
@@ -39,11 +42,16 @@ Items are grouped by severity for triage, since some block specific report secti
    the team's own memory of who was at the keyboard could resolve past commits, which GitHub
    cannot verify.
 
-4. **Charts feature has zero filed GitHub issues.** `gh issue list` returns no `[Charts]`-titled
-   or `feature:charts`-labeled issue at all. Every PR touching charts work (#50, #69, #70, #76,
-   #83) lacks a "Closes #"/"Part of #" reference. **Who can supply it:** Arthur Elly Lim (owner of
-   the charts feature) needs to file these issues retroactively or going forward; Tharun
-   Swaminathan (Scrum Master) is positioned to enforce it per the team's own Definition of Done.
+4. **Charts feature has zero filed GitHub issues — still true as of 2026-10-08 close, and the
+   pattern repeated today.** `gh issue list` returns no `[Charts]`-titled or `feature:charts`-
+   labeled issue at all. PR #83 (merged 2026-10-08T15:44:40Z, Raniya Shaikh reviewing) is the Oct 8
+   instance: its body has `## Closes` / `Closes #` with the issue number left blank, and it was
+   approved and merged without that being raised as a blocker. Every PR touching charts work (#50,
+   #69, #70, #76, #83) lacks a "Closes #"/"Part of #" reference. **Who can supply it:** Arthur Elly
+   Lim (owner of the charts feature) needs to file these issues retroactively or going forward;
+   Tharun Swaminathan (Scrum Master) is positioned to enforce it per the team's own Definition of
+   Done — and reviewers (today, Raniya Shaikh) could also decline to approve until an issue link is
+   added.
 
 5. **Direct pushes to `main` / force pushes.** `gh`/`git` as queried in this pass surfaced no
    evidence either way beyond what merge-commit history shows (i.e., no bypass of the PR process
@@ -67,14 +75,12 @@ Items are grouped by severity for triage, since some block specific report secti
 
 ## BLOCKING — Quality Assurance / Testing
 
-8. **The "151/152 passing" claim is disputed, not resolved.** `project-docs/testing-framework.md`
-   (committed, on `main`, dated Sep 24/Iteration 1) still states "confirmed: 151/152 passing, 1
-   skipped, 0 real failures." PR #82 (open, unmerged, authored by Raniya Shaikh) explicitly says
-   this "could not be reproduced" and retracts it — but that retraction has not merged as of
-   2026-10-08, so `main` currently carries a claim the team itself has flagged as unverifiable.
-   See `test-log.csv`'s dedicated row on this. **Who can supply resolution:** Raniya Shaikh (PR
-   #82 author) — getting that PR reviewed and merged resolves this; whoever reviews it should also
-   confirm the "dated record of actual test runs" PR #82 claims to add to `testing-framework.md`.
+8. ~~**The "151/152 passing" claim is disputed, not resolved.**~~ **RESOLVED 2026-10-08.** PR #82
+   (Sesha Siva Sankar review, APPROVED 2026-10-08T21:46:05Z; merged 2026-10-09T03:20:59Z) retracted
+   the claim in `project-docs/testing-framework.md` and replaced it with a dated table of actual
+   per-run counts (Oct 5/Oct 7, by project), explicitly attributing the Oct 7 `api` suite failures
+   to the PR #72 `withholdingTax` build break rather than real test regressions. `main` no longer
+   carries the unverifiable claim.
 
 9. **No coverage report found anywhere in CI.** `gh run list`/`statusCheckRollup` only exposes
    pass/fail per named check (`build`, `build_and_push`); no coverage percentage or per-module
@@ -151,6 +157,11 @@ Items are grouped by severity for triage, since some block specific report secti
     reviewer in the data pulled, but noted here for completeness since the task asked to verify
     naming-pattern compliance.
 
+22. **PR #86 (Tharun Swaminathan, #84 DividendRecord) awaiting review as of 2026-10-08 end of day.**
+    Opened same day, reviewer requested is `Error404IsFound` per the reviewer ring, no review
+    submitted yet, CI status not re-checked in this update. **Who can supply it:** Arthur Elly Lim
+    (via the shared account) to review; status should be re-checked next update pass.
+
 ---
 
 ## Summary table (quick reference)
@@ -164,7 +175,7 @@ Items are grouped by severity for triage, since some block specific report secti
 | 5   | Direct-push/force-push server audit log    | Blocking (Audit)      | Org admin (Raniya?)     |
 | 6   | Issue comment authorship per day           | Blocking (Audit)      | Re-query; any member    |
 | 7   | True branch-creation timestamps            | Blocking (Audit)      | Re-query events API     |
-| 8   | "151/152" claim unresolved                 | Blocking (QA)         | Raniya — merge PR #82   |
+| 8   | "151/152" claim — RESOLVED 2026-10-08      | Resolved              | Raniya (PR #82 merged)  |
 | 9   | No CI coverage report                      | Blocking (QA)         | Raniya (CI owner)       |
 | 10  | "Integration pass #1/#2" not found         | Blocking (QA)         | Unknown — ask team      |
 | 11  | withholding-tax-migration.spec.ts contents | Blocking (QA)         | Tharun                  |
@@ -178,3 +189,4 @@ Items are grouped by severity for triage, since some block specific report secti
 | 19  | Architecture diagrams stale                | Material              | Raniya                  |
 | 20  | CI-incident escalation process unclear     | Material              | Sesha / Tharun          |
 | 21  | One branch name off-pattern                | Minor                 | Raniya                  |
+| 22  | PR #86 awaiting review (opened Oct 8)      | Material              | Arthur                  |
