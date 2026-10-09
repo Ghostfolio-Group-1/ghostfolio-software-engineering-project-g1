@@ -242,7 +242,8 @@ export class ExportService {
           quantity,
           tags: currentTags,
           type,
-          unitPrice
+          unitPrice,
+          withholdingTax
         }) => {
           return {
             accountId,
@@ -252,6 +253,7 @@ export class ExportService {
             quantity,
             type,
             unitPrice,
+            withholdingTax,
             currency: currency ?? assetProfile.currency,
             dataSource: assetProfile.dataSource,
             date: date.toISOString(),
