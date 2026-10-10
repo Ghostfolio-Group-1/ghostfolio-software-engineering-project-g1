@@ -41,6 +41,32 @@ describe('ChartsApi', () => {
     });
   });
 
+  it('aggregates portfolio value from holding value and cash on the history', () => {
+    expect(
+      api.getSeries({
+        endDate: '2026-03-02',
+        history: [
+          {
+            date: '2026-03-01',
+            totalCashInBaseCurrency: 200,
+            valueWithCurrencyEffect: 1000
+          },
+          {
+            date: '2026-03-02',
+            netWorth: 1500,
+            totalCashInBaseCurrency: 200,
+            valueWithCurrencyEffect: 1300
+          }
+        ],
+        now,
+        startDate: '2026-03-01'
+      }).points
+    ).toEqual([
+      { date: '2026-03-01', value: 1200 },
+      { date: '2026-03-02', value: 1500 }
+    ]);
+  });
+
   it('keeps a single point on a single-day range', () => {
     expect(
       api.getSeries({

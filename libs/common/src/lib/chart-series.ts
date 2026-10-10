@@ -116,5 +116,24 @@ const SERIES_VALUE: Record<
   investedCapital: (item) => {
     return item.totalInvestmentValueWithCurrencyEffect ?? item.totalInvestment;
   },
-  portfolioValue: (item) => item.valueWithCurrencyEffect ?? item.value
+  portfolioValue: (item) => {
+    // The portfolio calculator already sums holdings and cash into netWorth.
+    // Rows that only carry the parts are added together here.
+    if (isFiniteNumber(item.netWorth)) {
+      return item.netWorth;
+    }
+
+    const holdings = item.valueWithCurrencyEffect ?? item.value;
+    const cash = item.totalCashInBaseCurrency;
+
+    if (!isFiniteNumber(holdings) && !isFiniteNumber(cash)) {
+      return undefined;
+    }
+
+    return (holdings ?? 0) + (cash ?? 0);
+  }
 };
+
+function isFiniteNumber(value: number | undefined): value is number {
+  return Number.isFinite(value);
+}
