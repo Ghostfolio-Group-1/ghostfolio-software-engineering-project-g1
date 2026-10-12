@@ -29,6 +29,18 @@ export interface TaxLot {
   currency: string | null;
 }
 
+export interface LotConsumption {
+  lotId: string;
+  buyActivityId: string;
+  sellActivityId: string;
+  matchedQuantity: Big;
+}
+
+export interface FifoLotConsumptionResult {
+  lots: TaxLot[];
+  consumptions: LotConsumption[];
+}
+
 export function orderFifoActivities(
   activities: readonly FifoTaxActivitySource[]
 ): FifoTaxActivitySource[] {
@@ -61,6 +73,51 @@ export function createFifoTaxLots(
     .map(createTaxLotFromBuy);
 }
 
+export function consumeFifoTaxLots(
+  activities: readonly FifoTaxActivitySource[]
+): FifoLotConsumptionResult {
+  const lots: TaxLot[] = [];
+  const consumptions: LotConsumption[] = [];
+
+  for (const activity of orderFifoActivities(activities)) {
+    if (activity.type === ActivityType.BUY) {
+      lots.push(createTaxLotFromBuy(activity));
+      continue;
+    }
+
+    let quantityToMatch = new Big(activity.quantity);
+
+    for (const lot of lots) {
+      if (quantityToMatch.lte(0)) {
+        break;
+      }
+
+      if (!isSameScope(lot.scope, activity) || lot.remainingQuantity.lte(0)) {
+        continue;
+      }
+
+      const matchedQuantity = quantityToMatch.lt(lot.remainingQuantity)
+        ? quantityToMatch
+        : lot.remainingQuantity;
+
+      lot.remainingQuantity = lot.remainingQuantity.minus(matchedQuantity);
+      quantityToMatch = quantityToMatch.minus(matchedQuantity);
+
+      consumptions.push({
+        lotId: lot.lotId,
+        buyActivityId: lot.sourceActivityId,
+        sellActivityId: activity.id,
+        matchedQuantity
+      });
+    }
+  }
+
+  return {
+    lots,
+    consumptions
+  };
+}
+
 function createTaxLotFromBuy(activity: FifoTaxActivitySource): TaxLot {
   const quantity = new Big(activity.quantity);
 
@@ -81,6 +138,17 @@ function createTaxLotFromBuy(activity: FifoTaxActivitySource): TaxLot {
     remainingQuantity: new Big(quantity),
     currency: activity.currency
   };
+}
+
+function isSameScope(
+  scope: TaxCalculationScope,
+  activity: FifoTaxActivitySource
+): boolean {
+  return (
+    scope.userId === activity.userId &&
+    scope.accountId === activity.accountId &&
+    scope.symbolProfileId === activity.symbolProfileId
+  );
 }
 
 function assertEligibleFifoActivity(activity: FifoTaxActivitySource): void {

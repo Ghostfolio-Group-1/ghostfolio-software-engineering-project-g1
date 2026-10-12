@@ -1,6 +1,7 @@
 import { Type as ActivityType } from '@prisma/client';
 
 import {
+  consumeFifoTaxLots,
   createFifoTaxLots,
   FifoTaxActivitySource,
   orderFifoActivities
@@ -194,6 +195,240 @@ describe('createFifoTaxLots', () => {
     ).toThrow('FIFO BUY quantity must be greater than zero.');
   });
 });
+
+describe('consumeFifoTaxLots', () => {
+  it('partially consumes the oldest lot and leaves the correct remainder', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-10',
+        quantity: 10
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-4',
+        quantity: 4,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions).toHaveLength(1);
+    expect(result.consumptions[0].lotId).toBe('buy-10');
+    expect(result.consumptions[0].buyActivityId).toBe('buy-10');
+    expect(result.consumptions[0].sellActivityId).toBe('sell-4');
+    expect(result.consumptions[0].matchedQuantity.toString()).toBe('4');
+
+    expect(result.lots).toHaveLength(1);
+    expect(result.lots[0].initialQuantity.toString()).toBe('10');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('6');
+  });
+
+  it('consumes multiple lots in FIFO order for one sell', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-100',
+        quantity: 100
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-50',
+        quantity: 50
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-120',
+        quantity: 120,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(
+      result.consumptions.map((consumption) => ({
+        buyActivityId: consumption.buyActivityId,
+        sellActivityId: consumption.sellActivityId,
+        matchedQuantity: consumption.matchedQuantity.toString()
+      }))
+    ).toEqual([
+      {
+        buyActivityId: 'buy-100',
+        sellActivityId: 'sell-120',
+        matchedQuantity: '100'
+      },
+      {
+        buyActivityId: 'buy-50',
+        sellActivityId: 'sell-120',
+        matchedQuantity: '20'
+      }
+    ]);
+
+    expect(result.lots[0].remainingQuantity.toString()).toBe('0');
+    expect(result.lots[1].remainingQuantity.toString()).toBe('30');
+  });
+
+  it('does not consume a fully closed lot again', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-first',
+        quantity: 5
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-close-first',
+        quantity: 5,
+        type: ActivityType.SELL
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'buy-second',
+        quantity: 10
+      }),
+      createActivity({
+        date: new Date('2026-01-04T10:00:00.000Z'),
+        id: 'sell-after-close',
+        quantity: 4,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(
+      result.consumptions.map((consumption) => ({
+        buyActivityId: consumption.buyActivityId,
+        matchedQuantity: consumption.matchedQuantity.toString()
+      }))
+    ).toEqual([
+      {
+        buyActivityId: 'buy-first',
+        matchedQuantity: '5'
+      },
+      {
+        buyActivityId: 'buy-second',
+        matchedQuantity: '4'
+      }
+    ]);
+
+    expect(result.lots[0].remainingQuantity.toString()).toBe('0');
+    expect(result.lots[1].remainingQuantity.toString()).toBe('6');
+  });
+
+  it('preserves fractional quantities during partial consumption', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'fractional-buy',
+        quantity: 1.2345
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'fractional-sell',
+        quantity: 0.2345,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions[0].matchedQuantity.toString()).toBe('0.2345');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('1');
+  });
+
+  it('keeps FIFO consumption inside the user/account/asset scope', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-account-1',
+        quantity: 5
+      }),
+      createActivity({
+        accountId: 'account-2',
+        date: new Date('2026-01-01T11:00:00.000Z'),
+        id: 'buy-account-2',
+        quantity: 7
+      }),
+      createActivity({
+        accountId: 'account-2',
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-account-2',
+        quantity: 3,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions).toHaveLength(1);
+    expect(result.consumptions[0].buyActivityId).toBe('buy-account-2');
+    expect(result.consumptions[0].matchedQuantity.toString()).toBe('3');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('5');
+    expect(result.lots[1].remainingQuantity.toString()).toBe('4');
+  });
+
+  it('produces the same lot and consumption state on repeated execution', () => {
+    const activities = [
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-c',
+        quantity: 6,
+        type: ActivityType.SELL
+      }),
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-a',
+        quantity: 4
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-b',
+        quantity: 5
+      })
+    ];
+
+    const firstRun = summarizeConsumptionResult(consumeFifoTaxLots(activities));
+    const secondRun = summarizeConsumptionResult(
+      consumeFifoTaxLots(activities)
+    );
+
+    expect(firstRun).toEqual(secondRun);
+    expect(firstRun).toEqual({
+      lots: [
+        {
+          sourceActivityId: 'buy-a',
+          remainingQuantity: '0'
+        },
+        {
+          sourceActivityId: 'buy-b',
+          remainingQuantity: '3'
+        }
+      ],
+      consumptions: [
+        {
+          buyActivityId: 'buy-a',
+          sellActivityId: 'sell-c',
+          matchedQuantity: '4'
+        },
+        {
+          buyActivityId: 'buy-b',
+          sellActivityId: 'sell-c',
+          matchedQuantity: '2'
+        }
+      ]
+    });
+  });
+});
+
+function summarizeConsumptionResult(
+  result: ReturnType<typeof consumeFifoTaxLots>
+) {
+  return {
+    lots: result.lots.map((lot) => ({
+      sourceActivityId: lot.sourceActivityId,
+      remainingQuantity: lot.remainingQuantity.toString()
+    })),
+    consumptions: result.consumptions.map((consumption) => ({
+      buyActivityId: consumption.buyActivityId,
+      sellActivityId: consumption.sellActivityId,
+      matchedQuantity: consumption.matchedQuantity.toString()
+    }))
+  };
+}
 
 function createActivity({
   accountId = 'account-1',
