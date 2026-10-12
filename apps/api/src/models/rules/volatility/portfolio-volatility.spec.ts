@@ -21,6 +21,25 @@ describe('PortfolioVolatility', () => {
     expect(result.value).toBe(true);
     expect(result.evaluation).toContain('18.4%');
     expect(result.details.hasSufficientData).toBe(true);
+    expect(result.actual).toBe(0.184);
+  });
+
+  it('passes when volatility is exactly at thresholdMin (inclusive lower bound)', () => {
+    const rule = new PortfolioVolatility(exchangeRateDataServiceMock, 0.1, 90);
+
+    const result = rule.evaluate(settings);
+
+    expect(result.value).toBe(true);
+    expect(result.actual).toBe(0.1);
+  });
+
+  it('passes when volatility is exactly at thresholdMax (inclusive upper bound)', () => {
+    const rule = new PortfolioVolatility(exchangeRateDataServiceMock, 0.25, 90);
+
+    const result = rule.evaluate(settings);
+
+    expect(result.value).toBe(true);
+    expect(result.actual).toBe(0.25);
   });
 
   it('fails when volatility is above the band', () => {
