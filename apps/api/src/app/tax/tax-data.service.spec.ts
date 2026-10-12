@@ -1,4 +1,5 @@
 import { PrismaService } from '@ghostfolio/api/services/prisma/prisma.service';
+import { TAG_ID_DRAFT } from '@ghostfolio/common/config';
 
 import { Test } from '@nestjs/testing';
 import Ajv from 'ajv';
@@ -43,7 +44,7 @@ describe('TaxDataService contract', () => {
     service = moduleRef.get(TaxDataService);
   });
 
-  it('reads only the user confirmed BUY and SELL activities', async () => {
+  it('excludes draft-tagged activities and reads only the user BUY and SELL activities', async () => {
     await service.getFifoActivities('user-1');
 
     expect(findMany).toHaveBeenCalledWith({
@@ -58,7 +59,7 @@ describe('TaxDataService contract', () => {
         userId: true
       },
       where: {
-        isDraft: false,
+        tags: { none: { id: TAG_ID_DRAFT } },
         type: { in: ['BUY', 'SELL'] },
         userId: 'user-1'
       }
