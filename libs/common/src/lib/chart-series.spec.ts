@@ -90,6 +90,94 @@ describe('chart series adapter', () => {
     });
   });
 
+  it('samples invested capital and cash on the portfolio value dates', () => {
+    const steppedHistory: HistoricalDataItem[] = [
+      {
+        date: '2019-12-01',
+        totalCashInBaseCurrency: 7,
+        totalInvestment: 40,
+        valueWithCurrencyEffect: 50
+      },
+      {
+        date: '2020-01-06',
+        totalCashInBaseCurrency: 20,
+        totalInvestment: 80,
+        valueWithCurrencyEffect: 100
+      },
+      {
+        date: '2020-01-07',
+        valueWithCurrencyEffect: 110
+      },
+      {
+        date: '2020-01-08',
+        totalCashInBaseCurrency: -5,
+        totalInvestment: 90,
+        valueWithCurrencyEffect: 115
+      }
+    ];
+
+    expect(
+      toChartSeriesResponse({
+        endDate: '2020-01-08',
+        history: steppedHistory,
+        kind: 'investedCapital',
+        startDate: '2020-01-01'
+      }).points
+    ).toEqual([
+      { date: '2020-01-06', value: 80 },
+      { date: '2020-01-07', value: 80 },
+      { date: '2020-01-08', value: 90 }
+    ]);
+
+    expect(
+      toChartSeriesResponse({
+        endDate: '2020-01-08',
+        history: steppedHistory,
+        kind: 'cash',
+        startDate: '2020-01-01'
+      }).points
+    ).toEqual([
+      { date: '2020-01-06', value: 20 },
+      { date: '2020-01-07', value: 20 },
+      { date: '2020-01-08', value: -5 }
+    ]);
+
+    expect(
+      toChartSeriesResponse({
+        endDate: '2020-01-08',
+        history: steppedHistory,
+        kind: 'portfolioValue',
+        startDate: '2020-01-01'
+      }).points
+    ).toEqual([
+      { date: '2020-01-06', value: 120 },
+      { date: '2020-01-07', value: 110 },
+      { date: '2020-01-08', value: 110 }
+    ]);
+  });
+
+  it('holds the invested capital from before the range when the range has no new contribution', () => {
+    expect(
+      toChartSeriesResponse({
+        endDate: '2020-06-01',
+        history: [
+          {
+            date: '2019-12-01',
+            totalCashInBaseCurrency: 7,
+            totalInvestment: 40,
+            valueWithCurrencyEffect: 50
+          },
+          {
+            date: '2020-06-01',
+            valueWithCurrencyEffect: 80
+          }
+        ],
+        kind: 'investedCapital',
+        startDate: '2020-01-01'
+      }).points
+    ).toEqual([{ date: '2020-06-01', value: 40 }]);
+  });
+
   it('reads invested capital and cash from the existing history fields', () => {
     expect(
       toChartSeriesResponse({

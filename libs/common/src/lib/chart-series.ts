@@ -59,6 +59,42 @@ function toDailyPoints({
   kind: ChartSeriesKind;
   startDate: string;
 }): ChartSeriesPoint[] {
+  const portfolioPoints = readPoints({
+    endDate,
+    history,
+    kind: 'portfolioValue',
+    startDate
+  });
+
+  if (kind === 'portfolioValue') {
+    return portfolioPoints;
+  }
+
+  // Invested capital is a step function. The cumulative total changes only
+  // when a contribution is recorded and then holds on every later
+  // portfolio-value date, including dates with no new activity. Cash is the
+  // running balance sampled on that same date index. Neither series is
+  // interpolated between those dates.
+  return sampleOnDates({
+    dates: portfolioPoints.map(({ date }) => {
+      return date;
+    }),
+    history,
+    kind
+  });
+}
+
+function readPoints({
+  endDate,
+  history,
+  kind,
+  startDate
+}: {
+  endDate: string;
+  history: HistoricalDataItem[];
+  kind: ChartSeriesKind;
+  startDate: string;
+}): ChartSeriesPoint[] {
   const pointsByDate = new Map<string, number>();
 
   for (const item of history) {
@@ -80,6 +116,36 @@ function toDailyPoints({
     .map(([date, value]) => {
       return { date, value };
     });
+}
+
+function sampleOnDates({
+  dates,
+  history,
+  kind
+}: {
+  dates: string[];
+  history: HistoricalDataItem[];
+  kind: ChartSeriesKind;
+}): ChartSeriesPoint[] {
+  const ordered = [...history].sort((left, right) => {
+    return left.date.localeCompare(right.date);
+  });
+  let cursor = 0;
+  let last = 0;
+
+  return dates.map((date) => {
+    while (cursor < ordered.length && ordered[cursor].date <= date) {
+      const value = readSeriesValue(ordered[cursor], kind);
+
+      if (value !== undefined) {
+        last = value;
+      }
+
+      cursor++;
+    }
+
+    return { date, value: last };
+  });
 }
 
 function toWeeklyPoints(points: ChartSeriesPoint[]): ChartSeriesPoint[] {
@@ -114,6 +180,7 @@ const SERIES_VALUE: Record<
 > = {
   cash: (item) => item.totalCashInBaseCurrency,
   investedCapital: (item) => {
+    // Running cumulative total already stored on the history snapshot.
     return item.totalInvestmentValueWithCurrencyEffect ?? item.totalInvestment;
   },
   portfolioValue: (item) => {
