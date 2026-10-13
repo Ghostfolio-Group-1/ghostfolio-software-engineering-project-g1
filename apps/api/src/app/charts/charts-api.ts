@@ -10,13 +10,19 @@ import {
   ChartSeriesResponse
 } from '@ghostfolio/common/interfaces/chart-series-response.interface';
 import { HistoricalDataItem } from '@ghostfolio/common/interfaces/historical-data-item.interface';
+import { ReturnComparisonResponse } from '@ghostfolio/common/interfaces/return-comparison-response.interface';
+import {
+  ReturnComparisonObservation,
+  ReturnComparisonSymbolNotFoundError,
+  toReturnComparison
+} from '@ghostfolio/common/return-comparison';
 import {
   TIME_RANGE_PRESETS,
   TimeRangePreset,
   TimeRangeSelection
 } from '@ghostfolio/common/types/time-range-selection.type';
 
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { format } from 'date-fns';
 
 export interface ChartSeriesRequest {
@@ -29,7 +35,44 @@ export interface ChartSeriesRequest {
   startDate?: string;
 }
 
+export interface ReturnComparisonRequest {
+  earliestActivityDate?: string;
+  endDate?: string;
+  now?: Date;
+  observations?: ReturnComparisonObservation[];
+  range?: string;
+  startDate?: string;
+  symbol?: string;
+}
+
 export class ChartsApi {
+  public getReturnComparison(
+    request: ReturnComparisonRequest = {}
+  ): ReturnComparisonResponse {
+    const now = request.now instanceof Date ? request.now : new Date();
+    const selection = this.readSelection(request);
+    const window = this.resolveWindow({
+      earliestActivityDate: request.earliestActivityDate,
+      now,
+      selection
+    });
+
+    try {
+      return toReturnComparison({
+        endDate: window.endDate,
+        observations: request.observations ?? [],
+        startDate: window.startDate,
+        symbol: request.symbol
+      });
+    } catch (error) {
+      if (error instanceof ReturnComparisonSymbolNotFoundError) {
+        throw new NotFoundException(error.message);
+      }
+
+      throw error;
+    }
+  }
+
   public getSeries(request: ChartSeriesRequest = {}): ChartSeriesResponse {
     const kind = this.readKind(request.kind);
     const now = request.now instanceof Date ? request.now : new Date();
@@ -100,7 +143,11 @@ export class ChartsApi {
     return kind;
   }
 
-  private readSelection(request: ChartSeriesRequest): TimeRangeSelection {
+  private readSelection(request: {
+    endDate?: string;
+    range?: string;
+    startDate?: string;
+  }): TimeRangeSelection {
     const hasRange = request.range !== undefined && request.range !== '';
     const hasStart =
       request.startDate !== undefined && request.startDate !== '';

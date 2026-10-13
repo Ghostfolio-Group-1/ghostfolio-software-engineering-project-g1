@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { ChartsApi } from './charts-api';
 
@@ -114,6 +114,37 @@ describe('ChartsApi', () => {
     expect(() => {
       api.getSeries({ now, startDate: '2026-01-01' });
     }).toThrow(BadRequestException);
+  });
+
+  it('returns a per-holding return comparison for the symbol param', () => {
+    expect(
+      api.getReturnComparison({
+        endDate: '2026-02-01',
+        now,
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-01-01', symbol: 'MSFT', value: 50 },
+          { date: '2026-02-01', dividend: 5, symbol: 'AAPL', value: 100 }
+        ],
+        startDate: '2026-01-01',
+        symbol: 'AAPL'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-02-01', priceReturn: 100, totalReturn: 105 }
+    ]);
+  });
+
+  it('returns 404 when the symbol is not held in the range', () => {
+    expect(() => {
+      api.getReturnComparison({
+        endDate: '2026-02-01',
+        now,
+        observations: [{ date: '2026-01-01', symbol: 'AAPL', value: 100 }],
+        startDate: '2026-01-01',
+        symbol: 'MSFT'
+      });
+    }).toThrow(NotFoundException);
   });
 
   it('rejects a custom range whose end is before its start', () => {
