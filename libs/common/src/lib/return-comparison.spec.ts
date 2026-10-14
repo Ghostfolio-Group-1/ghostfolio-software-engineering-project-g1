@@ -27,7 +27,7 @@ describe('return comparison', () => {
       points: [
         { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
         { date: '2026-02-01', priceReturn: 110, totalReturn: 120 },
-        { date: '2026-03-01', priceReturn: 120, totalReturn: 130 }
+        { date: '2026-03-01', priceReturn: 120, totalReturn: 130.909091 }
       ],
       startDate: '2026-01-01'
     });
@@ -97,6 +97,23 @@ describe('return comparison', () => {
           { date: '2026-03-01', symbol: 'MSFT', value: 40 }
         ],
         startDate: '2026-01-01'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 }
+    ]);
+  });
+
+  it('does not count a partial sale of the requested symbol as a loss', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', flow: -40, symbol: 'AAPL', value: 60 }
+        ],
+        startDate: '2026-01-01',
+        symbol: 'AAPL'
       }).points
     ).toEqual([
       { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },

@@ -21,8 +21,8 @@ export interface ReturnComparisonObservation {
   date: string;
   dividend?: number;
   // External cash added on this date. A purchase is positive and sale
-  // proceeds are negative. Aggregate returns subtract this so the flow is
-  // not mistaken for a gain or loss.
+  // proceeds are negative. The return subtracts this so the flow is not
+  // mistaken for a gain or loss.
   flow?: number;
   sold?: boolean;
   symbol?: string;
@@ -48,9 +48,7 @@ export function toReturnComparison({
   symbol?: string;
 }): ReturnComparisonResponse {
   const selected = selectObservations(observations, symbol, startDate, endDate);
-  const points = symbol
-    ? indexLevels(timelineForSymbol(selected, endDate))
-    : indexPortfolio(selected, endDate);
+  const points = indexPortfolio(selected, endDate);
   const granularity = resolveChartGranularity({ endDate, startDate });
 
   return {
@@ -149,8 +147,9 @@ function indexPortfolio(
 
       begin += previous.value;
       endPrice += (current?.value ?? previous.value) - (current?.flow ?? 0);
-      // Dividends are added as cash on the date they are received.
-      // The total-return index does not assume that cash bought more shares.
+      // A dividend is included in that day's total-return ratio. Later days
+      // chain on the updated index, so the cash is reinvested at the
+      // portfolio's own return.
       endTotal +=
         (current?.value ?? previous.value) -
         (current?.flow ?? 0) +
@@ -242,32 +241,6 @@ function levelAt(
   }
 
   return match;
-}
-
-function indexLevels(levels: ReturnLevel[]): ReturnComparisonPoint[] {
-  const base = levels[0]?.value;
-
-  if (!base) {
-    return [];
-  }
-
-  // Dividends are added as cash on the date they are received.
-  // The total-return index does not assume that cash bought more shares.
-  let dividendsSinceStart = 0;
-
-  return levels.map((level, index) => {
-    if (index > 0) {
-      dividendsSinceStart += level.dividend;
-    }
-
-    return {
-      date: level.date,
-      priceReturn: roundReturn((100 * level.value) / base),
-      totalReturn: roundReturn(
-        (100 * (level.value + dividendsSinceStart)) / base
-      )
-    };
-  });
 }
 
 function roundReturn(value: number): number {
