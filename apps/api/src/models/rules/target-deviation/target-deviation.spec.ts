@@ -48,9 +48,18 @@ describe('TargetDeviation', () => {
     );
     expect(fixedIncomeBucket.deviation).toBeCloseTo(-0.03, 10);
     expect(fixedIncomeBucket.passed).toBe(true);
+
+    // Cash is exactly 5 points below its 10% target - the band is
+    // inclusive, so a deviation exactly at thresholdMax (0.05) must pass.
+    const liquidityBucket = result.buckets.find((b) => b.key === 'LIQUIDITY');
+    expect(liquidityBucket.deviation).toBeCloseTo(-0.05, 10);
+    expect(liquidityBucket.passed).toBe(true);
   });
 
   it('treats a held bucket missing from the target as an implicit 0% target', () => {
+    // Target percentages must sum to 1 per the target-allocation contract;
+    // Equity = 1.0 still exercises the intended implicit-0%-target behavior
+    // for Real Estate against the same 90/10 Equity/Real Estate holdings.
     const holdings = [holding('EQUITY', 90000), holding('REAL_ESTATE', 10000)];
     const rule = new TargetDeviation(exchangeRateDataServiceMock, holdings);
 
@@ -60,7 +69,7 @@ describe('TargetDeviation', () => {
       groupBy: 'assetClass',
       isActive: true,
       thresholdMax: 0.05,
-      targets: [{ key: 'EQUITY', percentage: 0.9 }]
+      targets: [{ key: 'EQUITY', percentage: 1 }]
     });
 
     const realEstateBucket = result.buckets.find(
