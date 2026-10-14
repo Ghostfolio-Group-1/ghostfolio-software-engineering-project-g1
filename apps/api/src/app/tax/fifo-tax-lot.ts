@@ -110,6 +110,12 @@ export function consumeFifoTaxLots(
         matchedQuantity
       });
     }
+
+    if (quantityToMatch.gt(0)) {
+      throw new Error(
+        `FIFO SELL ${activity.id} exceeds available holdings by ${quantityToMatch.toString()}.`
+      );
+    }
   }
 
   return {
@@ -158,6 +164,14 @@ function assertEligibleFifoActivity(activity: FifoTaxActivitySource): void {
   ) {
     throw new Error(
       'FIFO input can only contain eligible BUY and SELL activities.'
+    );
+  }
+
+  const quantity = new Big(activity.quantity);
+
+  if (quantity.lte(0)) {
+    throw new Error(
+      `FIFO ${activity.type} quantity must be greater than zero.`
     );
   }
 }

@@ -33,7 +33,9 @@ export interface FifoRealizedGainSale {
   grossCostBasis: Big;
   grossRealizedGain: Big;
   allocatedBuyFees: Big;
+  /** Full fee stored on the source SELL activity. */
   sellFee: Big;
+  /** Portion of sellFee allocated to matched quantity. */
   allocatedSellFee: Big;
   realizedGainAfterActivityFees: Big;
   matches: FifoRealizedGainMatch[];
@@ -66,6 +68,8 @@ export function calculateFifoRealizedGains(
         'FIFO consumption trace contains invalid activity types.'
       );
     }
+
+    assertCompatibleCurrencies(buy, sell);
 
     const matchedQuantity = new Big(consumption.matchedQuantity);
     const grossAcquisitionValue = matchedQuantity.times(buy.unitPrice);
@@ -160,6 +164,23 @@ export function calculateFifoRealizedGains(
   );
 
   return { lots, sales };
+}
+
+function assertCompatibleCurrencies(
+  buy: FifoRealizedGainActivitySource,
+  sell: FifoRealizedGainActivitySource
+): void {
+  if (!buy.currency || !sell.currency) {
+    throw new Error(
+      `FIFO realized gain requires known transaction currencies for BUY ${buy.id} and SELL ${sell.id}.`
+    );
+  }
+
+  if (buy.currency !== sell.currency) {
+    throw new Error(
+      `FIFO realized gain requires historical FX conversion from ${buy.currency} to ${sell.currency} for BUY ${buy.id} and SELL ${sell.id}.`
+    );
+  }
 }
 
 function allocateFee(
