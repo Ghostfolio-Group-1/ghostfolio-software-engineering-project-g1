@@ -12,12 +12,18 @@ const WEEK_STARTS_ON_MONDAY = 1;
 interface ReturnLevel {
   date: string;
   dividend: number;
+  flow: number;
+  sold: boolean;
   value: number;
 }
 
 export interface ReturnComparisonObservation {
   date: string;
   dividend?: number;
+  // External cash added on this date. A purchase is positive and sale
+  // proceeds are negative. Aggregate returns subtract this so the flow is
+  // not mistaken for a gain or loss.
+  flow?: number;
   sold?: boolean;
   symbol?: string;
   value: number;
@@ -42,8 +48,9 @@ export function toReturnComparison({
   symbol?: string;
 }): ReturnComparisonResponse {
   const selected = selectObservations(observations, symbol, startDate, endDate);
-  const levels = alignLevels(selected, endDate);
-  const points = indexLevels(levels);
+  const points = symbol
+    ? indexLevels(timelineForSymbol(selected, endDate))
+    : indexPortfolio(selected, endDate);
   const granularity = resolveChartGranularity({ endDate, startDate });
 
   return {
@@ -81,10 +88,10 @@ function selectObservations(
   return inRange;
 }
 
-function alignLevels(
+function indexPortfolio(
   observations: ReturnComparisonObservation[],
   endDate: string
-): ReturnLevel[] {
+): ReturnComparisonPoint[] {
   const symbols = [
     ...new Set(
       observations.map((observation) => {
@@ -112,43 +119,76 @@ function alignLevels(
     return left.localeCompare(right);
   });
 
-  return dates.map((date) => {
-    let dividend = 0;
-    let value = 0;
+  if (dates.length === 0) {
+    return [];
+  }
+
+  // Chain each holding's own change from the previous date. A holding that
+  // first appears on a date is new money, so it is left out of that day's
+  // ratio instead of being counted as a return.
+  let priceIndex = 100;
+  let totalIndex = 100;
+  const points: ReturnComparisonPoint[] = [
+    { date: dates[0], priceReturn: 100, totalReturn: 100 }
+  ];
+
+  for (let index = 1; index < dates.length; index++) {
+    const date = dates[index];
+    let begin = 0;
+    let endPrice = 0;
+    let endTotal = 0;
 
     for (const timeline of timelines) {
-      const level = levelAt(timeline, date);
+      const previous = levelAt(timeline, dates[index - 1]);
 
-      if (!level) {
+      if (!previous || previous.sold) {
         continue;
       }
 
-      value += level.value;
-      dividend += level.dividend;
+      const current = levelAt(timeline, date);
+
+      begin += previous.value;
+      endPrice += (current?.value ?? previous.value) - (current?.flow ?? 0);
+      // Dividends are added as cash on the date they are received.
+      // The total-return index does not assume that cash bought more shares.
+      endTotal +=
+        (current?.value ?? previous.value) -
+        (current?.flow ?? 0) +
+        (current?.dividend ?? 0);
     }
 
-    return { date, dividend, value };
-  });
+    if (begin !== 0) {
+      priceIndex *= endPrice / begin;
+      totalIndex *= endTotal / begin;
+    }
+
+    points.push({
+      date,
+      priceReturn: roundReturn(priceIndex),
+      totalReturn: roundReturn(totalIndex)
+    });
+  }
+
+  return points;
 }
 
 function timelineForSymbol(
   observations: ReturnComparisonObservation[],
   endDate: string
 ): ReturnLevel[] {
-  const byDate = new Map<
-    string,
-    { date: string; dividend: number; sold: boolean; value: number }
-  >();
+  const byDate = new Map<string, ReturnLevel>();
 
   for (const observation of observations) {
     const current = byDate.get(observation.date) ?? {
       date: observation.date,
       dividend: 0,
+      flow: 0,
       sold: false,
       value: observation.value
     };
 
     current.dividend += observation.dividend ?? 0;
+    current.flow += observation.flow ?? 0;
     current.sold = current.sold || observation.sold === true;
     current.value = observation.value;
     byDate.set(observation.date, current);
@@ -162,18 +202,26 @@ function timelineForSymbol(
   });
   const timeline = levels.map((level) => {
     if (sale && level.date > sale.date) {
-      return { date: level.date, dividend: 0, value: sale.value };
+      return {
+        date: level.date,
+        dividend: 0,
+        flow: 0,
+        sold: true,
+        value: sale.value
+      };
     }
 
-    return {
-      date: level.date,
-      dividend: level.dividend,
-      value: level.value
-    };
+    return level;
   });
 
   if (sale && sale.date < endDate && !byDate.has(endDate)) {
-    timeline.push({ date: endDate, dividend: 0, value: sale.value });
+    timeline.push({
+      date: endDate,
+      dividend: 0,
+      flow: 0,
+      sold: true,
+      value: sale.value
+    });
   }
 
   return timeline;
@@ -190,7 +238,7 @@ function levelAt(
       break;
     }
 
-    match = level.date === date ? level : { ...level, dividend: 0 };
+    match = level.date === date ? level : { ...level, dividend: 0, flow: 0 };
   }
 
   return match;
@@ -203,6 +251,8 @@ function indexLevels(levels: ReturnLevel[]): ReturnComparisonPoint[] {
     return [];
   }
 
+  // Dividends are added as cash on the date they are received.
+  // The total-return index does not assume that cash bought more shares.
   let dividendsSinceStart = 0;
 
   return levels.map((level, index) => {
@@ -212,10 +262,16 @@ function indexLevels(levels: ReturnLevel[]): ReturnComparisonPoint[] {
 
     return {
       date: level.date,
-      priceReturn: (100 * level.value) / base,
-      totalReturn: (100 * (level.value + dividendsSinceStart)) / base
+      priceReturn: roundReturn((100 * level.value) / base),
+      totalReturn: roundReturn(
+        (100 * (level.value + dividendsSinceStart)) / base
+      )
     };
   });
+}
+
+function roundReturn(value: number): number {
+  return Math.round(value * 1e6) / 1e6;
 }
 
 function toWeeklyPoints(

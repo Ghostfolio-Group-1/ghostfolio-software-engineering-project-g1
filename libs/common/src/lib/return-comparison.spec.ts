@@ -87,6 +87,39 @@ describe('return comparison', () => {
     ]);
   });
 
+  it('does not count a holding bought during the range as a return', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', symbol: 'MSFT', value: 40 }
+        ],
+        startDate: '2026-01-01'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 }
+    ]);
+  });
+
+  it('does not count a partial sale as a loss when the cash flow is known', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', flow: -40, symbol: 'AAPL', value: 60 }
+        ],
+        startDate: '2026-01-01'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 }
+    ]);
+  });
+
   it('aggregates every holding when no symbol is requested', () => {
     expect(
       toReturnComparison({
