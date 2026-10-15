@@ -15,6 +15,7 @@ export const fifoActivitiesSchema = {
       'quantity',
       'symbolProfileId',
       'type',
+      'unitPrice',
       'userId'
     ],
     properties: {
@@ -28,6 +29,7 @@ export const fifoActivitiesSchema = {
       quantity: { type: 'number', exclusiveMinimum: 0 },
       symbolProfileId: { type: 'string', minLength: 1 },
       type: { enum: ['BUY', 'SELL'] },
+      unitPrice: { type: 'number' },
       userId: { type: 'string', minLength: 1 }
     }
   }

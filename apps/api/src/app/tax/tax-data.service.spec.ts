@@ -15,6 +15,7 @@ const row = (id: string, date: string, type: 'BUY' | 'SELL', quantity = 1) => ({
   quantity,
   symbolProfileId: 'symbol-1',
   type,
+  unitPrice: 50,
   userId: 'user-1'
 });
 
@@ -56,6 +57,7 @@ describe('TaxDataService contract', () => {
         quantity: true,
         symbolProfileId: true,
         type: true,
+        unitPrice: true,
         userId: true
       },
       where: {
