@@ -361,6 +361,160 @@ describe('consumeFifoTaxLots', () => {
     expect(result.lots[1].remainingQuantity.toString()).toBe('4');
   });
 
+  it('throws when a SELL exceeds available holdings after a partial match', () => {
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          date: new Date('2026-01-01T10:00:00.000Z'),
+          id: 'buy-5',
+          quantity: 5
+        }),
+        createActivity({
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'sell-7',
+          quantity: 7,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL sell-7 exceeds available holdings by 2.');
+  });
+
+  it('throws when a SELL has no matching open lot', () => {
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          id: 'sell-unmatched',
+          quantity: 3,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL sell-unmatched exceeds available holdings by 3.');
+  });
+
+  it('rejects zero or negative SELL quantities', () => {
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          id: 'sell-zero',
+          quantity: 0,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL quantity must be greater than zero.');
+
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          id: 'sell-negative',
+          quantity: -1,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL quantity must be greater than zero.');
+  });
+
+  it('matches a same-timestamp SELL when the BUY id sorts first', () => {
+    const date = new Date('2026-01-01T10:00:00.000Z');
+
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date,
+        id: 'a-buy',
+        quantity: 5
+      }),
+      createActivity({
+        date,
+        id: 'b-sell',
+        quantity: 2,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions).toHaveLength(1);
+    expect(result.consumptions[0].buyActivityId).toBe('a-buy');
+    expect(result.consumptions[0].sellActivityId).toBe('b-sell');
+    expect(result.consumptions[0].matchedQuantity.toString()).toBe('2');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('3');
+  });
+
+  it('throws for a same-timestamp SELL when the SELL id sorts first', () => {
+    const date = new Date('2026-01-01T10:00:00.000Z');
+
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          date,
+          id: 'b-buy',
+          quantity: 5
+        }),
+        createActivity({
+          date,
+          id: 'a-sell',
+          quantity: 2,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL a-sell exceeds available holdings by 2.');
+  });
+
+  it('does not consume lots from another asset', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-asset-1',
+        quantity: 5,
+        symbolProfileId: 'asset-1'
+      }),
+      createActivity({
+        date: new Date('2026-01-01T11:00:00.000Z'),
+        id: 'buy-asset-2',
+        quantity: 4,
+        symbolProfileId: 'asset-2'
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-asset-2',
+        quantity: 2,
+        symbolProfileId: 'asset-2',
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions).toHaveLength(1);
+    expect(result.consumptions[0].buyActivityId).toBe('buy-asset-2');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('5');
+    expect(result.lots[1].remainingQuantity.toString()).toBe('2');
+  });
+
+  it('keeps null-account activity inside the null-account scope', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-account',
+        quantity: 5
+      }),
+      createActivity({
+        accountId: null,
+        date: new Date('2026-01-01T11:00:00.000Z'),
+        id: 'buy-null-account',
+        quantity: 4
+      }),
+      createActivity({
+        accountId: null,
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-null-account',
+        quantity: 3,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions).toHaveLength(1);
+    expect(result.consumptions[0].buyActivityId).toBe('buy-null-account');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('5');
+    expect(result.lots[1].remainingQuantity.toString()).toBe('1');
+  });
+
   it('produces the same lot and consumption state on repeated execution', () => {
     const activities = [
       createActivity({

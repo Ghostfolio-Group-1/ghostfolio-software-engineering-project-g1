@@ -236,6 +236,54 @@ describe('calculateFifoRealizedGains', () => {
     ).toBe('1');
   });
 
+  it('rejects cross-currency gain arithmetic without historical FX conversion', () => {
+    expect(() =>
+      calculateFifoRealizedGains([
+        createActivity({
+          currency: 'USD',
+          date: new Date('2026-01-01T10:00:00.000Z'),
+          id: 'buy-usd',
+          quantity: 1,
+          unitPrice: 100
+        }),
+        createActivity({
+          currency: 'EUR',
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'sell-eur',
+          quantity: 1,
+          type: ActivityType.SELL,
+          unitPrice: 120
+        })
+      ])
+    ).toThrow(
+      'FIFO realized gain requires historical FX conversion from USD to EUR for BUY buy-usd and SELL sell-eur.'
+    );
+  });
+
+  it('rejects realized-gain arithmetic when a transaction currency is unknown', () => {
+    expect(() =>
+      calculateFifoRealizedGains([
+        createActivity({
+          currency: null,
+          date: new Date('2026-01-01T10:00:00.000Z'),
+          id: 'buy-unknown-currency',
+          quantity: 1,
+          unitPrice: 100
+        }),
+        createActivity({
+          currency: 'USD',
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'sell-usd',
+          quantity: 1,
+          type: ActivityType.SELL,
+          unitPrice: 120
+        })
+      ])
+    ).toThrow(
+      'FIFO realized gain requires known transaction currencies for BUY buy-unknown-currency and SELL sell-usd.'
+    );
+  });
+
   it('assigns SELL fee division residual to the final match', () => {
     const result = calculateFifoRealizedGains([
       createActivity({
