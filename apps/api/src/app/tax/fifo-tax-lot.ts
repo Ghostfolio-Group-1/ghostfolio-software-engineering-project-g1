@@ -10,6 +10,7 @@ export type FifoTaxActivitySource = Pick<
   | 'quantity'
   | 'symbolProfileId'
   | 'type'
+  | 'unitPrice'
   | 'userId'
 >;
 
@@ -26,6 +27,8 @@ export interface TaxLot {
   acquiredAt: Date;
   initialQuantity: Big;
   remainingQuantity: Big;
+  unitPrice: Big;
+  costBasis: Big;
   currency: string | null;
 }
 
@@ -101,6 +104,7 @@ export function consumeFifoTaxLots(
         : lot.remainingQuantity;
 
       lot.remainingQuantity = lot.remainingQuantity.minus(matchedQuantity);
+      lot.costBasis = lot.remainingQuantity.times(lot.unitPrice);
       quantityToMatch = quantityToMatch.minus(matchedQuantity);
 
       consumptions.push({
@@ -120,6 +124,7 @@ export function consumeFifoTaxLots(
 
 function createTaxLotFromBuy(activity: FifoTaxActivitySource): TaxLot {
   const quantity = new Big(activity.quantity);
+  const unitPrice = new Big(activity.unitPrice);
 
   if (quantity.lte(0)) {
     throw new Error('FIFO BUY quantity must be greater than zero.');
@@ -136,6 +141,8 @@ function createTaxLotFromBuy(activity: FifoTaxActivitySource): TaxLot {
     acquiredAt: activity.date,
     initialQuantity: quantity,
     remainingQuantity: new Big(quantity),
+    unitPrice,
+    costBasis: quantity.times(unitPrice),
     currency: activity.currency
   };
 }

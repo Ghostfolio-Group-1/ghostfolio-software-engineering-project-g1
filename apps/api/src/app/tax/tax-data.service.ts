@@ -33,6 +33,7 @@ export class TaxDataService {
         quantity: true,
         symbolProfileId: true,
         type: true,
+        unitPrice: true,
         userId: true
       }
     });
