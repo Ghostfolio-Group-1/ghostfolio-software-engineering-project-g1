@@ -1,5 +1,3 @@
-import { Severity } from './severity.type';
-
 export interface RuleScore {
   actual: number | null;
   isActive: boolean;
@@ -7,6 +5,5 @@ export interface RuleScore {
   message: string;
   name: string;
   passed: boolean | null;
-  severity: Severity;
   weight: number;
 }

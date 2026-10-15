@@ -32,7 +32,6 @@ describe('HealthScoreCalculatorService', () => {
 
     expect(score.score).toBe(100);
     expect(score.grade).toBe('A');
-    expect(score.severity).toBe('GREEN');
   });
 
   it('matches a hand-worked mixed pass/fail example', () => {
@@ -49,7 +48,6 @@ describe('HealthScoreCalculatorService', () => {
 
     expect(score.score).toBe(60);
     expect(score.grade).toBe('D');
-    expect(score.severity).toBe('YELLOW');
   });
 
   it('returns null with NO_ACTIVE_RULES when every rule is inactive', () => {
@@ -57,7 +55,6 @@ describe('HealthScoreCalculatorService', () => {
 
     expect(score.score).toBeNull();
     expect(score.grade).toBeNull();
-    expect(score.severity).toBe('NO_DATA');
     expect(score.unavailableReason).toBe('NO_ACTIVE_RULES');
   });
 
@@ -77,6 +74,31 @@ describe('HealthScoreCalculatorService', () => {
 
     expect(score.activeWeight).toBe(25);
     expect(score.score).toBe(60);
+  });
+
+  it('excludes a whole category when every rule in it is inactive', () => {
+    // Fees: one active 15-weight pass. Liquidity: its only rule is
+    // inactive, so the category must not appear in categories at all -
+    // not as a 0-weight or NO_DATA entry - and must not affect the
+    // overall score or active weight.
+    const score = service.calculate([
+      result({ passed: true, weight: 15 }),
+      result({
+        categoryKey: 'liquidity',
+        categoryName: 'Liquidity',
+        categoryWeight: 10,
+        isActive: false,
+        key: 'CashAllocation',
+        weight: 10
+      })
+    ]);
+
+    expect(score.categories.map((category) => category.key)).toEqual(['fees']);
+    expect(
+      score.categories.find((category) => category.key === 'liquidity')
+    ).toBeUndefined();
+    expect(score.activeWeight).toBe(15);
+    expect(score.score).toBe(100);
   });
 
   it('computes an independent sub-score per category', () => {

@@ -1,5 +1,4 @@
 import { CategoryScore } from './category-score.interface';
-import { Severity } from './severity.type';
 
 export interface HealthScore {
   activeWeight: number;
@@ -7,7 +6,6 @@ export interface HealthScore {
   categories: CategoryScore[];
   grade: string | null;
   score: number | null;
-  severity: Severity;
   unavailableReason: string | null;
 }
 

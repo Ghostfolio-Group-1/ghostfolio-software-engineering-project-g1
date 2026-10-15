@@ -6,12 +6,14 @@ import {
   WeightedRuleResult
 } from './interfaces/health-score.interface';
 import { RuleScore } from './interfaces/rule-score.interface';
-import { Severity } from './interfaces/severity.type';
 
 // score = (sum of weights of PASSED active rules) / (sum of weights of ALL
 // active rules) x 100. Inactive rules are excluded from both sides, so the
 // remaining weights auto-renormalize - turning a rule off never costs points.
 // Spec: docs/sesha-notes/02-health-score-data-model.md.
+//
+// Severity bands are explicitly out of scope for this issue (#38 / parent
+// #19) - they belong to the separate warning-threshold engine story.
 @Injectable()
 export class HealthScoreCalculatorService {
   public calculate(results: WeightedRuleResult[]): HealthScore {
@@ -25,7 +27,6 @@ export class HealthScoreCalculatorService {
         categories: [],
         grade: null,
         score: null,
-        severity: 'NO_DATA',
         unavailableReason: 'NO_ACTIVE_RULES'
       };
     }
@@ -43,7 +44,6 @@ export class HealthScoreCalculatorService {
       calculatedAt: new Date(),
       grade: this.getGrade(score),
       score,
-      severity: this.getScoreSeverity(score),
       unavailableReason: null
     };
   }
@@ -79,7 +79,6 @@ export class HealthScoreCalculatorService {
           message: result.message,
           name: result.name,
           passed: result.passed,
-          severity: result.passed ? 'GREEN' : 'YELLOW',
           weight: result.weight
         }));
 
@@ -88,7 +87,6 @@ export class HealthScoreCalculatorService {
           score,
           key: categoryKey,
           name: categoryResults[0].categoryName,
-          severity: this.getScoreSeverity(score),
           weight: categoryResults[0].categoryWeight
         };
       })
@@ -101,11 +99,5 @@ export class HealthScoreCalculatorService {
     if (score >= 70) return 'C';
     if (score >= 60) return 'D';
     return 'F';
-  }
-
-  private getScoreSeverity(score: number): Severity {
-    if (score >= 80) return 'GREEN';
-    if (score >= 60) return 'YELLOW';
-    return 'RED';
   }
 }
