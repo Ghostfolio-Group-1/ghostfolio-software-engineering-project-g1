@@ -4,6 +4,7 @@ import {
   consumeFifoTaxLots,
   createFifoTaxLots,
   FifoTaxActivitySource,
+  listOpenFifoTaxLots,
   orderFifoActivities
 } from './fifo-tax-lot';
 
@@ -634,6 +635,71 @@ describe('consumeFifoTaxLots', () => {
     expect(result.lots[0].costBasis.toString()).toBe('0');
     expect(result.lots[1].remainingQuantity.toString()).toBe('3');
     expect(result.lots[1].costBasis.toString()).toBe('240');
+  });
+});
+
+describe('listOpenFifoTaxLots', () => {
+  it('starts a lot with its full buy quantity open', () => {
+    const lots = createFifoTaxLots([
+      createActivity({
+        id: 'buy-10',
+        quantity: 10
+      })
+    ]);
+
+    expect(lots[0].remainingQuantity.toString()).toBe('10');
+    expect(listOpenFifoTaxLots(lots).map((lot) => lot.lotId)).toEqual([
+      'buy-10'
+    ]);
+  });
+
+  it('reports the remainder as the open quantity after a partial sale', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-10',
+        quantity: 10
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-4',
+        quantity: 4,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    const [openLot] = listOpenFifoTaxLots(lots);
+
+    expect(lots[0].remainingQuantity.toString()).toBe('6');
+    expect(openLot.lotId).toBe('buy-10');
+    expect(openLot.remainingQuantity.toString()).toBe('6');
+  });
+
+  it('reports zero for a fully sold lot and omits it from the open list', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-10',
+        quantity: 10
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-5',
+        quantity: 5
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-10',
+        quantity: 10,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(lots[0].remainingQuantity.toString()).toBe('0');
+    expect(listOpenFifoTaxLots(lots).map((lot) => lot.lotId)).toEqual([
+      'buy-5'
+    ]);
+    expect(listOpenFifoTaxLots(lots)[0].remainingQuantity.toString()).toBe('5');
   });
 });
 
