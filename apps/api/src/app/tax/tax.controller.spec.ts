@@ -187,7 +187,8 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
     expect(exception.getResponse()).toMatchObject({
       data: null,
       error: {
-        code: 'TAX_REALIZED_GAINS_FAILED'
+        code: 'TAX_REALIZED_GAINS_FAILED',
+        message: 'FIFO SELL sell-1 exceeds available holdings by 10.'
       },
       meta: {}
     });
