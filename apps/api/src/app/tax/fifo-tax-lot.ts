@@ -44,9 +44,9 @@ export interface FifoLotConsumptionResult {
   consumptions: LotConsumption[];
 }
 
-export function orderFifoActivities(
-  activities: readonly FifoTaxActivitySource[]
-): FifoTaxActivitySource[] {
+export function orderFifoActivities<T extends FifoTaxActivitySource>(
+  activities: readonly T[]
+): T[] {
   activities.forEach(assertEligibleFifoActivity);
 
   return [...activities].sort((left, right) => {

@@ -4,6 +4,7 @@ import { TAG_ID_DRAFT } from '@ghostfolio/common/config';
 import { Injectable } from '@nestjs/common';
 import { Prisma, Type as ActivityType } from '@prisma/client';
 
+import { FifoRealizedGainActivitySource } from './fifo-realized-gain';
 import { FifoTaxActivitySource, orderFifoActivities } from './fifo-tax-lot';
 
 // Data-access layer for the tax engine: loads the user's non-draft BUY and
@@ -16,15 +17,8 @@ export class TaxDataService {
   public async getFifoActivities(
     userId: string
   ): Promise<FifoTaxActivitySource[]> {
-    // Explicitly typed so an unknown field is a compile error, not a runtime one.
-    const where: Prisma.OrderWhereInput = {
-      tags: { none: { id: TAG_ID_DRAFT } },
-      type: { in: [ActivityType.BUY, ActivityType.SELL] },
-      userId
-    };
-
     const activities = await this.prismaService.order.findMany({
-      where,
+      where: this.getFifoActivityWhere(userId),
       select: {
         accountId: true,
         currency: true,
@@ -39,5 +33,35 @@ export class TaxDataService {
     });
 
     return orderFifoActivities(activities);
+  }
+
+  public async getFifoRealizedGainActivities(
+    userId: string
+  ): Promise<FifoRealizedGainActivitySource[]> {
+    const activities = await this.prismaService.order.findMany({
+      where: this.getFifoActivityWhere(userId),
+      select: {
+        accountId: true,
+        currency: true,
+        date: true,
+        fee: true,
+        id: true,
+        quantity: true,
+        symbolProfileId: true,
+        type: true,
+        unitPrice: true,
+        userId: true
+      }
+    });
+
+    return orderFifoActivities(activities);
+  }
+
+  private getFifoActivityWhere(userId: string): Prisma.OrderWhereInput {
+    return {
+      tags: { none: { id: TAG_ID_DRAFT } },
+      type: { in: [ActivityType.BUY, ActivityType.SELL] },
+      userId
+    };
   }
 }

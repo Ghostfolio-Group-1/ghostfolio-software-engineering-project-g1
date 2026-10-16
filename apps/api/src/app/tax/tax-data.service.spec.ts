@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import Ajv from 'ajv';
 
 import { fifoActivitiesSchema } from './contracts/fifo-activity.schema';
+import { fifoRealizedGainActivitiesSchema } from './contracts/fifo-realized-gain-activity.schema';
 import { TaxDataService } from './tax-data.service';
 
 const row = (id: string, date: string, type: 'BUY' | 'SELL', quantity = 1) => ({
@@ -19,9 +20,22 @@ const row = (id: string, date: string, type: 'BUY' | 'SELL', quantity = 1) => ({
   userId: 'user-1'
 });
 
+const realizedGainRow = (
+  id: string,
+  date: string,
+  type: 'BUY' | 'SELL',
+  quantity = 1
+) => ({
+  ...row(id, date, type, quantity),
+  fee: 1
+});
+
 describe('TaxDataService contract', () => {
   const ajv = new Ajv({ allErrors: true });
   const validate = ajv.compile(fifoActivitiesSchema);
+  const validateRealizedGainActivities = ajv.compile(
+    fifoRealizedGainActivitiesSchema
+  );
 
   let findMany: jest.Mock;
   let service: TaxDataService;
@@ -95,8 +109,86 @@ describe('TaxDataService contract', () => {
     expect(
       validate(JSON.parse(JSON.stringify([{ ...dividend, type: 'DIVIDEND' }])))
     ).toBe(false);
+
     expect(
       validate(JSON.parse(JSON.stringify([{ ...dividend, fee: 1 }])))
     ).toBe(false);
+  });
+
+  it('loads the realized-gain fields with the shared FIFO filter', async () => {
+    findMany.mockResolvedValue([
+      realizedGainRow('c', '2026-03-02T00:00:00.000Z', 'SELL', 4),
+      realizedGainRow('b', '2026-03-01T00:00:00.000Z', 'BUY', 10),
+      realizedGainRow('a', '2026-03-01T00:00:00.000Z', 'BUY', 5)
+    ]);
+
+    await service.getFifoRealizedGainActivities('user-1');
+
+    expect(findMany).toHaveBeenCalledWith({
+      select: {
+        accountId: true,
+        currency: true,
+        date: true,
+        fee: true,
+        id: true,
+        quantity: true,
+        symbolProfileId: true,
+        type: true,
+        unitPrice: true,
+        userId: true
+      },
+      where: {
+        tags: { none: { id: TAG_ID_DRAFT } },
+        type: { in: ['BUY', 'SELL'] },
+        userId: 'user-1'
+      }
+    });
+  });
+
+  it('returns realized-gain activities in FIFO order', async () => {
+    findMany.mockResolvedValue([
+      realizedGainRow('c', '2026-03-02T00:00:00.000Z', 'SELL', 4),
+      realizedGainRow('b', '2026-03-01T00:00:00.000Z', 'BUY', 10),
+      realizedGainRow('a', '2026-03-01T00:00:00.000Z', 'BUY', 5)
+    ]);
+
+    const activities = await service.getFifoRealizedGainActivities('user-1');
+
+    expect(activities.map(({ id }) => id)).toEqual(['a', 'b', 'c']);
+    expect(activities.map(({ fee }) => fee)).toEqual([1, 1, 1]);
+  });
+
+  it('matches the realized-gain activity contract', async () => {
+    findMany.mockResolvedValue([
+      realizedGainRow('a', '2026-03-01T00:00:00.000Z', 'BUY', 5),
+      realizedGainRow('b', '2026-03-02T00:00:00.000Z', 'SELL', 4)
+    ]);
+
+    const activities = await service.getFifoRealizedGainActivities('user-1');
+
+    validateRealizedGainActivities(JSON.parse(JSON.stringify(activities)));
+
+    expect(validateRealizedGainActivities.errors ?? []).toEqual([]);
+  });
+
+  it('rejects a negative fee from the realized-gain activity contract', () => {
+    const invalidActivity = {
+      ...realizedGainRow('a', '2026-03-01T00:00:00.000Z', 'BUY'),
+      fee: -1
+    };
+
+    expect(
+      validateRealizedGainActivities(
+        JSON.parse(JSON.stringify([invalidActivity]))
+      )
+    ).toBe(false);
+  });
+
+  it('returns an empty realized-gain activity list when the user has no activities', async () => {
+    findMany.mockResolvedValue([]);
+
+    await expect(
+      service.getFifoRealizedGainActivities('user-1')
+    ).resolves.toEqual([]);
   });
 });
