@@ -4,6 +4,10 @@
 **Updated: 2026-10-08 end of day** — item 8 resolved (PR #82 merged); item 4 reconfirmed still open
 (PR #83 repeated the same unlinked-issue pattern and was still approved/merged); item 22 added
 (PR #86 opened today, awaiting review).
+**Updated: 2026-10-16** — item 22 reconfirmed: PR #86 still has zero reviews 8 days after opening.
+New item 23 added: a growing backlog of approved-but-unmerged PRs. New item 24 added: PR #70 has
+been CI-red and untouched for 10 days. See the full detail in each item below and in deviations.md
+D-9/D-10.
 
 This file is the honest summary of everything that could NOT be verified from GitHub (`gh`/`git`)
 or committed repo docs while building `project-facts.md`, `product-backlog.csv`,
@@ -157,10 +161,41 @@ Items are grouped by severity for triage, since some block specific report secti
     reviewer in the data pulled, but noted here for completeness since the task asked to verify
     naming-pattern compliance.
 
-22. **PR #86 (Tharun Swaminathan, #84 DividendRecord) awaiting review as of 2026-10-08 end of day.**
-    Opened same day, reviewer requested is `Error404IsFound` per the reviewer ring, no review
-    submitted yet, CI status not re-checked in this update. **Who can supply it:** Arthur Elly Lim
-    (via the shared account) to review; status should be re-checked next update pass.
+22. **PR #86 (Tharun Swaminathan, #84 DividendRecord) awaiting review - still open 8 days later.**
+    Opened 2026-10-08, reviewer requested is `Error404IsFound` per the reviewer ring. As of
+    2026-10-16, `gh pr view 86 --json reviews` returns zero reviews - no comment, no approval, no
+    changes-requested. CI is green (`SUCCESS,SUCCESS`). **Who can supply it:** Arthur Elly Lim (via
+    the shared account) to review.
+
+23. **Approved-but-unmerged PRs are piling up.** As of 2026-10-16, five open PRs show
+    `reviewDecision: APPROVED` with CI green but are not merged: #95 (Sesha, opened 2026-10-12,
+    approved 2026-10-12 - 4 days unmerged), #105 (Arthur/Error404IsFound, opened 2026-10-14),
+    #108 (Sesha, opened 2026-10-14), #113 (Sesha, opened 2026-10-15), #118 (Arthur/Error404IsFound,
+    opened 2026-10-15). This session's own merge attempts via `gh pr merge` are blocked by a
+    permission restriction on the assistant account, so Sesha's three (#95/#108/#113) require a
+    human clicking "Merge" in the GitHub UI; #105/#118 being unmerged by Arthur's account is
+    NOT RECORDED as to cause (could be deliberate batching, could be the same kind of blocker, or
+    simple inattention - not verifiable from `gh` data alone). **Who can supply it:** whoever owns
+    merge responsibility for the team - either designate someone with merge rights to clear the
+    approved queue regularly, or confirm Arthur's reason for not merging #105/#118.
+
+24. **PR #70 (Arthur/charts, Reconcile chart API contract) has been CI-red and untouched for
+    10 days.** `CHANGES_REQUESTED` by Tharun Swaminathan on 2026-10-06T14:45:31Z citing both
+    failing CI and architecture/process issues (see deviations.md D-4 family). As of 2026-10-16,
+    `gh pr checks 70` still shows `build (22.23.2)=FAILURE` and `build_and_push=FAILURE` on the
+    same stale run from October 6 - no new commits, no new CI run. This is the longest-stalled PR
+    in the repository (10 days since review, longer since open). **Who can supply it:** Arthur Elly
+    Lim needs to either fix and re-push, or the team needs to decide whether to close/abandon this
+    PR given its age.
+
+25. **sprint-backlog.csv's Oct 9-16 window only has Sesha's own tasks (T-34 through T-39) fully
+    backfilled.** Tharun's, Raniya's, and Arthur's tasks across that same window (roughly PRs
+    #92, #94, #98, #99, #101, #104, #105, #107, #109, #111, #112, #116, #117, #118 - a large
+    merged/in-review set) were not individually backfilled with reviewer/timing detail in this
+    pass, matching the same scale of effort as the original Oct 2-8 backfill. **Who can supply
+    it:** a dedicated backfill pass per the same method as the original (gather raw `gh pr
+list`/`gh pr view` data for each PR, then write rows), ideally run again once this set of
+    approved-but-unmerged PRs clears.
 
 ---
 
@@ -189,4 +224,7 @@ Items are grouped by severity for triage, since some block specific report secti
 | 19  | Architecture diagrams stale                | Material              | Raniya                  |
 | 20  | CI-incident escalation process unclear     | Material              | Sesha / Tharun          |
 | 21  | One branch name off-pattern                | Minor                 | Raniya                  |
-| 22  | PR #86 awaiting review (opened Oct 8)      | Material              | Arthur                  |
+| 22  | PR #86 awaiting review - 8 days, 0 reviews | Material              | Arthur                  |
+| 23  | 5 approved PRs unmerged (oldest 4 days)    | Material              | Merge-rights owner      |
+| 24  | PR #70 CI-red + untouched 10 days          | Material              | Arthur                  |
+| 25  | Oct 9-16 backlog only has Sesha's tasks    | Material              | Next backfill pass      |

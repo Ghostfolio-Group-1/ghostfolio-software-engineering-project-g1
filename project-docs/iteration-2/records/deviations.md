@@ -112,3 +112,30 @@ the file has only Oct 2 and Oct 5 standups written; Oct 6, 7, 8 standups were no
 - **Who decided:** Sesha Siva Sankar, following Tharun Swaminathan's explicit sequencing request on PR #88.
 - **New date:** N/A — resolved same day; PR #77 merged 2026-10-09T03:13:29Z, PR #88 merged 2026-10-09T03:46:58Z.
 - **Raised at standup:** NOT RECORDED — no Oct 8 standup entry exists (see D-7).
+
+## D-9 — Approved PRs are accumulating unmerged (5 as of 2026-10-16)
+
+- **Date noticed:** 2026-10-16, while compiling the Oct 16 records update.
+- **Task ID:** Process-level, spans multiple tasks (#95/T-34 volatility-rule, #105, #108/T-37, #113/T-38, #118).
+- **Owner:** Sesha Siva Sankar (3 of the 5: #95, #108, #113); Arthur Elly Lim/Error404IsFound (2 of the 5: #105, #118).
+- **Planned:** Each PR would be reviewed, approved, and merged same-day or next-day, matching the sprint's daily-task cadence.
+- **What happened:** `gh pr list --json reviewDecision` on 2026-10-16 shows 5 open PRs with `reviewDecision: APPROVED` and all CI checks green, none merged: #95 (approved 2026-10-12, 4 days unmerged), #105 (opened 2026-10-14), #108 (opened 2026-10-14), #113 (opened 2026-10-15), #118 (opened 2026-10-15).
+- **Reason:** For Sesha's three, this session's own `gh pr merge` calls are blocked by an assistant-account permission restriction ("Merge Without Review" denial, regardless of actual approval state) - a human has to click Merge in the GitHub UI instead. For Arthur's two (#105, #118), the cause is NOT RECORDED - could be the same kind of blocker on a different account, deliberate batching, or inattention; not verifiable from `gh` data alone.
+- **Decision taken:** NOT RECORDED - no team decision found assigning merge responsibility or a cadence for clearing the approved queue.
+- **Who decided:** N/A.
+- **New date:** NOT RECORDED.
+- **Raised at standup:** NOT RECORDED - no standup entries exist past Oct 5 (see D-7); this means the backlog has had no opportunity to be raised live.
+
+## D-10 — PR #70 has been CI-red and untouched for 10 days
+
+- **Date noticed:** 2026-10-16, while compiling the Oct 16 records update.
+- **Task ID:** T-arthur-oct6-b (see sprint-backlog.csv).
+- **Owner:** Arthur Elly Lim (via shared account Error404IsFound).
+- **Planned:** Reconcile the chart API contract with the real Ghostfolio API; add the TimeRangeSelection DTO.
+- **What happened:** Tharun Swaminathan requested changes on 2026-10-06T14:45:31Z, citing both failing CI (`build (22.23.2)=FAILURE`, `build_and_push=FAILURE`) and architecture/process issues (wrong DTO location, wrong branch naming, batched commits - see the original PR #70 review text). As of 2026-10-16, `gh pr checks 70` still shows the identical failing run from October 6; no new commit has been pushed to address either the CI failure or the process feedback in the 10 days since.
+- **Reason:** NOT RECORDED - no comment, commit, or status update from the PR author in the intervening 10 days.
+- **Decision taken:** NOT RECORDED - the PR remains open with no resolution plan on record.
+- **Who decided:** N/A.
+- **New date:** NOT RECORDED.
+- **Raised at standup:** NOT RECORDED - see D-7.
+- This is the longest-stalled open PR in the repository as of this update.
