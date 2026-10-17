@@ -69,7 +69,26 @@ export function orderFifoActivities<T extends FifoTaxActivitySource>(
 }
 
 export function listOpenFifoTaxLots(lots: readonly TaxLot[]): TaxLot[] {
-  return lots.filter((lot) => lot.remainingQuantity.gt(0));
+  return lots
+    .filter((lot) => lot.remainingQuantity.gt(0))
+    .sort((left, right) => {
+      const dateDifference =
+        left.acquiredAt.getTime() - right.acquiredAt.getTime();
+
+      if (dateDifference !== 0) {
+        return dateDifference;
+      }
+
+      if (left.lotId < right.lotId) {
+        return -1;
+      }
+
+      if (left.lotId > right.lotId) {
+        return 1;
+      }
+
+      return 0;
+    });
 }
 
 export function createFifoTaxLots(
