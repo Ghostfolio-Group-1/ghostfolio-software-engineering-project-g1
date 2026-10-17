@@ -67,6 +67,11 @@ describe('calculateAverageCostPools', () => {
       })
     ]);
 
+    expect(pool.scope).toEqual({
+      userId: 'user-1',
+      symbolProfileId: 'asset-1'
+    });
+    expect(pool.currency).toBe('USD');
     expect(pool.quantity.toString()).toBe('15');
     expect(pool.grossCost.toString()).toBe('1600');
     expect(pool.acquisitionFeePool.toString()).toBe('8');
@@ -98,8 +103,37 @@ describe('calculateAverageCostPools', () => {
       userId: 'user-1',
       symbolProfileId: 'asset-1'
     });
+    expect(pool.currency).toBe('USD');
     expect(pool.quantity.toString()).toBe('5');
     expect(pool.grossCost.toString()).toBe('560');
+  });
+
+  it('allows a SELL in one account to reduce a same-user same-asset pool funded in another account', () => {
+    const [pool] = calculateAverageCostPools([
+      createActivity({
+        accountId: 'account-1',
+        fee: 1,
+        id: 'buy-account-1',
+        quantity: 4,
+        unitPrice: 10
+      }),
+      createActivity({
+        accountId: 'account-2',
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-account-2',
+        quantity: 1,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(pool.scope).toEqual({
+      userId: 'user-1',
+      symbolProfileId: 'asset-1'
+    });
+    expect(pool.quantity.toString()).toBe('3');
+    expect(pool.grossCost.toString()).toBe('30');
+    expect(pool.acquisitionFeePool.toString()).toBe('0.75');
+    expect(pool.sourceActivityIds).toEqual(['buy-account-1', 'sell-account-2']);
   });
 
   it('keeps different assets in separate pools', () => {
@@ -196,6 +230,34 @@ describe('calculateAverageCostPools', () => {
     expect(pool.grossCost.div(pool.quantity).toString()).toBe('100');
   });
 
+  it('handles repeated partial SELLs with a repeating disposal ratio and resets exactly on full liquidation', () => {
+    const [pool] = calculateAverageCostPools([
+      createActivity({
+        fee: 1,
+        id: 'buy-3',
+        quantity: 3,
+        unitPrice: 10
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-1',
+        quantity: 1,
+        type: ActivityType.SELL
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-2',
+        quantity: 2,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(pool.quantity.toString()).toBe('0');
+    expect(pool.grossCost.toString()).toBe('0');
+    expect(pool.acquisitionFeePool.toString()).toBe('0');
+    expect(pool.sourceActivityIds).toEqual(['buy-3', 'sell-1', 'sell-2']);
+  });
+
   it('resets cost and acquisition-fee pools exactly to zero after a full SELL', () => {
     const [pool] = calculateAverageCostPools([
       createActivity({
@@ -215,6 +277,36 @@ describe('calculateAverageCostPools', () => {
     expect(pool.quantity.toString()).toBe('0');
     expect(pool.grossCost.toString()).toBe('0');
     expect(pool.acquisitionFeePool.toString()).toBe('0');
+  });
+
+  it('starts a fresh average-cost basis after full liquidation and re-entry', () => {
+    const [pool] = calculateAverageCostPools([
+      createActivity({
+        fee: 5,
+        id: 'buy-old',
+        quantity: 10,
+        unitPrice: 100
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-all',
+        quantity: 10,
+        type: ActivityType.SELL
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        fee: 1,
+        id: 'buy-new',
+        quantity: 2,
+        unitPrice: 200
+      })
+    ]);
+
+    expect(pool.quantity.toString()).toBe('2');
+    expect(pool.grossCost.toString()).toBe('400');
+    expect(pool.acquisitionFeePool.toString()).toBe('1');
+    expect(pool.grossCost.div(pool.quantity).toString()).toBe('200');
+    expect(pool.sourceActivityIds).toEqual(['buy-old', 'sell-all', 'buy-new']);
   });
 
   it('throws when a SELL exceeds the available average-cost pool', () => {
@@ -288,15 +380,97 @@ describe('calculateAverageCostPools', () => {
     );
   });
 
-  it('rejects a negative activity fee', () => {
+  it('rejects a negative BUY fee', () => {
     expect(() =>
       calculateAverageCostPools([
         createActivity({
           fee: -1,
-          id: 'negative-fee'
+          id: 'negative-buy-fee'
         })
       ])
     ).toThrow('Average-cost BUY fee must not be negative.');
+  });
+
+  it('rejects a negative SELL fee', () => {
+    expect(() =>
+      calculateAverageCostPools([
+        createActivity({
+          id: 'buy-1',
+          quantity: 2
+        }),
+        createActivity({
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          fee: -1,
+          id: 'negative-sell-fee',
+          quantity: 1,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('Average-cost SELL fee must not be negative.');
+  });
+
+  it('rejects an activity with an unknown transaction currency', () => {
+    expect(() =>
+      calculateAverageCostPools([
+        createActivity({
+          currency: null,
+          id: 'unknown-currency-buy'
+        })
+      ])
+    ).toThrow(
+      'Average-cost activity unknown-currency-buy requires a known transaction currency.'
+    );
+  });
+
+  it('rejects mixed currencies inside the same user and asset pool', () => {
+    expect(() =>
+      calculateAverageCostPools([
+        createActivity({
+          accountId: 'account-1',
+          currency: 'USD',
+          id: 'usd-buy',
+          quantity: 2,
+          unitPrice: 100
+        }),
+        createActivity({
+          accountId: 'account-2',
+          currency: 'EUR',
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'eur-buy',
+          quantity: 3,
+          unitPrice: 120
+        })
+      ])
+    ).toThrow(
+      'Average-cost pool requires historical FX conversion from EUR to USD for activity eur-buy.'
+    );
+  });
+
+  it('allows different pools to use different currencies', () => {
+    const pools = calculateAverageCostPools([
+      createActivity({
+        currency: 'USD',
+        id: 'usd-asset-buy',
+        symbolProfileId: 'asset-us'
+      }),
+      createActivity({
+        currency: 'EUR',
+        id: 'eur-asset-buy',
+        symbolProfileId: 'asset-eu'
+      })
+    ]);
+
+    expect(pools).toHaveLength(2);
+
+    const usdPool = pools.find(
+      ({ scope }) => scope.symbolProfileId === 'asset-us'
+    );
+    const eurPool = pools.find(
+      ({ scope }) => scope.symbolProfileId === 'asset-eu'
+    );
+
+    expect(usdPool?.currency).toBe('USD');
+    expect(eurPool?.currency).toBe('EUR');
   });
 
   it('produces the same pool values on repeated execution', () => {
@@ -321,11 +495,13 @@ describe('calculateAverageCostPools', () => {
     const [second] = calculateAverageCostPools(activities);
 
     expect({
+      currency: first.currency,
       quantity: first.quantity.toString(),
       grossCost: first.grossCost.toString(),
       acquisitionFeePool: first.acquisitionFeePool.toString(),
       sourceActivityIds: first.sourceActivityIds
     }).toEqual({
+      currency: second.currency,
       quantity: second.quantity.toString(),
       grossCost: second.grossCost.toString(),
       acquisitionFeePool: second.acquisitionFeePool.toString(),
@@ -339,6 +515,7 @@ function createActivity(
 ): AverageCostActivitySource {
   return {
     accountId: 'account-1',
+    currency: 'USD',
     date: new Date('2026-01-01T10:00:00.000Z'),
     fee: 0,
     id: 'buy-1',

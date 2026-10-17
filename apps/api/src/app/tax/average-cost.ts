@@ -4,6 +4,7 @@ import { Big } from 'big.js';
 export type AverageCostActivitySource = Pick<
   Order,
   | 'accountId'
+  | 'currency'
   | 'date'
   | 'fee'
   | 'id'
@@ -21,6 +22,7 @@ export interface AverageCostPoolScope {
 
 export interface AverageCostPool {
   scope: AverageCostPoolScope;
+  currency: string;
   quantity: Big;
   grossCost: Big;
   acquisitionFeePool: Big;
@@ -32,6 +34,10 @@ export function orderAverageCostActivities<T extends AverageCostActivitySource>(
 ): T[] {
   activities.forEach(assertEligibleAverageCostActivity);
 
+  // DR-3 intentionally orders by the full activity timestamp and then
+  // activity id. It does not force BUY before SELL. Therefore, if a SELL and
+  // its supporting BUY have the exact same timestamp and the SELL id sorts
+  // first, the SELL can fail for insufficient holdings.
   return [...activities].sort((left, right) => {
     const dateDifference = left.date.getTime() - right.date.getTime();
 
@@ -75,10 +81,17 @@ function getOrCreatePool(
   pools: Map<string, AverageCostPool>,
   activity: AverageCostActivitySource
 ): AverageCostPool {
+  const currency = requireAverageCostCurrency(activity);
   const key = createPoolKey(activity.userId, activity.symbolProfileId);
   const existingPool = pools.get(key);
 
   if (existingPool) {
+    if (existingPool.currency !== currency) {
+      throw new Error(
+        `Average-cost pool requires historical FX conversion from ${currency} to ${existingPool.currency} for activity ${activity.id}.`
+      );
+    }
+
     return existingPool;
   }
 
@@ -87,6 +100,7 @@ function getOrCreatePool(
       userId: activity.userId,
       symbolProfileId: activity.symbolProfileId
     },
+    currency,
     quantity: new Big(0),
     grossCost: new Big(0),
     acquisitionFeePool: new Big(0),
@@ -131,6 +145,8 @@ function applySellToPool(
 
   pool.quantity = pool.quantity.minus(sellQuantity);
 
+  // Reset exactly to zero after a full liquidation. This avoids carrying any
+  // division residue into a later re-entry for the same user and asset.
   if (pool.quantity.eq(0)) {
     pool.grossCost = new Big(0);
     pool.acquisitionFeePool = new Big(0);
@@ -146,6 +162,18 @@ function createPoolKey(userId: string, symbolProfileId: string): string {
   return JSON.stringify([userId, symbolProfileId]);
 }
 
+function requireAverageCostCurrency(
+  activity: AverageCostActivitySource
+): string {
+  if (!activity.currency) {
+    throw new Error(
+      `Average-cost activity ${activity.id} requires a known transaction currency.`
+    );
+  }
+
+  return activity.currency;
+}
+
 function assertEligibleAverageCostActivity(
   activity: AverageCostActivitySource
 ): void {
@@ -157,6 +185,8 @@ function assertEligibleAverageCostActivity(
       'Average-cost input can only contain eligible BUY and SELL activities.'
     );
   }
+
+  requireAverageCostCurrency(activity);
 
   const quantity = new Big(activity.quantity);
 
