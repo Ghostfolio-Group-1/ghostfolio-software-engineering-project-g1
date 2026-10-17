@@ -701,6 +701,62 @@ describe('listOpenFifoTaxLots', () => {
     ]);
     expect(listOpenFifoTaxLots(lots)[0].remainingQuantity.toString()).toBe('5');
   });
+
+  it('reports the BUY date and keeps it after a partial sale', () => {
+    const acquiredAt = new Date('2026-01-01T10:00:00.000Z');
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: acquiredAt,
+        id: 'buy-10',
+        quantity: 10
+      }),
+      createActivity({
+        date: new Date('2026-03-01T10:00:00.000Z'),
+        id: 'sell-4',
+        quantity: 4,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    const [openLot] = listOpenFifoTaxLots(lots);
+
+    expect(openLot.acquiredAt).toBe(acquiredAt);
+    expect(openLot.remainingQuantity.toString()).toBe('6');
+  });
+
+  it('lists open lots oldest-acquisition first', () => {
+    const older = new Date('2026-01-01T10:00:00.000Z');
+    const newer = new Date('2026-02-01T10:00:00.000Z');
+    const sameDay = new Date('2026-01-01T10:00:00.000Z');
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: newer,
+        id: 'buy-newer',
+        quantity: 5
+      }),
+      createActivity({
+        date: older,
+        id: 'buy-z',
+        quantity: 4
+      }),
+      createActivity({
+        date: sameDay,
+        id: 'buy-a',
+        quantity: 2
+      })
+    ]);
+
+    expect(
+      listOpenFifoTaxLots([...lots].reverse()).map((lot) => lot.lotId)
+    ).toEqual(['buy-a', 'buy-z', 'buy-newer']);
+    expect(
+      listOpenFifoTaxLots(lots).map((lot) => lot.acquiredAt.toISOString())
+    ).toEqual([
+      sameDay.toISOString(),
+      older.toISOString(),
+      newer.toISOString()
+    ]);
+  });
 });
 
 function summarizeConsumptionResult(
