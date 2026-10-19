@@ -29,6 +29,27 @@ export interface AverageCostPool {
   sourceActivityIds: string[];
 }
 
+export interface AverageCostPoolSnapshot {
+  scope: AverageCostPoolScope;
+  currency: string;
+  quantity: Big;
+  grossCost: Big;
+  acquisitionFeePool: Big;
+  sourceActivityIds: string[];
+}
+
+export interface AverageCostPoolTransition {
+  activityId: string;
+  activityType: ActivityType;
+  poolBefore: AverageCostPoolSnapshot;
+  poolAfter: AverageCostPoolSnapshot;
+}
+
+export interface AverageCostPoolCalculation {
+  pools: AverageCostPool[];
+  transitions: AverageCostPoolTransition[];
+}
+
 export function orderAverageCostActivities<T extends AverageCostActivitySource>(
   activities: readonly T[]
 ): T[] {
@@ -60,10 +81,18 @@ export function orderAverageCostActivities<T extends AverageCostActivitySource>(
 export function calculateAverageCostPools(
   activities: readonly AverageCostActivitySource[]
 ): AverageCostPool[] {
+  return calculateAverageCostPoolHistory(activities).pools;
+}
+
+export function calculateAverageCostPoolHistory(
+  activities: readonly AverageCostActivitySource[]
+): AverageCostPoolCalculation {
   const pools = new Map<string, AverageCostPool>();
+  const transitions: AverageCostPoolTransition[] = [];
 
   for (const activity of orderAverageCostActivities(activities)) {
     const pool = getOrCreatePool(pools, activity);
+    const poolBefore = snapshotPool(pool);
 
     if (activity.type === ActivityType.BUY) {
       applyBuyToPool(pool, activity);
@@ -72,9 +101,19 @@ export function calculateAverageCostPools(
     }
 
     pool.sourceActivityIds.push(activity.id);
+
+    transitions.push({
+      activityId: activity.id,
+      activityType: activity.type,
+      poolBefore,
+      poolAfter: snapshotPool(pool)
+    });
   }
 
-  return Array.from(pools.values());
+  return {
+    pools: Array.from(pools.values()),
+    transitions
+  };
 }
 
 function getOrCreatePool(
@@ -138,11 +177,17 @@ function applySellToPool(
         .toString()}.`
     );
   }
+  /*
+   * Multiply before dividing to avoid introducing avoidable precision loss
+   * from a repeating disposal ratio.
+   */
+  const grossCostReduction = pool.grossCost
+    .times(sellQuantity)
+    .div(pool.quantity);
 
-  const disposalRatio = sellQuantity.div(pool.quantity);
-  const grossCostReduction = pool.grossCost.times(disposalRatio);
-  const feePoolReduction = pool.acquisitionFeePool.times(disposalRatio);
-
+  const feePoolReduction = pool.acquisitionFeePool
+    .times(sellQuantity)
+    .div(pool.quantity);
   pool.quantity = pool.quantity.minus(sellQuantity);
 
   // Reset exactly to zero after a full liquidation. This avoids carrying any
@@ -156,6 +201,20 @@ function applySellToPool(
 
   pool.grossCost = pool.grossCost.minus(grossCostReduction);
   pool.acquisitionFeePool = pool.acquisitionFeePool.minus(feePoolReduction);
+}
+
+function snapshotPool(pool: AverageCostPool): AverageCostPoolSnapshot {
+  return {
+    scope: {
+      userId: pool.scope.userId,
+      symbolProfileId: pool.scope.symbolProfileId
+    },
+    currency: pool.currency,
+    quantity: new Big(pool.quantity),
+    grossCost: new Big(pool.grossCost),
+    acquisitionFeePool: new Big(pool.acquisitionFeePool),
+    sourceActivityIds: [...pool.sourceActivityIds]
+  };
 }
 
 function createPoolKey(userId: string, symbolProfileId: string): string {
