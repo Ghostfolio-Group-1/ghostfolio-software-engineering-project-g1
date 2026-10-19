@@ -455,6 +455,54 @@ describe('calculateAverageCostRealizedGains', () => {
     expect(sale.sellDate).toEqual(new Date('2026-01-03T10:00:00.000Z'));
   });
 
+  it('keeps earlier pool snapshots isolated from later activity mutations', () => {
+    const result = calculateAverageCostRealizedGains([
+      createActivity({
+        id: 'buy-1',
+        quantity: 3,
+        unitPrice: 100
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-1',
+        quantity: 1,
+        type: ActivityType.SELL,
+        unitPrice: 120
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-2',
+        quantity: 1,
+        type: ActivityType.SELL,
+        unitPrice: 130
+      })
+    ]);
+
+    expect(result.sales).toHaveLength(2);
+
+    const [firstSale, secondSale] = result.sales;
+
+    expect(firstSale.poolBefore.sourceActivityIds).toEqual(['buy-1']);
+
+    expect(firstSale.poolAfter.sourceActivityIds).toEqual(['buy-1', 'sell-1']);
+
+    expect(secondSale.poolBefore.sourceActivityIds).toEqual([
+      'buy-1',
+      'sell-1'
+    ]);
+
+    expect(secondSale.poolAfter.sourceActivityIds).toEqual([
+      'buy-1',
+      'sell-1',
+      'sell-2'
+    ]);
+
+    // Re-check the earlier snapshot after sell-2 has already been processed.
+    // If snapshots shared the live pool's sourceActivityIds array, sell-2 would
+    // incorrectly appear here.
+    expect(firstSale.poolAfter.sourceActivityIds).toEqual(['buy-1', 'sell-1']);
+  });
+
   it('returns no realized-gain sales when the input contains only BUY activities', () => {
     const result = calculateAverageCostRealizedGains([
       createActivity({
