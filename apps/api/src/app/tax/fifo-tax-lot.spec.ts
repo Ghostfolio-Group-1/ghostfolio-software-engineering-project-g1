@@ -701,6 +701,88 @@ describe('listOpenFifoTaxLots', () => {
     ]);
     expect(listOpenFifoTaxLots(lots)[0].remainingQuantity.toString()).toBe('5');
   });
+
+  it('carries the BUY asset id on each lot', () => {
+    const [lot] = createFifoTaxLots([
+      createActivity({
+        id: 'buy-aapl',
+        symbolProfileId: 'asset-aapl'
+      })
+    ]);
+
+    expect(lot.scope.symbolProfileId).toBe('asset-aapl');
+  });
+
+  it('lists lots for two symbols as separate positions', () => {
+    const openLots = listOpenFifoTaxLots(
+      createFifoTaxLots([
+        createActivity({
+          id: 'buy-aapl',
+          quantity: 10,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 50
+        }),
+        createActivity({
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'buy-msft',
+          quantity: 4,
+          symbolProfileId: 'asset-msft',
+          unitPrice: 80
+        })
+      ])
+    );
+
+    expect(openLots).toHaveLength(2);
+    expect(openLots[0].scope.symbolProfileId).toBe('asset-aapl');
+    expect(openLots[0].remainingQuantity.toString()).toBe('10');
+    expect(openLots[0].costBasis.toString()).toBe('500');
+    expect(openLots[1].scope.symbolProfileId).toBe('asset-msft');
+    expect(openLots[1].remainingQuantity.toString()).toBe('4');
+    expect(openLots[1].costBasis.toString()).toBe('320');
+  });
+
+  it('does not change the other symbol when one symbol is sold', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-aapl',
+        quantity: 10,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 50
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-msft',
+        quantity: 4,
+        symbolProfileId: 'asset-msft',
+        unitPrice: 80
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-msft',
+        quantity: 1,
+        symbolProfileId: 'asset-msft',
+        type: ActivityType.SELL,
+        unitPrice: 90
+      })
+    ]);
+
+    const openLots = listOpenFifoTaxLots(lots);
+    const aapl = openLots.find(
+      (lot) => lot.scope.symbolProfileId === 'asset-aapl'
+    );
+    const msft = openLots.find(
+      (lot) => lot.scope.symbolProfileId === 'asset-msft'
+    );
+
+    expect(openLots).toHaveLength(2);
+    expect(aapl?.remainingQuantity.toString()).toBe('10');
+    expect(aapl?.costBasis.toString()).toBe('500');
+    expect(aapl?.scope.symbolProfileId).toBe('asset-aapl');
+    expect(msft?.remainingQuantity.toString()).toBe('3');
+    expect(msft?.costBasis.toString()).toBe('240');
+    expect(msft?.scope.symbolProfileId).toBe('asset-msft');
+  });
 });
 
 function summarizeConsumptionResult(
