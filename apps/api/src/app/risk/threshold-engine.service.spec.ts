@@ -114,5 +114,71 @@ describe('ThresholdEngineService', () => {
 
       expect(warnings).toHaveLength(0);
     });
+
+    it('uses the ceiling template: "{subject} is {actual}% of your portfolio, above the {threshold}% {level} limit"', () => {
+      const [warning] = service.buildWarnings([
+        {
+          actual: 0.333,
+          ruleKey: 'SingleStockConcentration',
+          subject: { type: 'stock', value: 'AAPL' }
+        }
+      ]);
+
+      expect(warning.message).toBe(
+        'AAPL is 33.3% of your portfolio, above the 25.0% red limit.'
+      );
+    });
+
+    it('uses the band template and "below" wording for a low-side breach, preserving a fractional threshold percentage (CashAllocation redThresholdMin = 0.5%)', () => {
+      const [warning] = service.buildWarnings([
+        {
+          actual: 0.003,
+          ruleKey: 'CashAllocation',
+          subject: { type: 'bucket', value: 'cash' }
+        }
+      ]);
+
+      expect(warning.severity).toBe('RED');
+      expect(warning.threshold).toBe(0.005);
+      expect(warning.message).toBe(
+        'Your portfolio cash is 0.3%, below the 0.5% red limit.'
+      );
+    });
+
+    it('uses "above" wording for a high-side band breach', () => {
+      const [warning] = service.buildWarnings([
+        {
+          actual: 0.4,
+          ruleKey: 'PortfolioVolatility',
+          subject: { type: 'portfolio', value: 'volatility' }
+        }
+      ]);
+
+      expect(warning.message).toContain('above the');
+      expect(warning.message).not.toContain('below the');
+    });
+
+    it('orders low-side band breaches worst-first (further below the line sorts first), not by the raw actual/threshold ratio', () => {
+      // Both RED (below CashAllocation's redThresholdMin = 0.005). The old
+      // actual/threshold ratio (0.2 and 0.8) would incorrectly sort the
+      // less-bad 0.004 before the much worse 0.001.
+      const warnings = service.buildWarnings([
+        {
+          actual: 0.004,
+          ruleKey: 'CashAllocation',
+          subject: { type: 'bucket', value: 'LESS_BAD' }
+        },
+        {
+          actual: 0.001,
+          ruleKey: 'CashAllocation',
+          subject: { type: 'bucket', value: 'WORST' }
+        }
+      ]);
+
+      expect(warnings.map((w) => w.subject.value)).toEqual([
+        'WORST',
+        'LESS_BAD'
+      ]);
+    });
   });
 });
