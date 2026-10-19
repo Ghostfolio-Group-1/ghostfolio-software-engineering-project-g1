@@ -265,3 +265,13 @@ export const performanceHistoryFixture: HistoricalDataItem[] = [
     valueWithCurrencyEffect: 2540
   }
 ];
+
+// What TaxDataService.getFifoRealizedGainActivities() selects: the FIFO rows
+// plus fee. Use as the mocked prisma.order.findMany result.
+export function fifoRealizedGainActivitiesFrom(orders: FixtureOrder[]) {
+  const feeById = new Map(orders.map(({ fee, id }) => [id, fee]));
+
+  return fifoActivitiesFrom(orders).map((activity) => {
+    return { ...activity, fee: feeById.get(activity.id) ?? 0 };
+  });
+}
