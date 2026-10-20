@@ -8,8 +8,15 @@ import type { ApiResponse } from '@ghostfolio/common/api-conventions';
 import { scopes } from '@ghostfolio/common/scopes';
 import type { ImpersonationContext } from '@ghostfolio/common/types';
 
-import { Controller, Get, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpException,
+  HttpStatus,
+  Query
+} from '@nestjs/common';
 
+import { GetRealizedGainsDto } from './get-realized-gains.dto';
 import type { TaxRealizedGainsResponse } from './interfaces/tax-realized-gains-response.interface';
 import { TaxService } from './tax.service';
 
@@ -20,10 +27,14 @@ export class TaxController {
   @Get('realized-gains')
   @RequiresScope(scopes.portfolioRead)
   public async getRealizedGains(
-    @Impersonation() { userId }: ImpersonationContext
+    @Impersonation() { userId }: ImpersonationContext,
+    @Query() query: GetRealizedGainsDto
   ): Promise<ApiResponse<TaxRealizedGainsResponse>> {
     try {
-      const result = await this.taxService.getFifoRealizedGains(userId);
+      const result = await this.taxService.getRealizedGains(
+        userId,
+        query.method ?? 'FIFO'
+      );
 
       return createSuccessResponse(result);
     } catch (error) {
@@ -32,7 +43,7 @@ export class TaxController {
           'TAX_REALIZED_GAINS_FAILED',
           error instanceof Error
             ? error.message
-            : 'Unable to calculate FIFO realized gains'
+            : 'Unable to calculate realized gains'
         ),
         HttpStatus.UNPROCESSABLE_ENTITY
       );

@@ -29,11 +29,35 @@ import { TaxController } from './tax.controller';
 import { TaxService } from './tax.service';
 
 // Fixture sale: SELL 12 AAPL @ 170, fee 1 (fixture-order-04).
-// FIFO: lot 01 (10 @ 150, fee 1) fully, then 2 of lot 03 (5 @ 160, fee 1).
-//   lot 01: basis 1500, proceeds 1700, gain 200, buy fee 1, sell fee 10/12
-//   lot 03: basis 320, proceeds 340, gain 20, buy fee 2/5 = 0.4, sell fee = residual
-//   sale:   basis 1820, proceeds 2040, gain 220, buy fees 1.4, sell fee 1,
+//
+// FIFO:
+// lot 01: BUY 10 @ 150, fee 1
+// lot 03: BUY 5 @ 160, fee 1
+//
+// FIFO consumes lot 01 fully, then 2 units from lot 03.
+//   lot 01: basis 1500, proceeds 1700, gain 200,
+//           buy fee 1, sell fee 10/12
+//   lot 03: basis 320, proceeds 340, gain 20,
+//           buy fee 2/5 = 0.4, sell fee = residual
+//   sale:   basis 1820, proceeds 2040, gain 220,
+//           buy fees 1.4, sell fee 1,
 //           gain after fees 220 - 1.4 - 1 = 217.6 (DR-4)
+//
+// Average cost:
+//   pool before sale:
+//     quantity = 15
+//     gross cost = 2300
+//     acquisition fee pool = 2
+//   disposal ratio = 12 / 15 = 0.8
+//   basis disposed = 2300 * 0.8 = 1840
+//   acquisition fees disposed = 2 * 0.8 = 1.6
+//   proceeds = 12 * 170 = 2040
+//   gross gain = 2040 - 1840 = 200
+//   gain after fees = 200 - 1.6 - 1 = 197.4
+//   pool after sale:
+//     quantity = 3
+//     gross cost = 460
+//     acquisition fee pool = 0.4
 
 describe('GET /api/v1/tax/realized-gains (end to end)', () => {
   const ajv = new Ajv({ allErrors: true });
@@ -52,10 +76,20 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
           providers: [
             TaxDataService,
             TaxService,
-            { provide: PrismaService, useValue: { order: { findMany } } }
+            {
+              provide: PrismaService,
+              useValue: {
+                order: {
+                  findMany
+                }
+              }
+            }
           ]
         }),
-        { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
+        {
+          baseCurrency: FIXTURE_BASE_CURRENCY,
+          userId: FIXTURE_USER_ID
+        }
       )
     );
   });
@@ -88,8 +122,14 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          tags: { none: { id: TAG_ID_DRAFT } },
-          type: { in: ['BUY', 'SELL'] },
+          tags: {
+            none: {
+              id: TAG_ID_DRAFT
+            }
+          },
+          type: {
+            in: ['BUY', 'SELL']
+          },
           userId: FIXTURE_USER_ID
         }
       })
@@ -99,6 +139,7 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
 
     expect(method).toBe('FIFO');
     expect(sales).toHaveLength(1);
+
     expect(sales[0]).toMatchObject({
       allocatedBuyFees: '1.4',
       allocatedSellFee: '1',
@@ -112,6 +153,69 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
       sellDate: '2026-03-02T00:00:00.000Z',
       sellFee: '1',
       sellQuantity: '12'
+    });
+  });
+
+  it('supports explicit FIFO method selection', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/realized-gains?method=FIFO')
+      .expect(200);
+
+    expect(validateResponse(response.body)).toBe(true);
+    expect(validateResponse.errors ?? []).toEqual([]);
+
+    expect(response.body.data.method).toBe('FIFO');
+    expect(response.body.data.sales).toHaveLength(1);
+    expect(response.body.data.sales[0].matches).toHaveLength(2);
+  });
+
+  it('returns average-cost realized gains when AVERAGE_COST is selected', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/realized-gains?method=AVERAGE_COST')
+      .expect(200);
+
+    expect(validateResponse(response.body)).toBe(true);
+    expect(validateResponse.errors ?? []).toEqual([]);
+
+    expect(response.body.data).toEqual({
+      method: 'AVERAGE_COST',
+      sales: [
+        {
+          sellActivityId: 'fixture-order-04',
+          sellDate: '2026-03-02T00:00:00.000Z',
+          currency: 'USD',
+          sellQuantity: '12',
+          grossProceeds: '2040',
+          grossCostBasis: '1840',
+          grossRealizedGain: '200',
+          allocatedAcquisitionFees: '1.6',
+          sellFee: '1',
+          realizedGainAfterActivityFees: '197.4',
+          poolBefore: {
+            quantity: '15',
+            grossCost: '2300',
+            acquisitionFeePool: '2'
+          },
+          poolAfter: {
+            quantity: '3',
+            grossCost: '460',
+            acquisitionFeePool: '0.4'
+          }
+        }
+      ]
+    });
+  });
+
+  it('rejects an unsupported realized-gain method explicitly', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/realized-gains?method=INVALID')
+      .expect(422);
+
+    expect(validateError(response.body)).toBe(true);
+
+    expect(response.body.error).toMatchObject({
+      code: 'TAX_REALIZED_GAINS_FAILED',
+      message: 'Unsupported tax calculation method: INVALID'
     });
   });
 
@@ -131,6 +235,7 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
       lotId: 'fixture-order-01',
       matchedQuantity: '10'
     });
+
     expect(second).toMatchObject({
       buyActivityId: 'fixture-order-03',
       buyFeeAllocated: '0.4',
@@ -143,9 +248,11 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
 
     expect(Number(first.sellFeeAllocated)).toBeCloseTo(10 / 12, 10);
     expect(Number(second.sellFeeAllocated)).toBeCloseTo(2 / 12, 10);
+
     expect(
       new Big(first.sellFeeAllocated).plus(second.sellFeeAllocated).toString()
     ).toBe('1');
+
     expect(
       new Big(first.realizedGainAfterActivityFees)
         .plus(second.realizedGainAfterActivityFees)
@@ -157,7 +264,10 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
     findMany.mockResolvedValue(
       fifoRealizedGainActivitiesFrom(ordersFixture).map((row) => {
         return row.id === 'fixture-order-04'
-          ? { ...row, currency: 'EUR' }
+          ? {
+              ...row,
+              currency: 'EUR'
+            }
           : row;
       })
     );

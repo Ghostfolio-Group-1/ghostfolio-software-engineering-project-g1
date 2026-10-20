@@ -95,13 +95,13 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
   });
 
   it('loads activities for the authenticated user', async () => {
-    await controller.getRealizedGains(context);
+    await controller.getRealizedGains(context, {});
 
     expect(getFifoRealizedGainActivities).toHaveBeenCalledWith('user-1');
   });
 
   it('returns exact FIFO realized gains with multi-lot traceability', async () => {
-    const response = await controller.getRealizedGains(context);
+    const response = await controller.getRealizedGains(context, {});
 
     expect(response).toEqual({
       data: {
@@ -154,10 +154,56 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
     });
   });
 
+  it('supports explicit FIFO method selection', async () => {
+    const response = await controller.getRealizedGains(context, {
+      method: 'FIFO'
+    });
+
+    expect(response.data?.method).toBe('FIFO');
+  });
+
+  it('returns average-cost realized gains when AVERAGE_COST is selected', async () => {
+    const response = await controller.getRealizedGains(context, {
+      method: 'AVERAGE_COST'
+    });
+
+    expect(response).toEqual({
+      data: {
+        method: 'AVERAGE_COST',
+        sales: [
+          {
+            sellActivityId: 'sell-1',
+            sellDate: '2026-03-03T00:00:00.000Z',
+            currency: 'USD',
+            sellQuantity: '120',
+            grossProceeds: '1800',
+            grossCostBasis: '1280',
+            grossRealizedGain: '520',
+            allocatedAcquisitionFees: '2.4',
+            sellFee: '3',
+            realizedGainAfterActivityFees: '514.6',
+            poolBefore: {
+              quantity: '150',
+              grossCost: '1600',
+              acquisitionFeePool: '3'
+            },
+            poolAfter: {
+              quantity: '30',
+              grossCost: '320',
+              acquisitionFeePool: '0.6'
+            }
+          }
+        ]
+      },
+      error: null,
+      meta: {}
+    });
+  });
+
   it('returns an empty sales list when the user has no eligible activities', async () => {
     getFifoRealizedGainActivities.mockResolvedValue([]);
 
-    await expect(controller.getRealizedGains(context)).resolves.toEqual({
+    await expect(controller.getRealizedGains(context, {})).resolves.toEqual({
       data: {
         method: 'FIFO',
         sales: []
@@ -176,7 +222,7 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
       }
     ]);
 
-    const exception = await controller.getRealizedGains(context).then(
+    const exception = await controller.getRealizedGains(context, {}).then(
       () => {
         throw new Error('Expected FIFO calculation to fail');
       },
