@@ -16,7 +16,7 @@ import { RuleScore } from './interfaces/rule-score.interface';
 // #19) - they belong to the separate warning-threshold engine story.
 @Injectable()
 export class HealthScoreCalculatorService {
-  public calculate(results: WeightedRuleResult[]): HealthScore {
+  public calculateHealthScore(results: WeightedRuleResult[]): HealthScore {
     const activeResults = results.filter((result) => result.isActive);
     const activeWeight = activeResults.reduce((sum, r) => sum + r.weight, 0);
 
@@ -36,7 +36,7 @@ export class HealthScoreCalculatorService {
       .reduce((sum, result) => sum + result.weight, 0);
 
     const score = (passedWeight / activeWeight) * 100;
-    const categories = this.buildCategoryScores(activeResults);
+    const categories = this.calculateCategoryScores(activeResults);
 
     return {
       activeWeight,
@@ -48,7 +48,7 @@ export class HealthScoreCalculatorService {
     };
   }
 
-  private buildCategoryScores(
+  private calculateCategoryScores(
     activeResults: WeightedRuleResult[]
   ): CategoryScore[] {
     const categoryKeys = Array.from(
