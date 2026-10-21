@@ -26,7 +26,7 @@ describe('DashboardOverview.getOverview', () => {
   const summary = { section: 'summary' };
   const taxSection = { method: 'FIFO', sales: [] };
 
-  let buildRiskSummary: jest.Mock;
+  let getRiskSummary: jest.Mock;
   let getFifoRealizedGains: jest.Mock;
   let getHoldings: jest.Mock;
   let getPerformance: jest.Mock;
@@ -36,7 +36,7 @@ describe('DashboardOverview.getOverview', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    buildRiskSummary = jest.fn().mockReturnValue(summary);
+    getRiskSummary = jest.fn().mockReturnValue(summary);
     getFifoRealizedGains = jest.fn().mockResolvedValue(taxSection);
     getHoldings = jest.fn().mockResolvedValue(holdingsFixture);
     getPerformance = jest.fn().mockResolvedValue({
@@ -47,7 +47,7 @@ describe('DashboardOverview.getOverview', () => {
 
     overview = new DashboardOverview(
       { getSeries } as unknown as ChartsApi,
-      { buildRiskSummary } as unknown as ExposureService,
+      { getRiskSummary } as unknown as ExposureService,
       { getHoldings, getPerformance } as unknown as PortfolioService,
       { getFifoRealizedGains } as unknown as TaxService
     );
@@ -75,7 +75,7 @@ describe('DashboardOverview.getOverview', () => {
       dateRange: 'max',
       userId: FIXTURE_USER_ID
     });
-    expect(buildRiskSummary).toHaveBeenCalledWith(
+    expect(getRiskSummary).toHaveBeenCalledWith(
       holdingsFixture,
       FIXTURE_BASE_CURRENCY
     );

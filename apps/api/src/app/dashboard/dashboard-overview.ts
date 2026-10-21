@@ -61,10 +61,7 @@ export class DashboardOverview {
       userId
     });
 
-    const summary = this.exposureService.buildRiskSummary(
-      holdings,
-      baseCurrency
-    );
+    const summary = this.exposureService.getRiskSummary(holdings, baseCurrency);
 
     return toRiskConcentrationResponse({ holdings, limit, summary });
   }
