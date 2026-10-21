@@ -17,7 +17,7 @@ export interface ThresholdEngineInput {
 // Spec: docs/sesha-notes/07-warning-threshold-rules.md, Sections 4 and 7.
 @Injectable()
 export class ThresholdEngineService {
-  public computeSeverity(input: ThresholdEngineInput): Severity {
+  public calculateSeverity(input: ThresholdEngineInput): Severity {
     const definition = getThresholdDefault(input.ruleKey);
 
     // Unlike validateThresholds() (warning-threshold.model.ts), which errors
@@ -58,11 +58,11 @@ export class ThresholdEngineService {
     return 'RED';
   }
 
-  public buildWarnings(inputs: ThresholdEngineInput[]): RiskWarning[] {
+  public calculateWarnings(inputs: ThresholdEngineInput[]): RiskWarning[] {
     const warnings: RiskWarning[] = [];
 
     for (const input of inputs) {
-      const severity = this.computeSeverity(input);
+      const severity = this.calculateSeverity(input);
 
       if (severity !== 'YELLOW' && severity !== 'RED') {
         continue;
