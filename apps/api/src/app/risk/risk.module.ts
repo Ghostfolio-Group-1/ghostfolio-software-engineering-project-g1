@@ -10,6 +10,7 @@ import { RiskController } from './risk.controller';
 
 @Module({
   controllers: [RiskController],
+  exports: [ExposureService],
   imports: [ExchangeRateDataModule, ImpersonationModule, PortfolioModule],
   providers: [ExposureCalculatorService, ExposureService]
 })
