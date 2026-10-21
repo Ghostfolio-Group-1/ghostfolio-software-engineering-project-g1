@@ -701,6 +701,95 @@ describe('listOpenFifoTaxLots', () => {
     ]);
     expect(listOpenFifoTaxLots(lots)[0].remainingQuantity.toString()).toBe('5');
   });
+
+  it('carries the BUY account on each lot', () => {
+    const [lot] = createFifoTaxLots([
+      createActivity({
+        accountId: 'account-brokerage',
+        id: 'buy-brokerage'
+      })
+    ]);
+
+    expect(lot.scope.accountId).toBe('account-brokerage');
+  });
+
+  it('lists the same symbol in two accounts as separate lots', () => {
+    const openLots = listOpenFifoTaxLots(
+      createFifoTaxLots([
+        createActivity({
+          accountId: 'account-1',
+          id: 'buy-account-1',
+          quantity: 10,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 50
+        }),
+        createActivity({
+          accountId: 'account-2',
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'buy-account-2',
+          quantity: 4,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 80
+        })
+      ])
+    );
+
+    expect(openLots).toHaveLength(2);
+    expect(openLots[0].scope.accountId).toBe('account-1');
+    expect(openLots[0].scope.symbolProfileId).toBe('asset-aapl');
+    expect(openLots[0].remainingQuantity.toString()).toBe('10');
+    expect(openLots[0].costBasis.toString()).toBe('500');
+    expect(openLots[1].scope.accountId).toBe('account-2');
+    expect(openLots[1].scope.symbolProfileId).toBe('asset-aapl');
+    expect(openLots[1].remainingQuantity.toString()).toBe('4');
+    expect(openLots[1].costBasis.toString()).toBe('320');
+  });
+
+  it('does not change the other account when one account is sold', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-account-1',
+        quantity: 10,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 50
+      }),
+      createActivity({
+        accountId: 'account-2',
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-account-2',
+        quantity: 4,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 80
+      }),
+      createActivity({
+        accountId: 'account-2',
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-account-2',
+        quantity: 1,
+        symbolProfileId: 'asset-aapl',
+        type: ActivityType.SELL,
+        unitPrice: 90
+      })
+    ]);
+
+    const openLots = listOpenFifoTaxLots(lots);
+    const account1 = openLots.find(
+      (lot) => lot.scope.accountId === 'account-1'
+    );
+    const account2 = openLots.find(
+      (lot) => lot.scope.accountId === 'account-2'
+    );
+
+    expect(openLots).toHaveLength(2);
+    expect(account1?.remainingQuantity.toString()).toBe('10');
+    expect(account1?.costBasis.toString()).toBe('500');
+    expect(account1?.scope.symbolProfileId).toBe('asset-aapl');
+    expect(account2?.remainingQuantity.toString()).toBe('3');
+    expect(account2?.costBasis.toString()).toBe('240');
+    expect(account2?.scope.symbolProfileId).toBe('asset-aapl');
+  });
 });
 
 function summarizeConsumptionResult(
