@@ -70,6 +70,34 @@ describe('RiskEvaluationService', () => {
     expect(ruleResult.categoryKey).toBe('concentration');
   });
 
+  it('warningInputs carries every holding for a rule, not just the worst one thresholdInputs keeps', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 10000,
+      holdings
+    });
+
+    const singleStockWarningInputs = evaluation.warningInputs.filter(
+      (input) => input.ruleKey === 'SingleStockConcentration'
+    );
+
+    expect(
+      singleStockWarningInputs.map((input) => input.subject.value).sort()
+    ).toEqual(['AAPL', 'MSFT']);
+
+    const aapl = singleStockWarningInputs.find(
+      (input) => input.subject.value === 'AAPL'
+    );
+    expect(aapl.actual).toBeCloseTo(0.3333, 4); // 30000/90000
+
+    // thresholdInputs still only keeps the single worst subject per rule.
+    expect(
+      evaluation.thresholdInputs.filter(
+        (input) => input.ruleKey === 'SingleStockConcentration'
+      )
+    ).toHaveLength(1);
+  });
+
   it('computes CashAllocation against total portfolio value (holdings + cash)', () => {
     const evaluation = service.evaluate({
       baseCurrency: 'USD',

@@ -35,12 +35,23 @@ export interface RiskEvaluation {
   portfolioValue: number;
   ruleResults: WeightedRuleResult[];
   skippedRuleKeys: string[];
+  // One entry per rule: the worst subject, used for health-score pass/fail
+  // and for ruleChanges ("the rule's worst bucket before and after" per
+  // Section 6.11).
   thresholdInputs: ThresholdEngineInput[];
+  // Every breaching-eligible subject per rule (every stock/sector/bucket,
+  // not just the worst), used to generate the actual per-subject warnings.
+  // A rule with one worst subject can still have other subjects breaching
+  // independently - e.g. a shock can push one stock down through YELLOW
+  // while pushing another up through RED, and both need their own warning,
+  // not just whichever is worst overall.
+  warningInputs: ThresholdEngineInput[];
 }
 
 interface RiskRuleEvaluation {
   ruleResult: WeightedRuleResult;
   thresholdInput: ThresholdEngineInput;
+  warningInputs: ThresholdEngineInput[];
 }
 
 // Groups the 7 rule keys in warning-threshold.model.ts into provisional
@@ -150,15 +161,19 @@ export class RiskEvaluationService {
       ruleResults: evaluations.map((evaluation) => evaluation.ruleResult),
       thresholdInputs: evaluations.map(
         (evaluation) => evaluation.thresholdInput
+      ),
+      warningInputs: evaluations.flatMap(
+        (evaluation) => evaluation.warningInputs
       )
     };
   }
 
   // Convenience for WhatIfService: the warnings a caller would get from
-  // GET /risk/warnings for this same evaluation.
+  // GET /risk/warnings for this same evaluation - one per breaching subject,
+  // not just the worst per rule.
   public calculateWarnings(evaluation: RiskEvaluation): RiskWarning[] {
     return this.thresholdEngineService.calculateWarnings(
-      evaluation.thresholdInputs
+      evaluation.warningInputs
     );
   }
 
@@ -193,7 +208,16 @@ export class RiskEvaluationService {
       subject: { type: subjectType, value: worst?.key ?? 'n/a' }
     };
 
-    return this.toRuleEvaluation(thresholdInput);
+    const warningInputs: ThresholdEngineInput[] =
+      buckets.length > 0
+        ? buckets.map((bucket) => ({
+            ruleKey,
+            actual: bucket.percentage,
+            subject: { type: subjectType, value: bucket.key }
+          }))
+        : [thresholdInput];
+
+    return this.toRuleEvaluation(thresholdInput, warningInputs);
   }
 
   private evaluateCashAllocation(
@@ -207,7 +231,7 @@ export class RiskEvaluationService {
       subject: { type: 'bucket', value: 'cash' }
     };
 
-    return this.toRuleEvaluation(thresholdInput);
+    return this.toRuleEvaluation(thresholdInput, [thresholdInput]);
   }
 
   private evaluateVolatility(volatility?: VolatilityInput): RiskRuleEvaluation {
@@ -223,7 +247,7 @@ export class RiskEvaluationService {
       subject: { type: 'portfolio', value: 'volatility' }
     };
 
-    return this.toRuleEvaluation(thresholdInput);
+    return this.toRuleEvaluation(thresholdInput, [thresholdInput]);
   }
 
   private evaluateTargetAllocation(
@@ -267,7 +291,16 @@ export class RiskEvaluationService {
       subject: { type: subjectType, value: worst?.key ?? 'n/a' }
     };
 
-    return this.toRuleEvaluation(thresholdInput);
+    const warningInputs: ThresholdEngineInput[] =
+      buckets && buckets.length > 0
+        ? buckets.map((bucket) => ({
+            ruleKey: 'TargetAllocationDeviation',
+            actual: Math.abs(bucket.deviation),
+            subject: { type: subjectType, value: bucket.key }
+          }))
+        : [thresholdInput];
+
+    return this.toRuleEvaluation(thresholdInput, warningInputs);
   }
 
   private subjectTypeForGroupBy(
@@ -288,7 +321,8 @@ export class RiskEvaluationService {
   }
 
   private toRuleEvaluation(
-    thresholdInput: ThresholdEngineInput
+    thresholdInput: ThresholdEngineInput,
+    warningInputs: ThresholdEngineInput[]
   ): RiskRuleEvaluation {
     const severity =
       this.thresholdEngineService.calculateSeverity(thresholdInput);
@@ -302,6 +336,7 @@ export class RiskEvaluationService {
 
     return {
       thresholdInput,
+      warningInputs,
       ruleResult: {
         passed,
         categoryKey: category.key,

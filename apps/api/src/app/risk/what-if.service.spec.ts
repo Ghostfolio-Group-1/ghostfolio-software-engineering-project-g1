@@ -9,19 +9,24 @@ import { ThresholdEngineService } from './threshold-engine.service';
 import { WhatIfService } from './what-if.service';
 
 function holding({
+  assetSubClass = 'STOCK',
   dataSource = 'YAHOO',
+  name,
   symbol,
   value
 }: {
+  assetSubClass?: string;
   dataSource?: string;
+  name?: string;
   symbol: string;
   value: number;
 }): PortfolioPosition {
   return {
     assetProfile: {
-      assetSubClass: 'STOCK',
+      assetSubClass,
       currency: 'USD',
       dataSource,
+      name: name ?? symbol,
       symbol
     },
     quantity: value,
@@ -124,6 +129,78 @@ describe('WhatIfService', () => {
         (warning) => warning.ruleKey === 'SingleStockConcentration'
       )
     ).toBe(true);
+  });
+
+  it("includes the matched holding's display name as scenario.name", () => {
+    const result = service.calculateWhatIf(
+      baseRequest({
+        holdings: [
+          holding({ symbol: 'AAPL', value: 30000, name: 'Apple Inc.' }),
+          holding({ symbol: 'MSFT', value: 60000, name: 'Microsoft Corp.' })
+        ]
+      })
+    );
+
+    expect(result.scenario).toEqual({
+      dataSource: 'YAHOO',
+      dropPercentage: 0.4,
+      name: 'Apple Inc.',
+      symbol: 'AAPL'
+    });
+  });
+
+  // Tharun's worked-example regression test: a shock can push one stock down
+  // through a severity line while pushing another up through a different
+  // one, and both need their own warning - not just whichever is worst
+  // overall, which is all the previous version of this test could show with
+  // only two holdings.
+  it('reports every breaching holding individually, not just the worst, when a shock re-ranks several at once', () => {
+    const request = baseRequest({
+      holdings: [
+        holding({ symbol: 'AAPL', value: 30000, name: 'Apple Inc.' }),
+        holding({ symbol: 'MSFT', value: 20000, name: 'Microsoft Corp.' }),
+        holding({ symbol: 'GOOGL', value: 10000, name: 'Alphabet Inc.' }),
+        // VTI is an ETF: excluded from single-stock concentration, so it
+        // should never appear as a warning for this rule.
+        holding({
+          symbol: 'VTI',
+          value: 30000,
+          name: 'Vanguard Total Stock Market ETF',
+          assetSubClass: 'ETF'
+        })
+      ],
+      scenario: { dataSource: 'YAHOO', dropPercentage: 0.4, symbol: 'AAPL' }
+    });
+
+    const result = service.calculateWhatIf(request);
+
+    // Holdings total 90,000 (AAPL 30k, MSFT 20k, GOOGL 10k, VTI excluded).
+    // Before: AAPL 33.3% (RED, >25%), MSFT 22.2% (YELLOW, >10%),
+    // GOOGL 11.1% (YELLOW, >10%).
+    // After a 40% AAPL drop (holdings total 78,000): AAPL 23.1% (YELLOW),
+    // MSFT 25.6% (RED), GOOGL 12.8% (still YELLOW, actual moved).
+    const singleStockWarnings = (warnings: typeof result.changedWarnings) =>
+      warnings.filter((w) => w.ruleKey === 'SingleStockConcentration');
+
+    const changed = singleStockWarnings(result.changedWarnings);
+    expect(changed.map((w) => w.subject.value).sort()).toEqual([
+      'AAPL',
+      'GOOGL',
+      'MSFT'
+    ]);
+
+    const aapl = changed.find((w) => w.subject.value === 'AAPL');
+    const msft = changed.find((w) => w.subject.value === 'MSFT');
+    expect(aapl.severity).toBe('YELLOW');
+    expect(aapl.actual).toBeCloseTo(0.2308, 4);
+    expect(msft.severity).toBe('RED');
+    expect(msft.actual).toBeCloseTo(0.2564, 4);
+
+    expect(singleStockWarnings(result.newWarnings)).toEqual([]);
+    expect(singleStockWarnings(result.resolvedWarnings)).toEqual([]);
+    expect(result.changedWarnings.some((w) => w.subject.value === 'VTI')).toBe(
+      false
+    );
   });
 
   it('rejects a dropPercentage of 0 or below', () => {

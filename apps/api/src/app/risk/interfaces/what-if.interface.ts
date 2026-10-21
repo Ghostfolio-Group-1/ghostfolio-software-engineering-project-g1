@@ -18,6 +18,13 @@ export interface WhatIfScenario {
   symbol: string;
 }
 
+// The response's scenario echoes the request plus the matched holding's
+// display name (Section 6.11) - WhatIfService reads it straight off the
+// matched PortfolioPosition's assetProfile.name, no extra lookup needed.
+export interface WhatIfScenarioResult extends WhatIfScenario {
+  name: string;
+}
+
 export interface WhatIfRuleChange {
   actualAfter: number | null;
   actualBefore: number | null;
@@ -65,6 +72,6 @@ export interface WhatIfResult {
     before: number | null;
     change: number | null;
   };
-  scenario: WhatIfScenario;
+  scenario: WhatIfScenarioResult;
   skippedRules: string[];
 }

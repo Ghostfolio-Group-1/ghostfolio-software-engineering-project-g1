@@ -13,7 +13,7 @@ import {
   holdingsFixture
 } from '@ghostfolio/api/testing/fixtures/portfolio.fixtures';
 
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import Ajv from 'ajv';
 import request from 'supertest';
@@ -203,6 +203,19 @@ describe('POST /api/v1/risk/what-if (end to end)', () => {
         { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
       )
     );
+
+    // Matches main.ts's production ValidationPipe exactly. Without this, a
+    // dropPercentage range decorator on RunWhatIfDto would never actually
+    // run in these tests, which is exactly how an earlier version of this
+    // endpoint shipped a range check that the real app would have rejected
+    // before it ever reached the controller - see the 'above 1' test below.
+    app.useGlobalPipes(
+      new ValidationPipe({
+        forbidNonWhitelisted: true,
+        transform: true,
+        whitelist: true
+      })
+    );
   });
 
   afterAll(async () => {
@@ -246,6 +259,15 @@ describe('POST /api/v1/risk/what-if (end to end)', () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/risk/what-if')
       .send({ dataSource: 'YAHOO', dropPercentage: 0, symbol: 'AAPL' })
+      .expect(400);
+
+    expect(response.body.error.code).toBe('RISK_WHATIF_INVALID_DROP');
+  });
+
+  it('returns RISK_WHATIF_INVALID_DROP (not a generic validation error) for a dropPercentage above 1, through the real ValidationPipe', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/risk/what-if')
+      .send({ dataSource: 'YAHOO', dropPercentage: 1.5, symbol: 'AAPL' })
       .expect(400);
 
     expect(response.body.error.code).toBe('RISK_WHATIF_INVALID_DROP');

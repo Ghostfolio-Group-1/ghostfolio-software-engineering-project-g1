@@ -55,7 +55,9 @@ export class WhatIfService {
       holding.assetProfile.symbol === scenario.symbol &&
       holding.assetProfile.dataSource === scenario.dataSource;
 
-    if (!request.holdings.some(matchesScenario)) {
+    const matchedHolding = request.holdings.find(matchesScenario);
+
+    if (!matchedHolding) {
       throw new NotFoundException(
         `No open holding found for ${scenario.dataSource}:${scenario.symbol}`
       );
@@ -169,10 +171,9 @@ export class WhatIfService {
             ? null
             : scoreAfter.score - scoreBefore.score
       },
-      scenario,
-      // Caller-supplied rule inputs (symbol name lookup) aren't available to
-      // this service - skippedRules is whichever rules RiskEvaluationService
-      // itself could not evaluate (e.g. no target allocation configured).
+      scenario: { ...scenario, name: matchedHolding.assetProfile.name },
+      // skippedRules is whichever rules RiskEvaluationService itself could
+      // not evaluate (e.g. no target allocation configured).
       skippedRules: evaluationAfter.skippedRuleKeys
     };
   }
