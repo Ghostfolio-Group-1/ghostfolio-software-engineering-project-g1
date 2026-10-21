@@ -1,0 +1,174 @@
+import { PortfolioPosition } from '@ghostfolio/common/interfaces';
+
+import { ExposureCalculatorService } from './exposure-calculator.service';
+import { ExposureService } from './exposure.service';
+import { RiskEvaluationService } from './risk-evaluation.service';
+import { ThresholdEngineService } from './threshold-engine.service';
+
+function holding({
+  currency = 'USD',
+  symbol,
+  value
+}: {
+  currency?: string;
+  symbol: string;
+  value: number;
+}): PortfolioPosition {
+  return {
+    assetProfile: { assetSubClass: 'STOCK', currency, symbol },
+    quantity: value,
+    marketPrice: 1
+  } as unknown as PortfolioPosition;
+}
+
+const exchangeRateDataServiceMock = {
+  toCurrency: (value: number) => value
+} as any;
+
+describe('RiskEvaluationService', () => {
+  const exposureCalculatorService = new ExposureCalculatorService(
+    exchangeRateDataServiceMock
+  );
+  const exposureService = new ExposureService(
+    exchangeRateDataServiceMock,
+    exposureCalculatorService
+  );
+  const thresholdEngineService = new ThresholdEngineService();
+  const service = new RiskEvaluationService(
+    exchangeRateDataServiceMock,
+    exposureService,
+    thresholdEngineService
+  );
+
+  const holdings = [
+    holding({ symbol: 'AAPL', value: 30000 }),
+    holding({ symbol: 'MSFT', value: 60000 })
+  ];
+
+  it('flags single-stock concentration using the worst holding and includes cash in portfolio value', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 10000,
+      holdings
+    });
+
+    expect(evaluation.holdingsValue).toBe(90000);
+    expect(evaluation.portfolioValue).toBe(100000);
+
+    const singleStock = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'SingleStockConcentration'
+    );
+
+    // MSFT is 60000/90000 = 0.6667, the worst of the two holdings.
+    expect(singleStock.actual).toBeCloseTo(0.6667, 4);
+    expect(singleStock.subject).toEqual({ type: 'stock', value: 'MSFT' });
+
+    const ruleResult = evaluation.ruleResults.find(
+      (result) => result.key === 'SingleStockConcentration'
+    );
+    expect(ruleResult.passed).toBe(false);
+    expect(ruleResult.categoryKey).toBe('concentration');
+  });
+
+  it('computes CashAllocation against total portfolio value (holdings + cash)', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 10000,
+      holdings
+    });
+
+    const cash = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'CashAllocation'
+    );
+
+    expect(cash.actual).toBeCloseTo(0.1, 4); // 10000 / 100000
+  });
+
+  it('reports PortfolioVolatility as NO_DATA when no volatility input is supplied', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 0,
+      holdings
+    });
+
+    const volatility = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'PortfolioVolatility'
+    );
+    const volatilityResult = evaluation.ruleResults.find(
+      (result) => result.key === 'PortfolioVolatility'
+    );
+
+    expect(volatility.actual).toBeNull();
+    // NO_DATA counts as passed per the "never a fake red" invariant.
+    expect(volatilityResult.passed).toBe(true);
+  });
+
+  it('uses the supplied volatility figure when there is enough history', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 0,
+      holdings,
+      volatility: { annualizedVolatility: 0.4, historyDays: 90 }
+    });
+
+    const volatility = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'PortfolioVolatility'
+    );
+    expect(volatility.actual).toBe(0.4);
+  });
+
+  it('skips TargetAllocationDeviation and reports it in skippedRuleKeys when no target is configured', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 0,
+      holdings
+    });
+
+    expect(evaluation.skippedRuleKeys).toEqual(['TargetAllocationDeviation']);
+    expect(
+      evaluation.thresholdInputs.some(
+        (input) => input.ruleKey === 'TargetAllocationDeviation'
+      )
+    ).toBe(false);
+  });
+
+  it('evaluates TargetAllocationDeviation against the worst bucket when a target is configured', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 0,
+      holdings,
+      targetAllocation: {
+        groupBy: 'symbol',
+        isActive: true,
+        targets: [
+          { key: 'AAPL', percentage: 0.5 },
+          { key: 'MSFT', percentage: 0.5 }
+        ]
+      }
+    });
+
+    expect(evaluation.skippedRuleKeys).toEqual([]);
+
+    const target = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'TargetAllocationDeviation'
+    );
+    // AAPL: actual 0.3333 vs target 0.5 -> |deviation| 0.1667
+    // MSFT: actual 0.6667 vs target 0.5 -> |deviation| 0.1667 (tie; either
+    // can be "worst", so just assert the magnitude).
+    expect(target.actual).toBeCloseTo(0.1667, 4);
+  });
+
+  it('calculateWarnings() returns the same warnings ThresholdEngineService would produce from the evaluation', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 10000,
+      holdings
+    });
+
+    const warnings = service.calculateWarnings(evaluation);
+
+    expect(
+      warnings.some((warning) => warning.ruleKey === 'SingleStockConcentration')
+    ).toBe(true);
+  });
+});

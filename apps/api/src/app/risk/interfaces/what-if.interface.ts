@@ -1,6 +1,9 @@
-import { PortfolioPosition } from '@ghostfolio/common/interfaces';
+import {
+  PortfolioPosition,
+  TargetAllocationSettings
+} from '@ghostfolio/common/interfaces';
 
-import { WeightedRuleResult } from './health-score.interface';
+import { VolatilityInput } from '../risk-evaluation.service';
 import { RiskWarning } from './risk-warning.interface';
 import { Severity } from './severity.type';
 
@@ -29,20 +32,13 @@ export interface WhatIfCategoryScore {
   scoreBefore: number | null;
 }
 
-// Before/after rule results are supplied by the caller rather than
-// recomputed here: the pipeline that turns real holdings into
-// WeightedRuleResult[]/RiskWarning[] isn't wired anywhere yet (risk.module.ts
-// only provides ExposureService/ExposureCalculatorService). See
-// what-if.service.ts's class comment.
 export interface WhatIfRequest {
   baseCurrency: string;
+  cashBalance: number;
   holdings: PortfolioPosition[];
-  ruleResultsAfter: WeightedRuleResult[];
-  ruleResultsBefore: WeightedRuleResult[];
   scenario: WhatIfScenario;
-  skippedRuleKeys?: string[];
-  warningsAfter: RiskWarning[];
-  warningsBefore: RiskWarning[];
+  targetAllocation?: TargetAllocationSettings;
+  volatility?: VolatilityInput;
 }
 
 export interface WhatIfResult {

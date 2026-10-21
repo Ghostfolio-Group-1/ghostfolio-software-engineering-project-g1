@@ -1,3 +1,4 @@
+import { AccountService } from '@ghostfolio/api/app/account/account.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
 import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import {
@@ -23,7 +24,11 @@ import {
 } from './contracts/risk-concentration.schema';
 import { ExposureCalculatorService } from './exposure-calculator.service';
 import { ExposureService } from './exposure.service';
+import { HealthScoreCalculatorService } from './health-score-calculator.service';
+import { RiskEvaluationService } from './risk-evaluation.service';
 import { RiskController } from './risk.controller';
+import { ThresholdEngineService } from './threshold-engine.service';
+import { WhatIfService } from './what-if.service';
 
 // Fixture holdings in USD: AAPL 3 × 180 = 540, MSFT 5 × 320 = 1600,
 // SAP 4 × 130 EUR × 1.1 = 572. Total 2712.
@@ -55,7 +60,19 @@ describe('GET /api/v1/risk/concentration (end to end)', () => {
                 }
               }
             },
-            { provide: PortfolioService, useValue: { getHoldings } }
+            {
+              provide: AccountService,
+              useValue: {
+                getCashDetails: jest
+                  .fn()
+                  .mockResolvedValue({ balanceInBaseCurrency: 0 })
+              }
+            },
+            { provide: PortfolioService, useValue: { getHoldings } },
+            HealthScoreCalculatorService,
+            RiskEvaluationService,
+            ThresholdEngineService,
+            WhatIfService
           ]
         }),
         { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
@@ -141,6 +158,123 @@ describe('GET /api/v1/risk/concentration (end to end)', () => {
     await request(app.getHttpServer())
       .get('/api/v1/risk/concentration')
       .set(E2E_NO_LOGIN)
+      .expect(401);
+
+    expect(getHoldings).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/v1/risk/what-if (end to end)', () => {
+  // AAPL 3 x 180 = 540, MSFT 5 x 320 = 1600, SAP 4 x 130 EUR x 1.1 = 572.
+  // Holdings total 2712; cash 1000, so portfolio total 3712.
+  const getHoldings = jest.fn().mockResolvedValue(holdingsFixture);
+  const getCashDetails = jest
+    .fn()
+    .mockResolvedValue({ balanceInBaseCurrency: 1000 });
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [RiskController],
+          providers: [
+            ExposureCalculatorService,
+            ExposureService,
+            {
+              provide: ExchangeRateDataService,
+              useValue: {
+                toCurrency: (value: number, from: string, to: string) => {
+                  return from === 'EUR' && to === 'USD'
+                    ? value * EUR_TO_USD
+                    : value;
+                }
+              }
+            },
+            { provide: AccountService, useValue: { getCashDetails } },
+            { provide: PortfolioService, useValue: { getHoldings } },
+            HealthScoreCalculatorService,
+            RiskEvaluationService,
+            ThresholdEngineService,
+            WhatIfService
+          ]
+        }),
+        { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    getHoldings.mockClear();
+    getCashDetails.mockClear();
+  });
+
+  it('shocks AAPL by 40% and recomputes value/allocation using real holdings and cash', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/risk/what-if')
+      .send({ dataSource: 'YAHOO', dropPercentage: 0.4, symbol: 'AAPL' })
+      .expect(200);
+
+    const { data } = response.body;
+
+    expect(getHoldings).toHaveBeenCalledWith({
+      dateRange: 'max',
+      userId: FIXTURE_USER_ID
+    });
+    expect(getCashDetails).toHaveBeenCalledWith({
+      userId: FIXTURE_USER_ID,
+      currency: FIXTURE_BASE_CURRENCY
+    });
+
+    expect(data.holding.valueBefore).toEqual({ amount: 540, currency: 'USD' });
+    expect(data.holding.valueAfter.amount).toBeCloseTo(324, 4); // 540 * 0.6
+    // Holdings total 2712, cash 1000 -> portfolio 3712 before;
+    // AAPL drops by 216 (540 * 0.4), so portfolio is 3496 after.
+    expect(data.portfolio.valueBefore).toEqual({
+      amount: 3712,
+      currency: 'USD'
+    });
+    expect(data.portfolio.valueAfter.amount).toBeCloseTo(3496, 4);
+  });
+
+  it('returns RISK_WHATIF_INVALID_DROP for a dropPercentage of 0', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/risk/what-if')
+      .send({ dataSource: 'YAHOO', dropPercentage: 0, symbol: 'AAPL' })
+      .expect(400);
+
+    expect(response.body.error.code).toBe('RISK_WHATIF_INVALID_DROP');
+  });
+
+  it('returns RISK_WHATIF_HOLDING_NOT_FOUND for a symbol not in the portfolio', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/risk/what-if')
+      .send({ dataSource: 'YAHOO', dropPercentage: 0.4, symbol: 'TSLA' })
+      .expect(404);
+
+    expect(response.body.error.code).toBe('RISK_WHATIF_HOLDING_NOT_FOUND');
+  });
+
+  it('returns 403 when the user lacks the portfolio:read scope', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/risk/what-if')
+      .set(E2E_NO_SCOPES)
+      .send({ dataSource: 'YAHOO', dropPercentage: 0.4, symbol: 'AAPL' })
+      .expect(403);
+
+    expect(getHoldings).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when the request is not logged in', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/risk/what-if')
+      .set(E2E_NO_LOGIN)
+      .send({ dataSource: 'YAHOO', dropPercentage: 0.4, symbol: 'AAPL' })
       .expect(401);
 
     expect(getHoldings).not.toHaveBeenCalled();

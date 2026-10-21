@@ -18,30 +18,28 @@ import {
   WhatIfResult,
   WhatIfRuleChange
 } from './interfaces/what-if.interface';
-
-const SEVERITY_RANK: Record<Severity, number> = {
-  GREEN: 0,
-  NO_DATA: -1,
-  YELLOW: 1,
-  RED: 2
-};
+import { RiskEvaluationService } from './risk-evaluation.service';
+import {
+  ThresholdEngineInput,
+  ThresholdEngineService
+} from './threshold-engine.service';
 
 // Spec: docs/sesha-notes/10-risk-api-contract.md Section 6.11.
 //
-// Known gap: this service diffs a before/after pair it is given - it does
-// not itself re-run the seven risk rules against a shocked copy of the
-// holdings. That pipeline (real holdings -> WeightedRuleResult[]/
-// RiskWarning[]) isn't wired anywhere in the codebase yet - risk.module.ts
-// still only provides ExposureService/ExposureCalculatorService, not
-// HealthScoreCalculatorService or ThresholdEngineService. Until that wiring
-// lands (see deviations.md D-12), callers must compute both the before and
-// after rule results themselves and pass them in; this service only owns
-// the portfolio/holding value shock and the before/after comparison.
+// Per Tharun's review on the first version of this PR: this now builds the
+// shocked holdings copy itself (without mutating the real holdings) and
+// runs the same RiskEvaluationService pipeline GET /risk/summary and
+// /warnings use on both the before and shocked states, rather than trusting
+// a caller-supplied before/after pair. Portfolio value includes the
+// (unchanged) cash balance; holding value/allocation stays relative to the
+// holdings total, matching the worked example in Section 6.11.
 @Injectable()
 export class WhatIfService {
   public constructor(
     private readonly exchangeRateDataService: ExchangeRateDataService,
-    private readonly healthScoreCalculatorService: HealthScoreCalculatorService
+    private readonly healthScoreCalculatorService: HealthScoreCalculatorService,
+    private readonly riskEvaluationService: RiskEvaluationService,
+    private readonly thresholdEngineService: ThresholdEngineService
   ) {}
 
   public calculateWhatIf(request: WhatIfRequest): WhatIfResult {
@@ -53,51 +51,78 @@ export class WhatIfService {
       );
     }
 
-    const matchingHoldings = request.holdings.filter(
-      (holding) =>
-        holding.assetProfile.symbol === scenario.symbol &&
-        holding.assetProfile.dataSource === scenario.dataSource
-    );
+    const matchesScenario = (holding: PortfolioPosition) =>
+      holding.assetProfile.symbol === scenario.symbol &&
+      holding.assetProfile.dataSource === scenario.dataSource;
 
-    if (matchingHoldings.length === 0) {
+    if (!request.holdings.some(matchesScenario)) {
       throw new NotFoundException(
         `No open holding found for ${scenario.dataSource}:${scenario.symbol}`
       );
     }
 
-    const portfolioValueBefore = this.calculateTotalValue(
+    const shockedHoldings = request.holdings.map((holding) => {
+      if (!matchesScenario(holding)) {
+        return holding;
+      }
+
+      return {
+        ...holding,
+        marketPrice: (holding.marketPrice ?? 0) * (1 - scenario.dropPercentage)
+      };
+    });
+
+    const evaluationBefore = this.riskEvaluationService.evaluate({
+      baseCurrency: request.baseCurrency,
+      cashBalance: request.cashBalance,
+      holdings: request.holdings,
+      targetAllocation: request.targetAllocation,
+      volatility: request.volatility
+    });
+    const evaluationAfter = this.riskEvaluationService.evaluate({
+      baseCurrency: request.baseCurrency,
+      cashBalance: request.cashBalance,
+      holdings: shockedHoldings,
+      targetAllocation: request.targetAllocation,
+      volatility: request.volatility
+    });
+
+    const holdingValueBefore = this.calculateHoldingValue(
       request.holdings,
-      request.baseCurrency
-    );
-    const holdingValueBefore = this.calculateTotalValue(
-      matchingHoldings,
+      matchesScenario,
       request.baseCurrency
     );
     const holdingValueAfter = new Big(holdingValueBefore)
       .mul(1 - scenario.dropPercentage)
       .toNumber();
-    const portfolioValueAfter =
-      portfolioValueBefore - (holdingValueBefore - holdingValueAfter);
 
     const scoreBefore = this.healthScoreCalculatorService.calculateHealthScore(
-      request.ruleResultsBefore
+      evaluationBefore.ruleResults
     );
     const scoreAfter = this.healthScoreCalculatorService.calculateHealthScore(
-      request.ruleResultsAfter
+      evaluationAfter.ruleResults
     );
+
+    const warningsBefore =
+      this.riskEvaluationService.calculateWarnings(evaluationBefore);
+    const warningsAfter =
+      this.riskEvaluationService.calculateWarnings(evaluationAfter);
 
     return {
       calculatedAt: new Date(),
       categories: this.calculateCategoryChanges(scoreBefore, scoreAfter),
       changedWarnings: this.calculateChangedWarnings(
-        request.warningsBefore,
-        request.warningsAfter
+        warningsBefore,
+        warningsAfter
       ),
       holding: {
-        allocationAfter: this.safeRatio(holdingValueAfter, portfolioValueAfter),
+        allocationAfter: this.safeRatio(
+          holdingValueAfter,
+          evaluationAfter.holdingsValue
+        ),
         allocationBefore: this.safeRatio(
           holdingValueBefore,
-          portfolioValueBefore
+          evaluationBefore.holdingsValue
         ),
         valueAfter: {
           amount: holdingValueAfter,
@@ -108,35 +133,33 @@ export class WhatIfService {
           currency: request.baseCurrency
         }
       },
-      newWarnings: this.calculateAddedWarnings(
-        request.warningsBefore,
-        request.warningsAfter
-      ),
+      newWarnings: this.calculateAddedWarnings(warningsBefore, warningsAfter),
       portfolio: {
         change: {
-          amount: portfolioValueAfter - portfolioValueBefore,
+          amount:
+            evaluationAfter.portfolioValue - evaluationBefore.portfolioValue,
           currency: request.baseCurrency
         },
         changePercentage: this.safeRatio(
-          portfolioValueAfter - portfolioValueBefore,
-          portfolioValueBefore
+          evaluationAfter.portfolioValue - evaluationBefore.portfolioValue,
+          evaluationBefore.portfolioValue
         ),
         valueAfter: {
-          amount: portfolioValueAfter,
+          amount: evaluationAfter.portfolioValue,
           currency: request.baseCurrency
         },
         valueBefore: {
-          amount: portfolioValueBefore,
+          amount: evaluationBefore.portfolioValue,
           currency: request.baseCurrency
         }
       },
       resolvedWarnings: this.calculateAddedWarnings(
-        request.warningsAfter,
-        request.warningsBefore
+        warningsAfter,
+        warningsBefore
       ),
       ruleChanges: this.calculateRuleChanges(
-        request.warningsBefore,
-        request.warningsAfter
+        evaluationBefore.thresholdInputs,
+        evaluationAfter.thresholdInputs
       ),
       score: {
         after: scoreAfter.score,
@@ -147,15 +170,22 @@ export class WhatIfService {
             : scoreAfter.score - scoreBefore.score
       },
       scenario,
-      skippedRules: request.skippedRuleKeys ?? []
+      // Caller-supplied rule inputs (symbol name lookup) aren't available to
+      // this service - skippedRules is whichever rules RiskEvaluationService
+      // itself could not evaluate (e.g. no target allocation configured).
+      skippedRules: evaluationAfter.skippedRuleKeys
     };
   }
 
-  private calculateTotalValue(
+  // Mirrors RiskEvaluationService's own value calculation (same FX handling)
+  // for just the matched holding(s), since that service only returns
+  // portfolio-wide totals, not a single holding's value.
+  private calculateHoldingValue(
     holdings: PortfolioPosition[],
+    matches: (holding: PortfolioPosition) => boolean,
     baseCurrency: string
   ): number {
-    return holdings.reduce((sum, holding) => {
+    return holdings.filter(matches).reduce((sum, holding) => {
       return (
         sum +
         this.exchangeRateDataService.toCurrency(
@@ -195,9 +225,6 @@ export class WhatIfService {
     return `${warning.ruleKey}::${warning.subject.type}::${warning.subject.value}`;
   }
 
-  // Entries present in `after` whose (ruleKey, subject) is absent from
-  // `before`. Called a second time with the arguments swapped to get the
-  // entries that dropped out instead (resolvedWarnings).
   private calculateAddedWarnings(
     before: RiskWarning[],
     after: RiskWarning[]
@@ -227,19 +254,23 @@ export class WhatIfService {
     });
   }
 
+  // Unlike the first version of this service, ruleChanges is now derived
+  // from the full before/after ThresholdEngineInput[] (every rule, not just
+  // the ones that produced a YELLOW/RED warning), so a rule that is GREEN on
+  // one side reports its real actual value instead of a null placeholder.
   private calculateRuleChanges(
-    before: RiskWarning[],
-    after: RiskWarning[]
+    before: ThresholdEngineInput[],
+    after: ThresholdEngineInput[]
   ): WhatIfRuleChange[] {
     const ruleKeys = new Set([
-      ...before.map((warning) => warning.ruleKey),
-      ...after.map((warning) => warning.ruleKey)
+      ...before.map((input) => input.ruleKey),
+      ...after.map((input) => input.ruleKey)
     ]);
     const changes: WhatIfRuleChange[] = [];
 
     for (const ruleKey of ruleKeys) {
-      const worstBefore = this.worstWarning(before, ruleKey);
-      const worstAfter = this.worstWarning(after, ruleKey);
+      const worstBefore = this.worstInput(before, ruleKey);
+      const worstAfter = this.worstInput(after, ruleKey);
 
       if (
         worstBefore.severity !== worstAfter.severity ||
@@ -258,27 +289,23 @@ export class WhatIfService {
     return changes;
   }
 
-  // Approximation: only YELLOW/RED warnings are available here (GREEN/NO_DATA
-  // results are filtered out upstream by ThresholdEngineService.
-  // calculateWarnings()), so a rule with no warning on a given side is
-  // reported as GREEN with actual: null instead of its true actual value.
-  // This never understates severity - RED/YELLOW always win over the GREEN
-  // placeholder - it can only fail to show the exact number for a side where
-  // the rule was fully green.
-  private worstWarning(
-    warnings: RiskWarning[],
+  // RiskEvaluationService already picks the single worst subject per rule
+  // key, so there is at most one ThresholdEngineInput per ruleKey here; this
+  // just finds it and asks ThresholdEngineService for its real severity
+  // (GREEN included, not just the YELLOW/RED warnings).
+  private worstInput(
+    inputs: ThresholdEngineInput[],
     ruleKey: string
   ): { actual: number | null; severity: Severity } {
-    const matches = warnings.filter((warning) => warning.ruleKey === ruleKey);
+    const input = inputs.find((candidate) => candidate.ruleKey === ruleKey);
 
-    if (matches.length === 0) {
-      return { actual: null, severity: 'GREEN' };
+    if (!input) {
+      return { actual: null, severity: 'NO_DATA' };
     }
 
-    return matches.reduce((worst, warning) => {
-      return SEVERITY_RANK[warning.severity] > SEVERITY_RANK[worst.severity]
-        ? warning
-        : worst;
-    });
+    return {
+      actual: input.actual,
+      severity: this.thresholdEngineService.calculateSeverity(input)
+    };
   }
 }

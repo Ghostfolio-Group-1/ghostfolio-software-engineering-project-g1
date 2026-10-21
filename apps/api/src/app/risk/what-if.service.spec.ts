@@ -1,56 +1,32 @@
 import { PortfolioPosition } from '@ghostfolio/common/interfaces';
 
+import { ExposureCalculatorService } from './exposure-calculator.service';
+import { ExposureService } from './exposure.service';
 import { HealthScoreCalculatorService } from './health-score-calculator.service';
-import { WeightedRuleResult } from './interfaces/health-score.interface';
-import { RiskWarning } from './interfaces/risk-warning.interface';
 import { WhatIfRequest } from './interfaces/what-if.interface';
+import { RiskEvaluationService } from './risk-evaluation.service';
+import { ThresholdEngineService } from './threshold-engine.service';
 import { WhatIfService } from './what-if.service';
 
 function holding({
-  currency = 'USD',
   dataSource = 'YAHOO',
   symbol,
   value
 }: {
-  currency?: string;
   dataSource?: string;
   symbol: string;
   value: number;
 }): PortfolioPosition {
   return {
-    assetProfile: { assetSubClass: 'STOCK', currency, dataSource, symbol },
+    assetProfile: {
+      assetSubClass: 'STOCK',
+      currency: 'USD',
+      dataSource,
+      symbol
+    },
     quantity: value,
     marketPrice: 1
   } as unknown as PortfolioPosition;
-}
-
-function ruleResult(
-  overrides: Partial<WeightedRuleResult> = {}
-): WeightedRuleResult {
-  return {
-    categoryKey: 'concentration',
-    categoryName: 'Concentration',
-    categoryWeight: 1,
-    isActive: true,
-    key: 'SingleStockConcentration',
-    message: '',
-    name: 'Single Stock Concentration',
-    passed: true,
-    weight: 1,
-    ...overrides
-  };
-}
-
-function warning(overrides: Partial<RiskWarning>): RiskWarning {
-  return {
-    actual: 0,
-    message: '',
-    ruleKey: 'SingleStockConcentration',
-    severity: 'RED',
-    subject: { type: 'stock', value: 'AAPL' },
-    threshold: 0.25,
-    ...overrides
-  };
 }
 
 const exchangeRateDataServiceMock = {
@@ -58,62 +34,48 @@ const exchangeRateDataServiceMock = {
 } as any;
 
 describe('WhatIfService', () => {
+  const exposureCalculatorService = new ExposureCalculatorService(
+    exchangeRateDataServiceMock
+  );
+  const exposureService = new ExposureService(
+    exchangeRateDataServiceMock,
+    exposureCalculatorService
+  );
+  const thresholdEngineService = new ThresholdEngineService();
+  const riskEvaluationService = new RiskEvaluationService(
+    exchangeRateDataServiceMock,
+    exposureService,
+    thresholdEngineService
+  );
   const healthScoreCalculatorService = new HealthScoreCalculatorService();
   const service = new WhatIfService(
     exchangeRateDataServiceMock,
-    healthScoreCalculatorService
+    healthScoreCalculatorService,
+    riskEvaluationService,
+    thresholdEngineService
   );
 
   const baseRequest = (
     overrides: Partial<WhatIfRequest> = {}
   ): WhatIfRequest => ({
     baseCurrency: 'USD',
+    cashBalance: 10000,
     holdings: [
       holding({ symbol: 'AAPL', value: 30000 }),
       holding({ symbol: 'MSFT', value: 60000 })
     ],
-    ruleResultsAfter: [ruleResult({ passed: true })],
-    ruleResultsBefore: [ruleResult({ passed: false })],
     scenario: { dataSource: 'YAHOO', dropPercentage: 0.4, symbol: 'AAPL' },
-    warningsAfter: [],
-    warningsBefore: [],
     ...overrides
   });
 
-  it('matches the worked example: a 40% AAPL drop shrinks the holding and the portfolio, and re-ranks the warnings', () => {
-    const result = service.calculateWhatIf(
-      baseRequest({
-        warningsBefore: [
-          warning({
-            actual: 0.3333,
-            severity: 'RED',
-            subject: { type: 'stock', value: 'AAPL' },
-            threshold: 0.25
-          }),
-          warning({
-            actual: 0.1923,
-            severity: 'YELLOW',
-            subject: { type: 'stock', value: 'MSFT' },
-            threshold: 0.1
-          })
-        ],
-        warningsAfter: [
-          warning({
-            actual: 0.2308,
-            severity: 'YELLOW',
-            subject: { type: 'stock', value: 'AAPL' },
-            threshold: 0.1
-          }),
-          warning({
-            actual: 0.2564,
-            severity: 'RED',
-            subject: { type: 'stock', value: 'MSFT' },
-            threshold: 0.25
-          })
-        ]
-      })
-    );
+  it('matches the worked example: portfolio value includes cash, holding allocation does not', () => {
+    const result = service.calculateWhatIf(baseRequest());
 
+    // Holdings: AAPL 30,000 + MSFT 60,000 = 90,000. Cash 10,000.
+    // Portfolio (holdings + cash): 100,000 before.
+    // AAPL drops 40%: 30,000 -> 18,000, so holdings go to 78,000 and
+    // portfolio (cash unchanged) goes to 88,000 - exactly Section 6.11's
+    // worked numbers.
     expect(result.holding.valueBefore).toEqual({
       amount: 30000,
       currency: 'USD'
@@ -122,97 +84,46 @@ describe('WhatIfService', () => {
       amount: 18000,
       currency: 'USD'
     });
-    expect(result.holding.allocationBefore).toBeCloseTo(0.3333, 4);
-    expect(result.holding.allocationAfter).toBeCloseTo(0.2308, 4);
+    expect(result.holding.allocationBefore).toBeCloseTo(0.3333, 4); // 30000/90000
+    expect(result.holding.allocationAfter).toBeCloseTo(0.2308, 4); // 18000/78000
 
     expect(result.portfolio.valueBefore).toEqual({
-      amount: 90000,
+      amount: 100000,
       currency: 'USD'
     });
     expect(result.portfolio.valueAfter).toEqual({
-      amount: 78000,
+      amount: 88000,
       currency: 'USD'
     });
     expect(result.portfolio.change).toEqual({
       amount: -12000,
       currency: 'USD'
     });
-    expect(result.portfolio.changePercentage).toBeCloseTo(-0.1333, 4);
-
-    // The rule stays RED overall (MSFT takes over from AAPL), so it is
-    // reported as a rule change even though the severity label is the same -
-    // the worst actual value changed.
-    expect(result.ruleChanges).toEqual([
-      {
-        actualAfter: 0.2564,
-        actualBefore: 0.3333,
-        ruleKey: 'SingleStockConcentration',
-        severityAfter: 'RED',
-        severityBefore: 'RED'
-      }
-    ]);
-
-    // Both warnings already existed (as RED/YELLOW) on both sides, so they
-    // moved, not appeared/disappeared.
-    expect(result.newWarnings).toEqual([]);
-    expect(result.resolvedWarnings).toEqual([]);
-    expect(result.changedWarnings.map((w) => w.subject.value).sort()).toEqual([
-      'AAPL',
-      'MSFT'
-    ]);
+    expect(result.portfolio.changePercentage).toBeCloseTo(-0.12, 4);
   });
 
-  it('recomputes the health score from the supplied before/after rule results', () => {
+  it('recomputes the health score and warnings from the real rule pipeline on the shocked copy, not caller-supplied values', () => {
     const result = service.calculateWhatIf(baseRequest());
 
-    expect(result.score).toEqual({ after: 100, before: 0, change: 100 });
-    expect(result.categories).toEqual([
-      { key: 'concentration', scoreAfter: 100, scoreBefore: 0 }
-    ]);
-  });
-
-  it('reports a newly-appearing warning that had no match before', () => {
-    const result = service.calculateWhatIf(
-      baseRequest({
-        warningsAfter: [
-          warning({
-            subject: { type: 'stock', value: 'MSFT' },
-            severity: 'YELLOW'
-          })
-        ]
-      })
+    // Before the shock: MSFT is the worst single-stock holding at
+    // 60000/90000 = 0.6667 (RED, > 0.25 ceiling). After a 40% AAPL drop,
+    // MSFT is 60000/78000 = 0.7692 - still the worst and still RED, but the
+    // actual percentage moved, so it is a genuine rule change, not a
+    // placeholder.
+    const singleStockChange = result.ruleChanges.find(
+      (change) => change.ruleKey === 'SingleStockConcentration'
     );
 
-    expect(result.newWarnings).toHaveLength(1);
-    expect(result.newWarnings[0].subject.value).toBe('MSFT');
-    expect(result.resolvedWarnings).toEqual([]);
-  });
+    expect(singleStockChange.severityBefore).toBe('RED');
+    expect(singleStockChange.severityAfter).toBe('RED');
+    expect(singleStockChange.actualBefore).toBeCloseTo(0.6667, 4);
+    expect(singleStockChange.actualAfter).toBeCloseTo(0.7692, 4);
 
-  it('reports a warning that disappears entirely as resolved, not changed', () => {
-    const result = service.calculateWhatIf(
-      baseRequest({
-        warningsBefore: [
-          warning({
-            subject: { type: 'stock', value: 'AAPL' },
-            severity: 'RED'
-          })
-        ]
-      })
-    );
-
-    expect(result.resolvedWarnings).toHaveLength(1);
-    expect(result.resolvedWarnings[0].subject.value).toBe('AAPL');
-    expect(result.newWarnings).toEqual([]);
-    expect(result.changedWarnings).toEqual([]);
-  });
-
-  it('passes skippedRuleKeys through unchanged, defaulting to an empty array', () => {
-    expect(service.calculateWhatIf(baseRequest()).skippedRules).toEqual([]);
     expect(
-      service.calculateWhatIf(
-        baseRequest({ skippedRuleKeys: ['PortfolioVolatility'] })
-      ).skippedRules
-    ).toEqual(['PortfolioVolatility']);
+      result.changedWarnings.some(
+        (warning) => warning.ruleKey === 'SingleStockConcentration'
+      )
+    ).toBe(true);
   });
 
   it('rejects a dropPercentage of 0 or below', () => {
@@ -243,5 +154,20 @@ describe('WhatIfService', () => {
         })
       )
     ).toThrow(/TSLA/);
+  });
+
+  it('does not mutate the real holdings array while building the shocked copy', () => {
+    const request = baseRequest();
+    const originalMarketPrice = request.holdings[0].marketPrice;
+
+    service.calculateWhatIf(request);
+
+    expect(request.holdings[0].marketPrice).toBe(originalMarketPrice);
+  });
+
+  it('passes RiskEvaluationService.skippedRuleKeys through as skippedRules', () => {
+    const result = service.calculateWhatIf(baseRequest());
+
+    expect(result.skippedRules).toEqual(['TargetAllocationDeviation']);
   });
 });

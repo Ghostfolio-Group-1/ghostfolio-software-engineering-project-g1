@@ -1,3 +1,4 @@
+import { AccountService } from '@ghostfolio/api/app/account/account.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
 import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import { ImpersonationService } from '@ghostfolio/api/services/impersonation/impersonation.service';
@@ -18,6 +19,7 @@ import {
 import { ExposureCalculatorService } from './exposure-calculator.service';
 import { ExposureService } from './exposure.service';
 import { RiskController } from './risk.controller';
+import { WhatIfService } from './what-if.service';
 
 describe('RiskController contract: GET /risk/concentration', () => {
   const ajv = new Ajv({ allErrors: true });
@@ -40,9 +42,11 @@ describe('RiskController contract: GET /risk/concentration', () => {
       providers: [
         ExposureCalculatorService,
         ExposureService,
+        { provide: AccountService, useValue: { getCashDetails: jest.fn() } },
         { provide: ExchangeRateDataService, useValue: {} },
         { provide: ImpersonationService, useValue: {} },
-        { provide: PortfolioService, useValue: { getHoldings } }
+        { provide: PortfolioService, useValue: { getHoldings } },
+        { provide: WhatIfService, useValue: { calculateWhatIf: jest.fn() } }
       ]
     }).compile();
 
@@ -131,6 +135,147 @@ describe('RiskController contract: GET /risk/concentration', () => {
       expect(getHoldings).not.toHaveBeenCalled();
     }
   );
+
+  describe('POST /risk/what-if', () => {
+    it('is routed at /risk/what-if', () => {
+      expect(
+        Reflect.getMetadata('path', RiskController.prototype.postWhatIf)
+      ).toBe('what-if');
+    });
+
+    it('loads holdings and cash details, then delegates to WhatIfService', async () => {
+      const calculateWhatIf = jest.fn().mockReturnValue({ scenario: {} });
+      const getCashDetails = jest
+        .fn()
+        .mockResolvedValue({ balanceInBaseCurrency: 5000 });
+      const moduleRef = await Test.createTestingModule({
+        controllers: [RiskController],
+        providers: [
+          ExposureCalculatorService,
+          ExposureService,
+          { provide: AccountService, useValue: { getCashDetails } },
+          { provide: ExchangeRateDataService, useValue: {} },
+          { provide: ImpersonationService, useValue: {} },
+          { provide: PortfolioService, useValue: { getHoldings } },
+          { provide: WhatIfService, useValue: { calculateWhatIf } }
+        ]
+      }).compile();
+      const whatIfController = moduleRef.get(RiskController);
+
+      await whatIfController.postWhatIf(context, {
+        dataSource: 'YAHOO',
+        dropPercentage: 0.4,
+        symbol: 'AAPL'
+      });
+
+      expect(getHoldings).toHaveBeenCalledWith({
+        dateRange: 'max',
+        userId: 'user-1'
+      });
+      expect(getCashDetails).toHaveBeenCalledWith({
+        userId: 'user-1',
+        currency: 'USD'
+      });
+      expect(calculateWhatIf).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseCurrency: 'USD',
+          cashBalance: 5000,
+          holdings: holdingsFixture,
+          scenario: { dataSource: 'YAHOO', dropPercentage: 0.4, symbol: 'AAPL' }
+        })
+      );
+    });
+
+    it('maps a BadRequestException from WhatIfService to RISK_WHATIF_INVALID_DROP', async () => {
+      const { BadRequestException } = await import('@nestjs/common');
+      const calculateWhatIf = jest.fn().mockImplementation(() => {
+        throw new BadRequestException('dropPercentage must be greater than 0');
+      });
+      const moduleRef = await Test.createTestingModule({
+        controllers: [RiskController],
+        providers: [
+          ExposureCalculatorService,
+          ExposureService,
+          {
+            provide: AccountService,
+            useValue: {
+              getCashDetails: jest
+                .fn()
+                .mockResolvedValue({ balanceInBaseCurrency: 0 })
+            }
+          },
+          { provide: ExchangeRateDataService, useValue: {} },
+          { provide: ImpersonationService, useValue: {} },
+          { provide: PortfolioService, useValue: { getHoldings } },
+          { provide: WhatIfService, useValue: { calculateWhatIf } }
+        ]
+      }).compile();
+      const whatIfController = moduleRef.get(RiskController);
+
+      const exception = await whatIfController
+        .postWhatIf(context, {
+          dataSource: 'YAHOO',
+          dropPercentage: 0,
+          symbol: 'AAPL'
+        })
+        .then(
+          () => {
+            throw new Error('Expected the request to be rejected');
+          },
+          (error: HttpException) => error
+        );
+
+      expect(exception.getStatus()).toBe(400);
+      expect(exception.getResponse()).toMatchObject({
+        error: { code: 'RISK_WHATIF_INVALID_DROP' }
+      });
+    });
+
+    it('maps a NotFoundException from WhatIfService to RISK_WHATIF_HOLDING_NOT_FOUND', async () => {
+      const { NotFoundException } = await import('@nestjs/common');
+      const calculateWhatIf = jest.fn().mockImplementation(() => {
+        throw new NotFoundException('No open holding found for YAHOO:TSLA');
+      });
+      const moduleRef = await Test.createTestingModule({
+        controllers: [RiskController],
+        providers: [
+          ExposureCalculatorService,
+          ExposureService,
+          {
+            provide: AccountService,
+            useValue: {
+              getCashDetails: jest
+                .fn()
+                .mockResolvedValue({ balanceInBaseCurrency: 0 })
+            }
+          },
+          { provide: ExchangeRateDataService, useValue: {} },
+          { provide: ImpersonationService, useValue: {} },
+          { provide: PortfolioService, useValue: { getHoldings } },
+          { provide: WhatIfService, useValue: { calculateWhatIf } }
+        ]
+      }).compile();
+      const whatIfController = moduleRef.get(RiskController);
+
+      const exception = await whatIfController
+        .postWhatIf(context, {
+          dataSource: 'YAHOO',
+          dropPercentage: 0.4,
+          symbol: 'TSLA'
+        })
+        .then(
+          () => {
+            throw new Error('Expected the request to be rejected');
+          },
+          (error: HttpException) => error
+        );
+
+      expect(exception.getStatus()).toBe(404);
+      expect(exception.getResponse()).toMatchObject({
+        error: { code: 'RISK_WHATIF_HOLDING_NOT_FOUND' }
+      });
+    });
+  });
 
   it('fails validation when a bucket breaks the contract', () => {
     const broken = {
