@@ -20,7 +20,7 @@ describe('HealthScoreCalculatorService', () => {
   const service = new HealthScoreCalculatorService();
 
   it('returns 100 when every active rule passes', () => {
-    const score = service.calculate([
+    const score = service.calculateHealthScore([
       result({ passed: true, weight: 15 }),
       result({
         passed: true,
@@ -36,7 +36,7 @@ describe('HealthScoreCalculatorService', () => {
 
   it('matches a hand-worked mixed pass/fail example', () => {
     // 15 of 25 active weight passed -> 60%
-    const score = service.calculate([
+    const score = service.calculateHealthScore([
       result({ passed: true, weight: 15 }),
       result({
         categoryKey: 'liquidity',
@@ -51,7 +51,7 @@ describe('HealthScoreCalculatorService', () => {
   });
 
   it('returns null with NO_ACTIVE_RULES when every rule is inactive', () => {
-    const score = service.calculate([result({ isActive: false })]);
+    const score = service.calculateHealthScore([result({ isActive: false })]);
 
     expect(score.score).toBeNull();
     expect(score.grade).toBeNull();
@@ -61,7 +61,7 @@ describe('HealthScoreCalculatorService', () => {
   it('excludes inactive rules from both sides of the fraction (renormalizes)', () => {
     // Active: one 15-weight pass, one 10-weight fail -> 15/25 = 60%.
     // The inactive 50-weight rule must not appear in the denominator.
-    const score = service.calculate([
+    const score = service.calculateHealthScore([
       result({ passed: true, weight: 15 }),
       result({
         categoryKey: 'liquidity',
@@ -81,7 +81,7 @@ describe('HealthScoreCalculatorService', () => {
     // inactive, so the category must not appear in categories at all -
     // not as a 0-weight or NO_DATA entry - and must not affect the
     // overall score or active weight.
-    const score = service.calculate([
+    const score = service.calculateHealthScore([
       result({ passed: true, weight: 15 }),
       result({
         categoryKey: 'liquidity',
@@ -102,7 +102,7 @@ describe('HealthScoreCalculatorService', () => {
   });
 
   it('computes an independent sub-score per category', () => {
-    const score = service.calculate([
+    const score = service.calculateHealthScore([
       result({
         categoryKey: 'fees',
         categoryWeight: 15,

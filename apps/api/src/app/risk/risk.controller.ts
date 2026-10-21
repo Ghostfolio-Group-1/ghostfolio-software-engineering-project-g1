@@ -54,7 +54,7 @@ export class RiskController {
       dateRange: 'max'
     });
 
-    const summary = this.exposureService.buildRiskSummary(
+    const summary = this.exposureService.getRiskSummary(
       holdings,
       userSettings.baseCurrency
     );

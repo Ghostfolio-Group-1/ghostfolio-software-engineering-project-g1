@@ -28,7 +28,7 @@ describe('RiskController contract: GET /risk/concentration', () => {
     userSettings: { baseCurrency: 'USD' }
   } as unknown as ImpersonationContext;
 
-  let buildRiskSummary: jest.SpyInstance;
+  let getRiskSummary: jest.SpyInstance;
   let controller: RiskController;
   let getHoldings: jest.Mock;
 
@@ -47,8 +47,8 @@ describe('RiskController contract: GET /risk/concentration', () => {
     }).compile();
 
     controller = moduleRef.get(RiskController);
-    buildRiskSummary = jest
-      .spyOn(moduleRef.get(ExposureService), 'buildRiskSummary')
+    getRiskSummary = jest
+      .spyOn(moduleRef.get(ExposureService), 'getRiskSummary')
       .mockReturnValue(riskSummaryFixture);
   });
 
@@ -74,7 +74,7 @@ describe('RiskController contract: GET /risk/concentration', () => {
       dateRange: 'max',
       userId: 'user-1'
     });
-    expect(buildRiskSummary).toHaveBeenCalledWith(holdingsFixture, 'USD');
+    expect(getRiskSummary).toHaveBeenCalledWith(holdingsFixture, 'USD');
   });
 
   it('sorts buckets largest first and returns five by default', async () => {
