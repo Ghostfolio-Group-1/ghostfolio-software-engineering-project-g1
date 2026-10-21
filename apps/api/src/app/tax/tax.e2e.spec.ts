@@ -116,9 +116,9 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
       .get('/api/v1/tax/realized-gains')
       .expect(200);
 
-    validateResponse(response.body);
-
+    expect(validateResponse(response.body)).toBe(true);
     expect(validateResponse.errors ?? []).toEqual([]);
+
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -141,6 +141,7 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
     expect(sales).toHaveLength(1);
 
     expect(sales[0]).toMatchObject({
+      allocatedAcquisitionFees: '1.4',
       allocatedBuyFees: '1.4',
       allocatedSellFee: '1',
       currency: 'USD',
@@ -185,11 +186,13 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
           sellDate: '2026-03-02T00:00:00.000Z',
           currency: 'USD',
           sellQuantity: '12',
+          matchedQuantity: '12',
           grossProceeds: '2040',
           grossCostBasis: '1840',
           grossRealizedGain: '200',
           allocatedAcquisitionFees: '1.6',
           sellFee: '1',
+          allocatedSellFee: '1',
           realizedGainAfterActivityFees: '197.4',
           poolBefore: {
             quantity: '15',
@@ -206,16 +209,21 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
     });
   });
 
-  it('rejects an unsupported realized-gain method explicitly', async () => {
+  it('rejects an unsupported realized-gain method with the TAX error envelope', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/tax/realized-gains?method=INVALID')
       .expect(422);
 
     expect(validateError(response.body)).toBe(true);
+    expect(validateError.errors ?? []).toEqual([]);
 
-    expect(response.body.error).toMatchObject({
-      code: 'TAX_REALIZED_GAINS_FAILED',
-      message: 'Unsupported tax calculation method: INVALID'
+    expect(response.body).toMatchObject({
+      data: null,
+      error: {
+        code: 'TAX_REALIZED_GAINS_FAILED',
+        message: 'Unsupported tax calculation method: INVALID'
+      },
+      meta: {}
     });
   });
 
@@ -260,7 +268,7 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
     ).toBe('217.6');
   });
 
-  it('returns 422 with a TAX_ envelope when currencies cannot be matched', async () => {
+  it('returns 422 with a TAX_ envelope when FIFO currencies cannot be matched', async () => {
     findMany.mockResolvedValue(
       fifoRealizedGainActivitiesFrom(ordersFixture).map((row) => {
         return row.id === 'fixture-order-04'
@@ -277,6 +285,27 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
       .expect(422);
 
     expect(validateError(response.body)).toBe(true);
+    expect(response.body.error.code).toBe('TAX_REALIZED_GAINS_FAILED');
+  });
+
+  it('returns 422 with the same TAX_ envelope when average-cost currencies cannot be matched', async () => {
+    findMany.mockResolvedValue(
+      fifoRealizedGainActivitiesFrom(ordersFixture).map((row) => {
+        return row.id === 'fixture-order-04'
+          ? {
+              ...row,
+              currency: 'EUR'
+            }
+          : row;
+      })
+    );
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/realized-gains?method=AVERAGE_COST')
+      .expect(422);
+
+    expect(validateError(response.body)).toBe(true);
+    expect(validateError.errors ?? []).toEqual([]);
     expect(response.body.error.code).toBe('TAX_REALIZED_GAINS_FAILED');
   });
 

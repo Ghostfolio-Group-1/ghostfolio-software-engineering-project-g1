@@ -116,6 +116,7 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
             grossProceeds: '1800',
             grossCostBasis: '1240',
             grossRealizedGain: '560',
+            allocatedAcquisitionFees: '2.4',
             allocatedBuyFees: '2.4',
             sellFee: '3',
             allocatedSellFee: '3',
@@ -176,11 +177,13 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
             sellDate: '2026-03-03T00:00:00.000Z',
             currency: 'USD',
             sellQuantity: '120',
+            matchedQuantity: '120',
             grossProceeds: '1800',
             grossCostBasis: '1280',
             grossRealizedGain: '520',
             allocatedAcquisitionFees: '2.4',
             sellFee: '3',
+            allocatedSellFee: '3',
             realizedGainAfterActivityFees: '514.6',
             poolBefore: {
               quantity: '150',
@@ -196,6 +199,27 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
         ]
       },
       error: null,
+      meta: {}
+    });
+  });
+
+  it('rejects an unsupported calculation method with a TAX error envelope', async () => {
+    const exception = await controller
+      .getRealizedGains(context, { method: 'INVALID' })
+      .then(
+        () => {
+          throw new Error('Expected invalid method calculation to fail');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(422);
+    expect(exception.getResponse()).toMatchObject({
+      data: null,
+      error: {
+        code: 'TAX_REALIZED_GAINS_FAILED',
+        message: 'Unsupported tax calculation method: INVALID'
+      },
       meta: {}
     });
   });

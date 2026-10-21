@@ -57,9 +57,7 @@ export const averageCostTaxCalculator: TaxCalculator<
   calculate: calculateAverageCostRealizedGains
 };
 
-export function getTaxCalculator(
-  method: TaxCalculationMethod
-): AnyTaxCalculator {
+export function getTaxCalculator(method: string): AnyTaxCalculator {
   if (method === 'FIFO') {
     return fifoTaxCalculator;
   }
@@ -68,5 +66,5 @@ export function getTaxCalculator(
     return averageCostTaxCalculator;
   }
 
-  throw new Error(`Unsupported tax calculation method: ${String(method)}`);
+  throw new Error(`Unsupported tax calculation method: ${method}`);
 }

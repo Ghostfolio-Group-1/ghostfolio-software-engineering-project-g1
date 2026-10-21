@@ -4,7 +4,6 @@ import {
   averageCostTaxCalculator,
   fifoTaxCalculator,
   getTaxCalculator,
-  type TaxCalculationMethod,
   type TaxRealizedGainActivitySource
 } from './tax-calculator';
 
@@ -18,7 +17,7 @@ describe('TaxCalculator', () => {
   });
 
   it('rejects an unsupported calculation method', () => {
-    expect(() => getTaxCalculator('INVALID' as TaxCalculationMethod)).toThrow(
+    expect(() => getTaxCalculator('INVALID')).toThrow(
       'Unsupported tax calculation method: INVALID'
     );
   });
@@ -52,7 +51,6 @@ describe('TaxCalculator', () => {
     ];
 
     const fifoResult = fifoTaxCalculator.calculate(activities);
-
     const averageCostResult = averageCostTaxCalculator.calculate(activities);
 
     expect(fifoResult.sales).toHaveLength(1);
@@ -85,6 +83,65 @@ describe('TaxCalculator', () => {
     );
 
     expect(fifoSale.realizedGainAfterActivityFees.toString()).toBe(
+      averageCostSale.realizedGainAfterActivityFees.toString()
+    );
+  });
+
+  it('produces different FIFO and average-cost gains for a two-lot sale', () => {
+    const activities: TaxRealizedGainActivitySource[] = [
+      {
+        accountId: 'account-1',
+        currency: 'USD',
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        fee: 10,
+        id: 'buy-1',
+        quantity: 10,
+        symbolProfileId: 'asset-1',
+        type: ActivityType.BUY,
+        unitPrice: 100,
+        userId: 'user-1'
+      },
+      {
+        accountId: 'account-1',
+        currency: 'USD',
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        fee: 20,
+        id: 'buy-2',
+        quantity: 10,
+        symbolProfileId: 'asset-1',
+        type: ActivityType.BUY,
+        unitPrice: 200,
+        userId: 'user-1'
+      },
+      {
+        accountId: 'account-1',
+        currency: 'USD',
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        fee: 5,
+        id: 'sell-1',
+        quantity: 5,
+        symbolProfileId: 'asset-1',
+        type: ActivityType.SELL,
+        unitPrice: 250,
+        userId: 'user-1'
+      }
+    ];
+
+    const fifoResult = fifoTaxCalculator.calculate(activities);
+    const averageCostResult = averageCostTaxCalculator.calculate(activities);
+
+    expect(fifoResult.sales).toHaveLength(1);
+    expect(averageCostResult.sales).toHaveLength(1);
+
+    const [fifoSale] = fifoResult.sales;
+    const [averageCostSale] = averageCostResult.sales;
+
+    expect(fifoSale.realizedGainAfterActivityFees.toString()).toBe('740');
+    expect(averageCostSale.realizedGainAfterActivityFees.toString()).toBe(
+      '487.5'
+    );
+
+    expect(fifoSale.realizedGainAfterActivityFees.toString()).not.toBe(
       averageCostSale.realizedGainAfterActivityFees.toString()
     );
   });

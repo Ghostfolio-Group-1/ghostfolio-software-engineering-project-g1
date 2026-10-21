@@ -16,17 +16,18 @@ export interface TaxRealizedGainSaleBaseResponse {
   sellDate: string;
   currency: string | null;
   sellQuantity: string;
+  matchedQuantity: string;
   grossProceeds: string;
   grossCostBasis: string;
   grossRealizedGain: string;
+  allocatedAcquisitionFees: string;
   sellFee: string;
+  allocatedSellFee: string;
   realizedGainAfterActivityFees: string;
 }
 
 export interface TaxFifoRealizedGainSaleResponse extends TaxRealizedGainSaleBaseResponse {
-  matchedQuantity: string;
   allocatedBuyFees: string;
-  allocatedSellFee: string;
   matches: TaxRealizedGainMatchResponse[];
 }
 
@@ -37,7 +38,6 @@ export interface TaxAverageCostPoolResponse {
 }
 
 export interface TaxAverageCostRealizedGainSaleResponse extends TaxRealizedGainSaleBaseResponse {
-  allocatedAcquisitionFees: string;
   poolBefore: TaxAverageCostPoolResponse;
   poolAfter: TaxAverageCostPoolResponse;
 }

@@ -12,7 +12,7 @@ import {
   TaxRealizedGainMatchResponse,
   TaxRealizedGainsResponse
 } from './interfaces/tax-realized-gains-response.interface';
-import { getTaxCalculator, TaxCalculationMethod } from './tax-calculator';
+import { getTaxCalculator } from './tax-calculator';
 import { TaxDataService } from './tax-data.service';
 
 @Injectable()
@@ -21,7 +21,7 @@ export class TaxService {
 
   public async getRealizedGains(
     userId: string,
-    method: TaxCalculationMethod = 'FIFO'
+    method: string = 'FIFO'
   ): Promise<TaxRealizedGainsResponse> {
     const activities =
       await this.taxDataService.getFifoRealizedGainActivities(userId);
@@ -71,11 +71,13 @@ export class TaxService {
       sellDate: sale.sellDate.toISOString(),
       currency: sale.currency,
       sellQuantity: sale.sellQuantity.toString(),
+      matchedQuantity: sale.sellQuantity.toString(),
       grossProceeds: sale.grossProceeds.toString(),
       grossCostBasis: sale.grossCostBasis.toString(),
       grossRealizedGain: sale.grossRealizedGain.toString(),
       allocatedAcquisitionFees: sale.allocatedAcquisitionFees.toString(),
       sellFee: sale.sellFee.toString(),
+      allocatedSellFee: sale.sellFee.toString(),
       realizedGainAfterActivityFees:
         sale.realizedGainAfterActivityFees.toString(),
       poolBefore: this.toAverageCostPoolResponse(sale.poolBefore),
@@ -95,6 +97,7 @@ export class TaxService {
       grossProceeds: sale.grossProceeds.toString(),
       grossCostBasis: sale.grossCostBasis.toString(),
       grossRealizedGain: sale.grossRealizedGain.toString(),
+      allocatedAcquisitionFees: sale.allocatedBuyFees.toString(),
       allocatedBuyFees: sale.allocatedBuyFees.toString(),
       sellFee: sale.sellFee.toString(),
       allocatedSellFee: sale.allocatedSellFee.toString(),
