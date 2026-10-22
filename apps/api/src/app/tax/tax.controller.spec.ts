@@ -264,3 +264,168 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
     });
   });
 });
+
+describe('TaxController integration: GET /tax/lots', () => {
+  const context = {
+    userId: 'user-1'
+  } as unknown as ImpersonationContext;
+
+  let controller: TaxController;
+  let getFifoActivities: jest.Mock;
+
+  beforeEach(async () => {
+    getFifoActivities = jest.fn().mockResolvedValue(activities);
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [TaxController],
+      providers: [
+        TaxService,
+        {
+          provide: ImpersonationService,
+          useValue: {}
+        },
+        {
+          provide: TaxDataService,
+          useValue: {
+            getFifoActivities
+          }
+        }
+      ]
+    }).compile();
+
+    controller = moduleRef.get(TaxController);
+  });
+
+  it('is routed at /tax/lots and requires portfolio-read scope', () => {
+    expect(Reflect.getMetadata('path', TaxController)).toBe('tax');
+
+    expect(
+      Reflect.getMetadata('path', TaxController.prototype.getTaxLots)
+    ).toBe('lots');
+
+    expect(
+      Reflect.getMetadata(
+        REQUIRES_SCOPE_KEY,
+        TaxController.prototype.getTaxLots
+      )
+    ).toEqual([scopes.portfolioRead]);
+  });
+
+  it('loads FIFO activities for the authenticated user', async () => {
+    await controller.getTaxLots(context);
+
+    expect(getFifoActivities).toHaveBeenCalledWith('user-1');
+  });
+
+  it('returns derived closed and partially consumed tax lots', async () => {
+    const response = await controller.getTaxLots(context);
+
+    expect(response).toEqual({
+      data: {
+        lots: [
+          {
+            lotId: 'buy-1',
+            sourceActivityId: 'buy-1',
+            accountId: 'account-1',
+            symbolProfileId: 'symbol-1',
+            acquiredAt: '2026-03-01T00:00:00.000Z',
+            currency: 'USD',
+            originalQuantity: '100',
+            consumedQuantity: '100',
+            remainingQuantity: '0',
+            status: 'CLOSED',
+            relatedSellActivityIds: ['sell-1']
+          },
+          {
+            lotId: 'buy-2',
+            sourceActivityId: 'buy-2',
+            accountId: 'account-1',
+            symbolProfileId: 'symbol-1',
+            acquiredAt: '2026-03-02T00:00:00.000Z',
+            currency: 'USD',
+            originalQuantity: '50',
+            consumedQuantity: '20',
+            remainingQuantity: '30',
+            status: 'PARTIALLY_CONSUMED',
+            relatedSellActivityIds: ['sell-1']
+          }
+        ]
+      },
+      error: null,
+      meta: {}
+    });
+  });
+
+  it('serializes tiny quantities without exponential notation', async () => {
+    getFifoActivities.mockResolvedValue([
+      {
+        ...activities[0],
+        id: 'buy-tiny',
+        quantity: 0.00000001
+      }
+    ]);
+
+    const response = await controller.getTaxLots(context);
+
+    expect(response).toEqual({
+      data: {
+        lots: [
+          {
+            lotId: 'buy-tiny',
+            sourceActivityId: 'buy-tiny',
+            accountId: 'account-1',
+            symbolProfileId: 'symbol-1',
+            acquiredAt: '2026-03-01T00:00:00.000Z',
+            currency: 'USD',
+            originalQuantity: '0.00000001',
+            consumedQuantity: '0',
+            remainingQuantity: '0.00000001',
+            status: 'OPEN',
+            relatedSellActivityIds: []
+          }
+        ]
+      },
+      error: null,
+      meta: {}
+    });
+  });
+
+  it('returns an empty lot list when the user has no eligible activities', async () => {
+    getFifoActivities.mockResolvedValue([]);
+
+    await expect(controller.getTaxLots(context)).resolves.toEqual({
+      data: {
+        lots: []
+      },
+      error: null,
+      meta: {}
+    });
+  });
+
+  it('returns TAX_LOTS_FAILED when the activity history cannot be reconciled', async () => {
+    getFifoActivities.mockResolvedValue([
+      ...activities.slice(0, 2),
+      {
+        ...activities[2],
+        quantity: 160
+      }
+    ]);
+
+    const exception = await controller.getTaxLots(context).then(
+      () => {
+        throw new Error('Expected tax-lot derivation to fail');
+      },
+      (error: HttpException) => error
+    );
+
+    expect(exception.getStatus()).toBe(422);
+    expect(exception.getResponse()).toMatchObject({
+      data: null,
+      error: {
+        code: 'TAX_LOTS_FAILED',
+        message: 'FIFO SELL sell-1 exceeds available holdings by 10.'
+      },
+      meta: {}
+    });
+  });
+});
