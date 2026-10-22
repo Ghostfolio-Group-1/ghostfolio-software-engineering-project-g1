@@ -9,7 +9,7 @@ import { TaxService } from './tax.service';
 
 @Module({
   controllers: [TaxController],
-  exports: [TaxDataService],
+  exports: [TaxDataService, TaxService],
   imports: [ImpersonationModule, PrismaModule],
   providers: [TaxDataService, TaxService]
 })
