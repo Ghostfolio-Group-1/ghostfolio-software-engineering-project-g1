@@ -5,6 +5,11 @@ import {
   FifoRealizedGainMatch,
   FifoRealizedGainSale
 } from './fifo-realized-gain';
+import { deriveFifoTaxLots, DerivedFifoTaxLot } from './fifo-tax-lot';
+import {
+  TaxLotResponse,
+  TaxLotsResponse
+} from './interfaces/tax-lots-response.interface';
 import {
   TaxAverageCostPoolResponse,
   TaxAverageCostRealizedGainSaleResponse,
@@ -51,6 +56,36 @@ export class TaxService {
     userId: string
   ): Promise<TaxRealizedGainsResponse> {
     return this.getRealizedGains(userId, 'FIFO');
+  }
+
+  public async getTaxLots(userId: string): Promise<TaxLotsResponse> {
+    const activities = await this.taxDataService.getFifoActivities(userId);
+
+    const lots = deriveFifoTaxLots(activities);
+
+    return {
+      lots: lots.map((lot) => this.toTaxLotResponse(lot))
+    };
+  }
+
+  private toTaxLotResponse(lot: DerivedFifoTaxLot): TaxLotResponse {
+    return {
+      lotId: lot.lotId,
+      sourceActivityId: lot.sourceActivityId,
+      accountId: lot.scope.accountId,
+      symbolProfileId: lot.scope.symbolProfileId,
+      acquiredAt: lot.acquiredAt.toISOString(),
+      currency: lot.currency,
+
+      // Use toFixed() rather than toString() so very small quantities
+      // remain normal decimal strings instead of exponential notation.
+      originalQuantity: lot.originalQuantity.toFixed(),
+      consumedQuantity: lot.consumedQuantity.toFixed(),
+      remainingQuantity: lot.remainingQuantity.toFixed(),
+
+      status: lot.status,
+      relatedSellActivityIds: [...lot.relatedSellActivityIds]
+    };
   }
 
   private toAverageCostPoolResponse(

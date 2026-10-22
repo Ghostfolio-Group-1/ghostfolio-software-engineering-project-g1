@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 
 import { GetRealizedGainsDto } from './get-realized-gains.dto';
+import type { TaxLotsResponse } from './interfaces/tax-lots-response.interface';
 import type { TaxRealizedGainsResponse } from './interfaces/tax-realized-gains-response.interface';
 import { TaxService } from './tax.service';
 
@@ -44,6 +45,26 @@ export class TaxController {
           error instanceof Error
             ? error.message
             : 'Unable to calculate realized gains'
+        ),
+        HttpStatus.UNPROCESSABLE_ENTITY
+      );
+    }
+  }
+
+  @Get('lots')
+  @RequiresScope(scopes.portfolioRead)
+  public async getTaxLots(
+    @Impersonation() { userId }: ImpersonationContext
+  ): Promise<ApiResponse<TaxLotsResponse>> {
+    try {
+      const result = await this.taxService.getTaxLots(userId);
+
+      return createSuccessResponse(result);
+    } catch (error) {
+      throw new HttpException(
+        createErrorResponse(
+          'TAX_LOTS_FAILED',
+          error instanceof Error ? error.message : 'Unable to derive tax lots'
         ),
         HttpStatus.UNPROCESSABLE_ENTITY
       );

@@ -6,8 +6,11 @@ import {
   withE2eUser
 } from '@ghostfolio/api/testing/e2e/e2e-app';
 import {
+  FIXTURE_ACCOUNT_ID,
   FIXTURE_BASE_CURRENCY,
+  FIXTURE_SYMBOL_PROFILE_IDS,
   FIXTURE_USER_ID,
+  fifoActivitiesFrom,
   fifoRealizedGainActivitiesFrom,
   ordersFixture
 } from '@ghostfolio/api/testing/fixtures/portfolio.fixtures';
@@ -15,11 +18,13 @@ import { TAG_ID_DRAFT } from '@ghostfolio/common/config';
 
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Type as ActivityType } from '@prisma/client';
 import Ajv from 'ajv';
 import { Big } from 'big.js';
 import request from 'supertest';
 
 import { fifoRealizedGainActivitiesSchema } from './contracts/fifo-realized-gain-activity.schema';
+import { taxLotsResponseSchema } from './contracts/tax-lots.schema';
 import {
   taxErrorResponseSchema,
   taxRealizedGainsResponseSchema
@@ -321,6 +326,261 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
   it('returns 401 when the request is not logged in', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/tax/realized-gains')
+      .set(E2E_NO_LOGIN)
+      .expect(401);
+
+    expect(findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/v1/tax/lots (end to end)', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(taxLotsResponseSchema);
+  const validateError = ajv.compile(taxErrorResponseSchema);
+  const findMany = jest.fn();
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [TaxController],
+          providers: [
+            TaxDataService,
+            TaxService,
+            {
+              provide: PrismaService,
+              useValue: {
+                order: {
+                  findMany
+                }
+              }
+            }
+          ]
+        }),
+        {
+          baseCurrency: FIXTURE_BASE_CURRENCY,
+          userId: FIXTURE_USER_ID
+        }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    findMany.mockReset();
+    findMany.mockResolvedValue(fifoActivitiesFrom(ordersFixture));
+  });
+
+  it('returns derived FIFO tax lots in the contract shape', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/lots')
+      .expect(200);
+
+    expect(validateResponse(response.body)).toBe(true);
+    expect(validateResponse.errors ?? []).toEqual([]);
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tags: {
+            none: {
+              id: TAG_ID_DRAFT
+            }
+          },
+          type: {
+            in: ['BUY', 'SELL']
+          },
+          userId: FIXTURE_USER_ID
+        }
+      })
+    );
+
+    expect(response.body.data.lots).toEqual([
+      {
+        lotId: 'fixture-order-01',
+        sourceActivityId: 'fixture-order-01',
+        accountId: FIXTURE_ACCOUNT_ID,
+        symbolProfileId: FIXTURE_SYMBOL_PROFILE_IDS.AAPL,
+        acquiredAt: '2026-01-05T00:00:00.000Z',
+        currency: 'USD',
+        originalQuantity: '10',
+        consumedQuantity: '10',
+        remainingQuantity: '0',
+        status: 'CLOSED',
+        relatedSellActivityIds: ['fixture-order-04']
+      },
+      {
+        lotId: 'fixture-order-02',
+        sourceActivityId: 'fixture-order-02',
+        accountId: FIXTURE_ACCOUNT_ID,
+        symbolProfileId: FIXTURE_SYMBOL_PROFILE_IDS.MSFT,
+        acquiredAt: '2026-01-05T00:00:00.000Z',
+        currency: 'USD',
+        originalQuantity: '5',
+        consumedQuantity: '0',
+        remainingQuantity: '5',
+        status: 'OPEN',
+        relatedSellActivityIds: []
+      },
+      {
+        lotId: 'fixture-order-03',
+        sourceActivityId: 'fixture-order-03',
+        accountId: FIXTURE_ACCOUNT_ID,
+        symbolProfileId: FIXTURE_SYMBOL_PROFILE_IDS.AAPL,
+        acquiredAt: '2026-02-02T00:00:00.000Z',
+        currency: 'USD',
+        originalQuantity: '5',
+        consumedQuantity: '2',
+        remainingQuantity: '3',
+        status: 'PARTIALLY_CONSUMED',
+        relatedSellActivityIds: ['fixture-order-04']
+      },
+      {
+        lotId: 'fixture-order-06',
+        sourceActivityId: 'fixture-order-06',
+        accountId: FIXTURE_ACCOUNT_ID,
+        symbolProfileId: FIXTURE_SYMBOL_PROFILE_IDS.SAP,
+        acquiredAt: '2026-04-01T00:00:00.000Z',
+        currency: 'EUR',
+        originalQuantity: '4',
+        consumedQuantity: '0',
+        remainingQuantity: '4',
+        status: 'OPEN',
+        relatedSellActivityIds: []
+      }
+    ]);
+  });
+
+  it('does not expose the draft BUY as a tax lot', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/lots')
+      .expect(200);
+
+    expect(
+      response.body.data.lots.map(
+        (lot: { sourceActivityId: string }) => lot.sourceActivityId
+      )
+    ).not.toContain('fixture-order-07');
+  });
+
+  it('supports multiple acquisition currencies in one lot view', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/lots')
+      .expect(200);
+
+    const currencies = response.body.data.lots.map(
+      (lot: { currency: string | null }) => lot.currency
+    );
+
+    expect(currencies).toContain('USD');
+    expect(currencies).toContain('EUR');
+  });
+
+  it('serializes tiny quantities as normal decimal strings accepted by the schema', async () => {
+    findMany.mockResolvedValue([
+      {
+        accountId: FIXTURE_ACCOUNT_ID,
+        currency: 'USD',
+        date: new Date('2026-05-01T00:00:00.000Z'),
+        id: 'fixture-order-tiny',
+        quantity: 0.00000001,
+        symbolProfileId: FIXTURE_SYMBOL_PROFILE_IDS.AAPL,
+        type: ActivityType.BUY,
+        unitPrice: 1,
+        userId: FIXTURE_USER_ID
+      }
+    ]);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/lots')
+      .expect(200);
+
+    expect(validateResponse(response.body)).toBe(true);
+    expect(validateResponse.errors ?? []).toEqual([]);
+
+    expect(response.body.data.lots).toEqual([
+      {
+        lotId: 'fixture-order-tiny',
+        sourceActivityId: 'fixture-order-tiny',
+        accountId: FIXTURE_ACCOUNT_ID,
+        symbolProfileId: FIXTURE_SYMBOL_PROFILE_IDS.AAPL,
+        acquiredAt: '2026-05-01T00:00:00.000Z',
+        currency: 'USD',
+        originalQuantity: '0.00000001',
+        consumedQuantity: '0',
+        remainingQuantity: '0.00000001',
+        status: 'OPEN',
+        relatedSellActivityIds: []
+      }
+    ]);
+  });
+
+  it('returns an empty lot list when there are no eligible activities', async () => {
+    findMany.mockResolvedValue([]);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/lots')
+      .expect(200);
+
+    expect(validateResponse(response.body)).toBe(true);
+    expect(validateResponse.errors ?? []).toEqual([]);
+
+    expect(response.body.data).toEqual({
+      lots: []
+    });
+  });
+
+  it('fails the whole view with TAX_LOTS_FAILED when the activity history cannot be reconciled', async () => {
+    const fixtureRows = fifoActivitiesFrom(ordersFixture);
+
+    findMany.mockResolvedValue([
+      ...fixtureRows,
+      {
+        accountId: FIXTURE_ACCOUNT_ID,
+        currency: 'USD',
+        date: new Date('2026-05-01T00:00:00.000Z'),
+        id: 'fixture-order-over-sell',
+        quantity: 100,
+        symbolProfileId: FIXTURE_SYMBOL_PROFILE_IDS.AAPL,
+        type: ActivityType.SELL,
+        unitPrice: 170,
+        userId: FIXTURE_USER_ID
+      }
+    ]);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/lots')
+      .expect(422);
+
+    expect(validateError(response.body)).toBe(true);
+    expect(validateError.errors ?? []).toEqual([]);
+
+    expect(response.body).toMatchObject({
+      data: null,
+      error: {
+        code: 'TAX_LOTS_FAILED'
+      },
+      meta: {}
+    });
+  });
+
+  it('returns 403 when the user lacks the portfolio:read scope', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/tax/lots')
+      .set(E2E_NO_SCOPES)
+      .expect(403);
+
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when the request is not logged in', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/tax/lots')
       .set(E2E_NO_LOGIN)
       .expect(401);
 
