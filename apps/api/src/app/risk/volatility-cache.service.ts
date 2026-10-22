@@ -10,8 +10,7 @@ import { subDays } from 'date-fns';
 
 import {
   DatedPrice,
-  DatedReturn,
-  alignReturns,
+  alignPrices,
   annualizedCovariance,
   computeDatedDailyReturns,
   portfolioVolatilityFromMatrix
@@ -22,9 +21,19 @@ import { DEFAULT_VOLATILITY_WINDOW_DAYS } from './volatility.model';
 const CACHE_KEY = 'risk-volatility-matrix';
 const CACHE_TTL_MS = 25 * 60 * 60 * 1000; // 25h: outlives one missed nightly run, not two.
 const MINIMUM_HISTORY_DAYS = 20;
-// Buffer beyond the window itself so weekends/holidays still leave enough
-// trading days inside the window once non-trading days are excluded.
-const LOOKBACK_BUFFER_DAYS = 15;
+// DEFAULT_VOLATILITY_WINDOW_DAYS (90) counts TRADING days, not calendar
+// days. Fetching only 90 + a small buffer of calendar days was a bug found
+// in review: after weekends alone (~2/7 of all days) that leaves roughly
+// 65-75 trading days, never the intended 90, and the later slice(-90) can't
+// recover history that was never fetched. 90 trading days needs at least
+// 90 * 7/5 = 126 calendar days just to clear weekends; the holiday buffer on
+// top covers a typical market-holiday calendar so 90 trading days are
+// reliably inside the fetched window whenever that much history exists.
+const TRADING_TO_CALENDAR_DAY_RATIO = 7 / 5;
+const HOLIDAY_BUFFER_DAYS = 15;
+const LOOKBACK_CALENDAR_DAYS =
+  Math.ceil(DEFAULT_VOLATILITY_WINDOW_DAYS * TRADING_TO_CALENDAR_DAY_RATIO) +
+  HOLIDAY_BUFFER_DAYS;
 
 interface CachedSymbolVolatility {
   historyDays: number;
@@ -76,10 +85,7 @@ export class VolatilityCacheService {
       return;
     }
 
-    const cutoff = subDays(
-      new Date(),
-      DEFAULT_VOLATILITY_WINDOW_DAYS + LOOKBACK_BUFFER_DAYS
-    );
+    const cutoff = subDays(new Date(), LOOKBACK_CALENDAR_DAYS);
     const marketData = await this.marketDataService.getRange({
       assetProfileIdentifiers: identifiers,
       dateQuery: { gte: cutoff }
@@ -98,31 +104,44 @@ export class VolatilityCacheService {
       pricesBySymbol.set(key, prices);
     }
 
-    const returnsBySymbol = new Map<string, DatedReturn[]>();
+    const symbolKeys = [...pricesBySymbol.keys()];
     const symbols: Record<string, CachedSymbolVolatility> = {};
 
-    for (const [symbolKey, prices] of pricesBySymbol) {
-      const returns = computeDatedDailyReturns(prices).slice(
-        -DEFAULT_VOLATILITY_WINDOW_DAYS
-      );
+    for (const key of symbolKeys) {
+      // A symbol's own history depth is independent of any other symbol -
+      // no alignment needed against itself.
+      const ownReturns = computeDatedDailyReturns(
+        pricesBySymbol.get(key)
+      ).slice(-DEFAULT_VOLATILITY_WINDOW_DAYS);
 
-      returnsBySymbol.set(symbolKey, returns);
-      symbols[symbolKey] = { historyDays: returns.length };
+      symbols[key] = { historyDays: ownReturns.length };
     }
 
-    const symbolKeys = [...returnsBySymbol.keys()];
     const covariances: Record<string, Record<string, number>> = {};
 
     for (const rowKey of symbolKeys) {
       covariances[rowKey] = {};
 
       for (const columnKey of symbolKeys) {
-        const { a, b } = alignReturns(
-          returnsBySymbol.get(rowKey),
-          returnsBySymbol.get(columnKey)
+        // Align at the price level (not by matching returns on their end
+        // date) so every paired return covers the exact same two calendar
+        // dates for both symbols - see alignPrices()'s own comment for why
+        // that distinction matters.
+        const { a: pricesA, b: pricesB } = alignPrices(
+          pricesBySymbol.get(rowKey),
+          pricesBySymbol.get(columnKey)
         );
+        const returnsA = computeDatedDailyReturns(pricesA)
+          .slice(-DEFAULT_VOLATILITY_WINDOW_DAYS)
+          .map((entry) => entry.value);
+        const returnsB = computeDatedDailyReturns(pricesB)
+          .slice(-DEFAULT_VOLATILITY_WINDOW_DAYS)
+          .map((entry) => entry.value);
 
-        covariances[rowKey][columnKey] = annualizedCovariance(a, b);
+        covariances[rowKey][columnKey] = annualizedCovariance(
+          returnsA,
+          returnsB
+        );
       }
     }
 

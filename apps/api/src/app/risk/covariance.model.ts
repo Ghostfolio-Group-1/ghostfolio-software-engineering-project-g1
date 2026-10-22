@@ -19,9 +19,8 @@ export interface DatedReturn {
 // Date-aware counterpart to volatility.model.ts's computeDailyReturns: that
 // function works on a plain price array and assumes every index lines up
 // across symbols, which only holds if every symbol traded on exactly the
-// same calendar days. This tags each return with the date it covers so
-// alignReturns() below can intersect two symbols' returns on shared trading
-// days only, rather than silently pairing returns from different dates.
+// same calendar days. This tags each return with the date it covers so a
+// caller can line up two symbols' returns by date rather than by index.
 export function computeDatedDailyReturns(prices: DatedPrice[]): DatedReturn[] {
   const sorted = [...prices].sort((left, right) => {
     return left.date < right.date ? -1 : left.date > right.date ? 1 : 0;
@@ -43,30 +42,35 @@ export function computeDatedDailyReturns(prices: DatedPrice[]): DatedReturn[] {
   return returns;
 }
 
-// Two symbols only contribute to each other's covariance on the trading
-// days they both have a return for - a symbol listed on a different
-// exchange calendar (or with a gap in its history) should not silently
-// shift one series against the other.
-export function alignReturns(
-  returnsA: DatedReturn[],
-  returnsB: DatedReturn[]
-): { a: number[]; b: number[] } {
-  const byDateB = new Map(returnsB.map((entry) => [entry.date, entry.value]));
-  const a: number[] = [];
-  const b: number[] = [];
+// Restricts two symbols' price series to the trading days they BOTH have a
+// price for, before any return is computed. This must happen at the price
+// level, not by matching returns on their end date afterwards: if symbol A
+// trades Mon/Tue/Wed and symbol B trades only Mon/Wed, A's Wednesday return
+// covers Tue->Wed while B's Wednesday return covers Mon->Wed - tagging each
+// return only by its end date and matching on that (an earlier version of
+// this function did exactly that) would silently pair two returns covering
+// different time intervals. Aligning the underlying prices first guarantees
+// that any return later computed from the aligned series, for either
+// symbol, covers the exact same two calendar dates as its counterpart.
+export function alignPrices(
+  pricesA: DatedPrice[],
+  pricesB: DatedPrice[]
+): { a: DatedPrice[]; b: DatedPrice[] } {
+  const byDateA = new Map(pricesA.map((entry) => [entry.date, entry.price]));
+  const byDateB = new Map(pricesB.map((entry) => [entry.date, entry.price]));
+  const commonDates = [...byDateA.keys()]
+    .filter((date) => byDateB.has(date))
+    .sort();
 
-  for (const entry of returnsA) {
-    if (byDateB.has(entry.date)) {
-      a.push(entry.value);
-      b.push(byDateB.get(entry.date));
-    }
-  }
-
-  return { a, b };
+  return {
+    a: commonDates.map((date) => ({ date, price: byDateA.get(date) })),
+    b: commonDates.map((date) => ({ date, price: byDateB.get(date) }))
+  };
 }
 
-// Population covariance between two equal-length, date-aligned return
-// series (see alignReturns()).
+// Population covariance between two equal-length return series. Callers
+// should derive both from alignPrices()'d price series (see above) so each
+// index represents the same pair of calendar dates for both symbols.
 export function covariance(returnsA: number[], returnsB: number[]): number {
   if (returnsA.length === 0 || returnsA.length !== returnsB.length) {
     return 0;

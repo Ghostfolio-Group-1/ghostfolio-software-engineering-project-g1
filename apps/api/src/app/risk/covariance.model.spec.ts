@@ -1,5 +1,5 @@
 import {
-  alignReturns,
+  alignPrices,
   annualizedCovariance,
   computeDatedDailyReturns,
   covariance,
@@ -30,23 +30,74 @@ describe('computeDatedDailyReturns', () => {
   });
 });
 
-describe('alignReturns', () => {
+describe('alignPrices', () => {
   it('keeps only the dates present in both series', () => {
-    const aligned = alignReturns(
+    const aligned = alignPrices(
       [
-        { date: '2026-01-02', value: 0.01 },
-        { date: '2026-01-03', value: 0.02 },
-        { date: '2026-01-04', value: 0.03 }
+        { date: '2026-01-02', price: 100 },
+        { date: '2026-01-03', price: 101 },
+        { date: '2026-01-04', price: 102 }
       ],
       [
-        { date: '2026-01-02', value: -0.01 },
-        { date: '2026-01-04', value: -0.03 }
+        { date: '2026-01-02', price: 200 },
+        { date: '2026-01-04', price: 203 }
       ]
     );
 
     // 2026-01-03 is missing from B, so it is dropped from both sides.
-    expect(aligned.a).toEqual([0.01, 0.03]);
-    expect(aligned.b).toEqual([-0.01, -0.03]);
+    expect(aligned.a).toEqual([
+      { date: '2026-01-02', price: 100 },
+      { date: '2026-01-04', price: 102 }
+    ]);
+    expect(aligned.b).toEqual([
+      { date: '2026-01-02', price: 200 },
+      { date: '2026-01-04', price: 203 }
+    ]);
+  });
+
+  // Regression test for a bug caught in review: an earlier version tagged
+  // each return only with its end date and matched two symbols' returns on
+  // that date, rather than aligning prices first. With A trading
+  // Mon/Tue/Wed and B trading only Mon/Wed, A's "Wednesday" return covered
+  // Tue->Wed while B's "Wednesday" return covered Mon->Wed - different
+  // intervals that the old code would have wrongly paired as one
+  // observation. Aligning at the price level first, before any return is
+  // computed, means a return computed from the aligned series always
+  // covers the same two calendar dates for both symbols.
+  it('produces returns covering the same interval for both symbols when a middle trading day is missing from one', () => {
+    const pricesA = [
+      { date: '2026-01-05', price: 100 }, // Monday
+      { date: '2026-01-06', price: 101 }, // Tuesday
+      { date: '2026-01-07', price: 102 } // Wednesday
+    ];
+    const pricesB = [
+      { date: '2026-01-05', price: 200 }, // Monday
+      { date: '2026-01-07', price: 203 } // Wednesday (Tuesday missing)
+    ];
+
+    const { a: alignedA, b: alignedB } = alignPrices(pricesA, pricesB);
+    const returnsA = computeDatedDailyReturns(alignedA);
+    const returnsB = computeDatedDailyReturns(alignedB);
+
+    // Exactly one return each - the Tuesday-only price point for A was
+    // dropped during alignment, so there is no "Tue->Wed" return to
+    // mismatch against B's "Mon->Wed" return.
+    expect(returnsA).toHaveLength(1);
+    expect(returnsB).toHaveLength(1);
+    expect(returnsA[0].date).toBe('2026-01-07');
+    expect(returnsB[0].date).toBe('2026-01-07');
+
+    // Both returns now correctly cover Monday -> Wednesday.
+    expect(returnsA[0].value).toBeCloseTo((102 - 100) / 100, 10);
+    expect(returnsB[0].value).toBeCloseTo((203 - 200) / 200, 10);
+
+    // What the old end-date-matching bug would have paired instead: A's
+    // unaligned Tue->Wed return (102-101)/101, which is a different number
+    // from the correct Mon->Wed return asserted above.
+    const buggyUnalignedReturnA = computeDatedDailyReturns(pricesA).find(
+      (entry) => entry.date === '2026-01-07'
+    );
+    expect(buggyUnalignedReturnA.value).not.toBeCloseTo(returnsA[0].value, 5);
   });
 });
 
