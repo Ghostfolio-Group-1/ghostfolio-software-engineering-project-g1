@@ -12,6 +12,7 @@ export const activityDummyData = {
   feeInAssetProfileCurrency: undefined,
   feeInBaseCurrency: undefined,
   id: undefined,
+  isTaxRelevant: true,
   symbolProfileId: undefined,
   unitPrice: undefined,
   unitPriceInAssetProfileCurrency: undefined,

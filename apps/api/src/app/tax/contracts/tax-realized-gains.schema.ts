@@ -3,6 +3,51 @@
 
 const decimal = { type: 'string', pattern: '^-?\\d+(\\.\\d+)?$' };
 
+const diagnostic = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'affectedSellActivityIds',
+    'code',
+    'excludedActivityIds',
+    'message'
+  ],
+  properties: {
+    affectedSellActivityIds: {
+      type: 'array',
+      items: {
+        type: 'string',
+        minLength: 1
+      }
+    },
+    code: {
+      const: 'TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY'
+    },
+    excludedActivityIds: {
+      type: 'array',
+      items: {
+        type: 'string',
+        minLength: 1
+      }
+    },
+    message: {
+      type: 'string',
+      minLength: 1
+    }
+  }
+};
+
+const completenessProperties = {
+  diagnostics: {
+    type: 'array',
+    minItems: 1,
+    items: diagnostic
+  },
+  isComplete: {
+    const: false
+  }
+};
+
 const match = {
   type: 'object',
   additionalProperties: false,
@@ -99,7 +144,12 @@ const fifoData = {
   type: 'object',
   additionalProperties: false,
   required: ['method', 'sales'],
+  dependencies: {
+    diagnostics: ['isComplete'],
+    isComplete: ['diagnostics']
+  },
   properties: {
+    ...completenessProperties,
     method: { const: 'FIFO' },
     sales: { type: 'array', items: fifoSale }
   }
@@ -109,7 +159,12 @@ const averageCostData = {
   type: 'object',
   additionalProperties: false,
   required: ['method', 'sales'],
+  dependencies: {
+    diagnostics: ['isComplete'],
+    isComplete: ['diagnostics']
+  },
   properties: {
+    ...completenessProperties,
     method: { const: 'AVERAGE_COST' },
     sales: { type: 'array', items: averageCostSale }
   }

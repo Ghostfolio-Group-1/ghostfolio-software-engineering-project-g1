@@ -62,6 +62,10 @@ export class CreateOrderDto {
   @Min(0)
   fee: number;
 
+  @IsBoolean()
+  @IsOptional()
+  isTaxRelevant?: boolean;
+
   @IsNumber()
   @Min(0)
   quantity: number;

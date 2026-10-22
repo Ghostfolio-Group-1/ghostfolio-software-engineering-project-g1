@@ -543,6 +543,7 @@ export class ActivitiesService {
           feeInAssetProfileCurrency: 0,
           feeInBaseCurrency: 0,
           id: balanceItem.id,
+          isTaxRelevant: false,
           quantity: 1,
           symbolProfileId: account.currency,
           type: ActivityType.BUY,

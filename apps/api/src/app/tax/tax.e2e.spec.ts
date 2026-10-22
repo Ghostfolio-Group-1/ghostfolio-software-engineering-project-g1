@@ -1,3 +1,4 @@
+import { WHERE_ACCOUNT_NOT_EXCLUDED } from '@ghostfolio/api/helper/account.helper';
 import { PrismaService } from '@ghostfolio/api/services/prisma/prisma.service';
 import {
   E2E_NO_LOGIN,
@@ -14,7 +15,10 @@ import {
   fifoRealizedGainActivitiesFrom,
   ordersFixture
 } from '@ghostfolio/api/testing/fixtures/portfolio.fixtures';
-import { TAG_ID_DRAFT } from '@ghostfolio/common/config';
+import {
+  TAG_ID_DRAFT,
+  TAG_ID_EXCLUDE_FROM_ANALYSIS
+} from '@ghostfolio/common/config';
 
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -116,6 +120,32 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
     expect(validateRows.errors ?? []).toEqual([]);
   });
 
+  // Issue #55: verify that the public response schema accepts
+  // an incomplete result with the mixed-history diagnostic.
+  it('accepts the incomplete mixed-history diagnostic in the response contract', () => {
+    const response = {
+      data: {
+        diagnostics: [
+          {
+            affectedSellActivityIds: ['fixture-order-04'],
+            code: 'TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY',
+            excludedActivityIds: ['fixture-order-01'],
+            message:
+              'Excluded BUY or SELL activity exists in the same tax scope before or at a tax-relevant SELL; basis-dependent tax results may be incomplete.'
+          }
+        ],
+        isComplete: false,
+        method: 'FIFO',
+        sales: []
+      },
+      error: null,
+      meta: {}
+    };
+
+    expect(validateResponse(response)).toBe(true);
+    expect(validateResponse.errors ?? []).toEqual([]);
+  });
+
   it('returns the FIFO realized gain of the fixture sale in the contract shape', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/tax/realized-gains')
@@ -127,13 +157,24 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          isTaxRelevant: true,
+          OR: [
+            {
+              account: null
+            },
+            {
+              account: WHERE_ACCOUNT_NOT_EXCLUDED
+            }
+          ],
           tags: {
             none: {
-              id: TAG_ID_DRAFT
+              id: {
+                in: [TAG_ID_DRAFT, TAG_ID_EXCLUDE_FROM_ANALYSIS]
+              }
             }
           },
           type: {
-            in: ['BUY', 'SELL']
+            in: [ActivityType.BUY, ActivityType.SELL]
           },
           userId: FIXTURE_USER_ID
         }
@@ -376,6 +417,31 @@ describe('GET /api/v1/tax/lots (end to end)', () => {
     findMany.mockResolvedValue(fifoActivitiesFrom(ordersFixture));
   });
 
+  // Issue #55: same mixed-history response contract for tax lots.
+  // This is inside the tax-lots describe block; it is not a separate file.
+  it('accepts the incomplete mixed-history diagnostic in the lot response contract', () => {
+    const response = {
+      data: {
+        diagnostics: [
+          {
+            affectedSellActivityIds: ['fixture-order-04'],
+            code: 'TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY',
+            excludedActivityIds: ['fixture-order-01'],
+            message:
+              'Excluded BUY or SELL activity exists in the same tax scope before or at a tax-relevant SELL; basis-dependent tax results may be incomplete.'
+          }
+        ],
+        isComplete: false,
+        lots: []
+      },
+      error: null,
+      meta: {}
+    };
+
+    expect(validateResponse(response)).toBe(true);
+    expect(validateResponse.errors ?? []).toEqual([]);
+  });
+
   it('returns derived FIFO tax lots in the contract shape', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/tax/lots')
@@ -387,13 +453,24 @@ describe('GET /api/v1/tax/lots (end to end)', () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          isTaxRelevant: true,
+          OR: [
+            {
+              account: null
+            },
+            {
+              account: WHERE_ACCOUNT_NOT_EXCLUDED
+            }
+          ],
           tags: {
             none: {
-              id: TAG_ID_DRAFT
+              id: {
+                in: [TAG_ID_DRAFT, TAG_ID_EXCLUDE_FROM_ANALYSIS]
+              }
             }
           },
           type: {
-            in: ['BUY', 'SELL']
+            in: [ActivityType.BUY, ActivityType.SELL]
           },
           userId: FIXTURE_USER_ID
         }

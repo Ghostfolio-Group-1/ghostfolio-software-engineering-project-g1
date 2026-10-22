@@ -10,6 +10,7 @@ import { Transform, TransformFnParams } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsNumber,
@@ -62,6 +63,10 @@ export class UpdateOrderDto {
 
   @IsString()
   id: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isTaxRelevant?: boolean;
 
   @IsNumber()
   @Min(0)

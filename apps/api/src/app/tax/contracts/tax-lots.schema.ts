@@ -3,6 +3,40 @@ const decimal = {
   pattern: '^-?\\d+(\\.\\d+)?$'
 };
 
+const diagnostic = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'affectedSellActivityIds',
+    'code',
+    'excludedActivityIds',
+    'message'
+  ],
+  properties: {
+    affectedSellActivityIds: {
+      type: 'array',
+      items: {
+        type: 'string',
+        minLength: 1
+      }
+    },
+    code: {
+      const: 'TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY'
+    },
+    excludedActivityIds: {
+      type: 'array',
+      items: {
+        type: 'string',
+        minLength: 1
+      }
+    },
+    message: {
+      type: 'string',
+      minLength: 1
+    }
+  }
+};
+
 const taxLot = {
   type: 'object',
   additionalProperties: false,
@@ -68,7 +102,19 @@ export const taxLotsResponseSchema = {
       type: 'object',
       additionalProperties: false,
       required: ['lots'],
+      dependencies: {
+        diagnostics: ['isComplete'],
+        isComplete: ['diagnostics']
+      },
       properties: {
+        diagnostics: {
+          type: 'array',
+          minItems: 1,
+          items: diagnostic
+        },
+        isComplete: {
+          const: false
+        },
         lots: {
           type: 'array',
           items: taxLot

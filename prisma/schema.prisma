@@ -187,6 +187,7 @@ model Order {
   date            DateTime
   fee             Float
   id              String        @id @default(uuid())
+  isTaxRelevant   Boolean       @default(true)
   quantity        Float
   symbolProfileId String
   tags            Tag[]
