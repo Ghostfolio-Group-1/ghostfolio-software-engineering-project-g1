@@ -31,6 +31,7 @@ import {
   parseConcentrationLimit,
   toRiskConcentrationResponse
 } from './risk-concentration.mapper';
+import { VolatilityCacheService } from './volatility-cache.service';
 import { WhatIfService } from './what-if.service';
 
 @Controller('risk')
@@ -39,6 +40,7 @@ export class RiskController {
     private readonly accountService: AccountService,
     private readonly exposureService: ExposureService,
     private readonly portfolioService: PortfolioService,
+    private readonly volatilityCacheService: VolatilityCacheService,
     private readonly whatIfService: WhatIfService
   ) {}
 
@@ -89,18 +91,18 @@ export class RiskController {
         currency: userSettings.baseCurrency
       })
     ]);
+    const volatility = await this.volatilityCacheService.getPortfolioVolatility(
+      { baseCurrency: userSettings.baseCurrency, holdings }
+    );
 
     try {
       const result = this.whatIfService.calculateWhatIf({
         holdings,
+        volatility,
         baseCurrency: userSettings.baseCurrency,
         cashBalance: cashDetails.balanceInBaseCurrency,
         scenario: { dataSource, dropPercentage, symbol },
-        targetAllocation: userSettings.targetAllocation,
-        // No nightly volatility cache is wired up yet, so PortfolioVolatility
-        // reports NO_DATA until that pipeline exists - see this PR's
-        // known-gap note.
-        volatility: undefined
+        targetAllocation: userSettings.targetAllocation
       });
 
       return createSuccessResponse(result);
