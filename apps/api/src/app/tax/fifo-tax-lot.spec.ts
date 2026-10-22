@@ -702,6 +702,68 @@ describe('listOpenFifoTaxLots', () => {
     expect(listOpenFifoTaxLots(lots)[0].remainingQuantity.toString()).toBe('5');
   });
 
+  it('shows one open row for each buy of the same symbol', () => {
+    const openLots = listOpenFifoTaxLots(
+      createFifoTaxLots([
+        createActivity({
+          date: new Date('2026-01-01T10:00:00.000Z'),
+          id: 'buy-jan',
+          quantity: 10,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 50
+        }),
+        createActivity({
+          date: new Date('2026-02-01T10:00:00.000Z'),
+          id: 'buy-feb',
+          quantity: 4,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 80
+        })
+      ])
+    );
+
+    expect(openLots.map((lot) => lot.lotId)).toEqual(['buy-jan', 'buy-feb']);
+    expect(openLots[0].remainingQuantity.toString()).toBe('10');
+    expect(openLots[0].costBasis.toString()).toBe('500');
+    expect(openLots[1].remainingQuantity.toString()).toBe('4');
+    expect(openLots[1].costBasis.toString()).toBe('320');
+  });
+
+  it('reduces one open row on a partial sale and leaves the other intact', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-jan',
+        quantity: 10,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 50
+      }),
+      createActivity({
+        date: new Date('2026-02-01T10:00:00.000Z'),
+        id: 'buy-feb',
+        quantity: 4,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 80
+      }),
+      createActivity({
+        date: new Date('2026-03-01T10:00:00.000Z'),
+        id: 'sell-3',
+        quantity: 3,
+        symbolProfileId: 'asset-aapl',
+        type: ActivityType.SELL,
+        unitPrice: 90
+      })
+    ]);
+
+    const openLots = listOpenFifoTaxLots(lots);
+
+    expect(openLots.map((lot) => lot.lotId)).toEqual(['buy-jan', 'buy-feb']);
+    expect(openLots[0].remainingQuantity.toString()).toBe('7');
+    expect(openLots[0].costBasis.toString()).toBe('350');
+    expect(openLots[1].remainingQuantity.toString()).toBe('4');
+    expect(openLots[1].costBasis.toString()).toBe('320');
+  });
+
   it('carries the BUY account on each lot', () => {
     const [lot] = createFifoTaxLots([
       createActivity({
