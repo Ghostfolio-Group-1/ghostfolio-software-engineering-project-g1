@@ -19,6 +19,7 @@ import {
 import { ExposureCalculatorService } from './exposure-calculator.service';
 import { ExposureService } from './exposure.service';
 import { RiskController } from './risk.controller';
+import { VolatilityCacheService } from './volatility-cache.service';
 import { WhatIfService } from './what-if.service';
 
 describe('RiskController contract: GET /risk/concentration', () => {
@@ -46,6 +47,10 @@ describe('RiskController contract: GET /risk/concentration', () => {
         { provide: ExchangeRateDataService, useValue: {} },
         { provide: ImpersonationService, useValue: {} },
         { provide: PortfolioService, useValue: { getHoldings } },
+        {
+          provide: VolatilityCacheService,
+          useValue: { getPortfolioVolatility: jest.fn() }
+        },
         { provide: WhatIfService, useValue: { calculateWhatIf: jest.fn() } }
       ]
     }).compile();
@@ -148,6 +153,9 @@ describe('RiskController contract: GET /risk/concentration', () => {
       const getCashDetails = jest
         .fn()
         .mockResolvedValue({ balanceInBaseCurrency: 5000 });
+      const getPortfolioVolatility = jest
+        .fn()
+        .mockResolvedValue({ annualizedVolatility: 0.25, historyDays: 45 });
       const moduleRef = await Test.createTestingModule({
         controllers: [RiskController],
         providers: [
@@ -157,6 +165,10 @@ describe('RiskController contract: GET /risk/concentration', () => {
           { provide: ExchangeRateDataService, useValue: {} },
           { provide: ImpersonationService, useValue: {} },
           { provide: PortfolioService, useValue: { getHoldings } },
+          {
+            provide: VolatilityCacheService,
+            useValue: { getPortfolioVolatility }
+          },
           { provide: WhatIfService, useValue: { calculateWhatIf } }
         ]
       }).compile();
@@ -176,12 +188,23 @@ describe('RiskController contract: GET /risk/concentration', () => {
         userId: 'user-1',
         currency: 'USD'
       });
+      expect(getPortfolioVolatility).toHaveBeenCalledWith({
+        baseCurrency: 'USD',
+        holdings: holdingsFixture
+      });
+      // Proves the real VolatilityCacheService result actually reaches
+      // WhatIfService - previously this was hardcoded to `undefined`.
       expect(calculateWhatIf).toHaveBeenCalledWith(
         expect.objectContaining({
           baseCurrency: 'USD',
           cashBalance: 5000,
           holdings: holdingsFixture,
-          scenario: { dataSource: 'YAHOO', dropPercentage: 0.4, symbol: 'AAPL' }
+          scenario: {
+            dataSource: 'YAHOO',
+            dropPercentage: 0.4,
+            symbol: 'AAPL'
+          },
+          volatility: { annualizedVolatility: 0.25, historyDays: 45 }
         })
       );
     });
@@ -207,6 +230,10 @@ describe('RiskController contract: GET /risk/concentration', () => {
           { provide: ExchangeRateDataService, useValue: {} },
           { provide: ImpersonationService, useValue: {} },
           { provide: PortfolioService, useValue: { getHoldings } },
+          {
+            provide: VolatilityCacheService,
+            useValue: { getPortfolioVolatility: jest.fn() }
+          },
           { provide: WhatIfService, useValue: { calculateWhatIf } }
         ]
       }).compile();
@@ -252,6 +279,10 @@ describe('RiskController contract: GET /risk/concentration', () => {
           { provide: ExchangeRateDataService, useValue: {} },
           { provide: ImpersonationService, useValue: {} },
           { provide: PortfolioService, useValue: { getHoldings } },
+          {
+            provide: VolatilityCacheService,
+            useValue: { getPortfolioVolatility: jest.fn() }
+          },
           { provide: WhatIfService, useValue: { calculateWhatIf } }
         ]
       }).compile();

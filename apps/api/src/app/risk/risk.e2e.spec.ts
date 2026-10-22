@@ -28,6 +28,7 @@ import { HealthScoreCalculatorService } from './health-score-calculator.service'
 import { RiskEvaluationService } from './risk-evaluation.service';
 import { RiskController } from './risk.controller';
 import { ThresholdEngineService } from './threshold-engine.service';
+import { VolatilityCacheService } from './volatility-cache.service';
 import { WhatIfService } from './what-if.service';
 
 // Fixture holdings in USD: AAPL 3 × 180 = 540, MSFT 5 × 320 = 1600,
@@ -69,6 +70,15 @@ describe('GET /api/v1/risk/concentration (end to end)', () => {
               }
             },
             { provide: PortfolioService, useValue: { getHoldings } },
+            {
+              provide: VolatilityCacheService,
+              useValue: {
+                getPortfolioVolatility: jest.fn().mockResolvedValue({
+                  annualizedVolatility: null,
+                  historyDays: 0
+                })
+              }
+            },
             HealthScoreCalculatorService,
             RiskEvaluationService,
             ThresholdEngineService,
@@ -194,6 +204,15 @@ describe('POST /api/v1/risk/what-if (end to end)', () => {
             },
             { provide: AccountService, useValue: { getCashDetails } },
             { provide: PortfolioService, useValue: { getHoldings } },
+            {
+              provide: VolatilityCacheService,
+              useValue: {
+                getPortfolioVolatility: jest.fn().mockResolvedValue({
+                  annualizedVolatility: null,
+                  historyDays: 0
+                })
+              }
+            },
             HealthScoreCalculatorService,
             RiskEvaluationService,
             ThresholdEngineService,
