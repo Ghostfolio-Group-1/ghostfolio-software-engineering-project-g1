@@ -2,6 +2,7 @@ import { PortfolioPosition } from '@ghostfolio/common/interfaces';
 
 import { ExposureCalculatorService } from './exposure-calculator.service';
 import { ExposureService } from './exposure.service';
+import { HealthScoreCalculatorService } from './health-score-calculator.service';
 import { RiskEvaluationService } from './risk-evaluation.service';
 import { ThresholdEngineService } from './threshold-engine.service';
 
@@ -127,8 +128,39 @@ describe('RiskEvaluationService', () => {
     );
 
     expect(volatility.actual).toBeNull();
-    // NO_DATA counts as passed per the "never a fake red" invariant.
-    expect(volatilityResult.passed).toBe(true);
+    // NO_DATA does not count toward the score at all (excluded, not a free
+    // pass) - it is marked inactive and reported as skipped.
+    expect(volatilityResult.isActive).toBe(false);
+    expect(evaluation.skippedRuleKeys).toContain('PortfolioVolatility');
+  });
+
+  it('does not let a NO_DATA PortfolioVolatility inflate the health score', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 0,
+      holdings
+      // No volatility input -> PortfolioVolatility is NO_DATA.
+    });
+
+    const withoutVolatility = evaluation.ruleResults.filter(
+      (result) => result.key !== 'PortfolioVolatility'
+    );
+
+    // If NO_DATA were counted as a pass, scoring the full ruleResults array
+    // (including the inactive PortfolioVolatility entry) would differ from
+    // scoring the exact same results with that entry removed entirely -
+    // whichever gives PortfolioVolatility a free pass would score higher.
+    // They must be identical: isActive: false means excluded either way.
+    const healthScoreCalculatorService = new HealthScoreCalculatorService();
+    const withVolatilityEntry =
+      healthScoreCalculatorService.calculateHealthScore(evaluation.ruleResults);
+    const withoutVolatilityEntry =
+      healthScoreCalculatorService.calculateHealthScore(withoutVolatility);
+
+    expect(withVolatilityEntry.score).toBe(withoutVolatilityEntry.score);
+    expect(withVolatilityEntry.activeWeight).toBe(
+      withoutVolatilityEntry.activeWeight
+    );
   });
 
   it('uses the supplied volatility figure when there is enough history', () => {
@@ -152,7 +184,12 @@ describe('RiskEvaluationService', () => {
       holdings
     });
 
-    expect(evaluation.skippedRuleKeys).toEqual(['TargetAllocationDeviation']);
+    // PortfolioVolatility is also skipped here since no volatility input was
+    // supplied (NO_DATA) - see the dedicated NO_DATA tests above.
+    expect(evaluation.skippedRuleKeys.slice().sort()).toEqual([
+      'PortfolioVolatility',
+      'TargetAllocationDeviation'
+    ]);
     expect(
       evaluation.thresholdInputs.some(
         (input) => input.ruleKey === 'TargetAllocationDeviation'
@@ -175,7 +212,9 @@ describe('RiskEvaluationService', () => {
       }
     });
 
-    expect(evaluation.skippedRuleKeys).toEqual([]);
+    // PortfolioVolatility is still skipped (no volatility input supplied),
+    // but TargetAllocationDeviation is not, since a target is configured.
+    expect(evaluation.skippedRuleKeys).toEqual(['PortfolioVolatility']);
 
     const target = evaluation.thresholdInputs.find(
       (input) => input.ruleKey === 'TargetAllocationDeviation'

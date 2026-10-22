@@ -245,6 +245,12 @@ describe('WhatIfService', () => {
   it('passes RiskEvaluationService.skippedRuleKeys through as skippedRules', () => {
     const result = service.calculateWhatIf(baseRequest());
 
-    expect(result.skippedRules).toEqual(['TargetAllocationDeviation']);
+    // TargetAllocationDeviation: no target configured. PortfolioVolatility:
+    // no volatility input supplied (NO_DATA) - see risk-evaluation.service
+    // for why a NO_DATA rule is skipped rather than silently passed.
+    expect(result.skippedRules.slice().sort()).toEqual([
+      'PortfolioVolatility',
+      'TargetAllocationDeviation'
+    ]);
   });
 });

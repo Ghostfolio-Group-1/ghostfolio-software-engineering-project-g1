@@ -153,6 +153,17 @@ export class RiskEvaluationService {
       skippedRuleKeys.push('TargetAllocationDeviation');
     }
 
+    // Any rule that came back NO_DATA (isActive: false) is also reported as
+    // skipped - e.g. PortfolioVolatility when no nightly volatility figure
+    // is available, which is the case for every request today since no
+    // volatility cache is wired up yet (RiskController always passes
+    // volatility: undefined).
+    for (const evaluation of evaluations) {
+      if (!evaluation.ruleResult.isActive) {
+        skippedRuleKeys.push(evaluation.ruleResult.key);
+      }
+    }
+
     return {
       holdingsValue,
       portfolioValue,
@@ -326,11 +337,17 @@ export class RiskEvaluationService {
   ): RiskRuleEvaluation {
     const severity =
       this.thresholdEngineService.calculateSeverity(thresholdInput);
-    // Invariant from docs/sesha-notes/07, Section 3: a rule's pass/fail is
-    // false if and only if its severity is YELLOW or RED - NO_DATA is
-    // treated as passing (never a fake red for missing data) rather than
-    // excluded, matching PortfolioVolatility's own insufficient-history
-    // behavior.
+    // A rule's pass/fail is false if and only if its severity is YELLOW or
+    // RED. NO_DATA is neither a pass nor a fail - per docs/sesha-notes/07,
+    // Section 3, and HealthScoreCalculatorService's own "weight renormalizes
+    // when a rule is excluded" model, a rule with no data should not count
+    // toward the score at all, so it is marked inactive (isActive: false)
+    // rather than silently passed. Tharun's review on PR #138 caught an
+    // earlier version of this that set isActive: true unconditionally,
+    // which let the always-NO_DATA PortfolioVolatility rule (no nightly
+    // volatility cache exists yet) inflate every health score with a free
+    // pass.
+    const isActive = severity !== 'NO_DATA';
     const passed = severity !== 'YELLOW' && severity !== 'RED';
     const category = RULE_CATEGORIES[thresholdInput.ruleKey];
 
@@ -338,15 +355,17 @@ export class RiskEvaluationService {
       thresholdInput,
       warningInputs,
       ruleResult: {
+        isActive,
         passed,
         categoryKey: category.key,
         categoryName: category.name,
         categoryWeight: CATEGORY_RULE_COUNT[category.key],
-        isActive: true,
         key: thresholdInput.ruleKey,
-        message: passed
-          ? `${thresholdInput.ruleKey} is within its threshold.`
-          : `${thresholdInput.ruleKey} is outside its threshold.`,
+        message: !isActive
+          ? `${thresholdInput.ruleKey} has no data available.`
+          : passed
+            ? `${thresholdInput.ruleKey} is within its threshold.`
+            : `${thresholdInput.ruleKey} is outside its threshold.`,
         name: thresholdInput.ruleKey,
         weight: 1
       }
