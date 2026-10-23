@@ -7,6 +7,7 @@ import { HttpException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Type as ActivityType } from '@prisma/client';
 
+import { TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY } from './interfaces/tax-diagnostic.interface';
 import { TaxDataService } from './tax-data.service';
 import { TaxController } from './tax.controller';
 import { TaxService } from './tax.service';
@@ -50,6 +51,14 @@ const activities = [
   }
 ];
 
+const mixedHistoryDiagnostic = {
+  code: TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY,
+  message:
+    'Excluded BUY or SELL activity exists in the same tax scope before or at a tax-relevant SELL; basis-dependent tax results may be incomplete.',
+  affectedSellActivityIds: ['sell-1'],
+  excludedActivityIds: ['excluded-buy-1']
+};
+
 describe('TaxController integration: GET /tax/realized-gains', () => {
   const context = {
     userId: 'user-1'
@@ -57,9 +66,11 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
 
   let controller: TaxController;
   let getFifoRealizedGainActivities: jest.Mock;
+  let getMixedHistoryDiagnostic: jest.Mock;
 
   beforeEach(async () => {
     getFifoRealizedGainActivities = jest.fn().mockResolvedValue(activities);
+    getMixedHistoryDiagnostic = jest.fn().mockResolvedValue(null);
 
     const moduleRef = await Test.createTestingModule({
       controllers: [TaxController],
@@ -71,7 +82,10 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
         },
         {
           provide: TaxDataService,
-          useValue: { getFifoRealizedGainActivities }
+          useValue: {
+            getFifoRealizedGainActivities,
+            getMixedHistoryDiagnostic
+          }
         }
       ]
     }).compile();
@@ -98,6 +112,12 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
     await controller.getRealizedGains(context, {});
 
     expect(getFifoRealizedGainActivities).toHaveBeenCalledWith('user-1');
+  });
+
+  it('checks FIFO mixed-history completeness for the authenticated user', async () => {
+    await controller.getRealizedGains(context, {});
+
+    expect(getMixedHistoryDiagnostic).toHaveBeenCalledWith('user-1', 'FIFO');
   });
 
   it('returns exact FIFO realized gains with multi-lot traceability', async () => {
@@ -155,12 +175,29 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
     });
   });
 
+  it('returns incomplete FIFO results with the mixed-history diagnostic', async () => {
+    getMixedHistoryDiagnostic.mockResolvedValue(mixedHistoryDiagnostic);
+
+    const response = await controller.getRealizedGains(context, {});
+
+    expect(response).toMatchObject({
+      data: {
+        diagnostics: [mixedHistoryDiagnostic],
+        isComplete: false,
+        method: 'FIFO'
+      },
+      error: null,
+      meta: {}
+    });
+  });
+
   it('supports explicit FIFO method selection', async () => {
     const response = await controller.getRealizedGains(context, {
       method: 'FIFO'
     });
 
     expect(response.data?.method).toBe('FIFO');
+    expect(getMixedHistoryDiagnostic).toHaveBeenCalledWith('user-1', 'FIFO');
   });
 
   it('returns average-cost realized gains when AVERAGE_COST is selected', async () => {
@@ -201,6 +238,34 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
       error: null,
       meta: {}
     });
+
+    expect(getMixedHistoryDiagnostic).toHaveBeenCalledWith(
+      'user-1',
+      'AVERAGE_COST'
+    );
+  });
+
+  it('returns incomplete average-cost results with the mixed-history diagnostic', async () => {
+    getMixedHistoryDiagnostic.mockResolvedValue(mixedHistoryDiagnostic);
+
+    const response = await controller.getRealizedGains(context, {
+      method: 'AVERAGE_COST'
+    });
+
+    expect(response).toMatchObject({
+      data: {
+        diagnostics: [mixedHistoryDiagnostic],
+        isComplete: false,
+        method: 'AVERAGE_COST'
+      },
+      error: null,
+      meta: {}
+    });
+
+    expect(getMixedHistoryDiagnostic).toHaveBeenCalledWith(
+      'user-1',
+      'AVERAGE_COST'
+    );
   });
 
   it('rejects an unsupported calculation method with a TAX error envelope', async () => {
@@ -222,6 +287,8 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
       },
       meta: {}
     });
+
+    expect(getMixedHistoryDiagnostic).not.toHaveBeenCalled();
   });
 
   it('returns an empty sales list when the user has no eligible activities', async () => {
@@ -235,6 +302,8 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
       error: null,
       meta: {}
     });
+
+    expect(getMixedHistoryDiagnostic).toHaveBeenCalledWith('user-1', 'FIFO');
   });
 
   it('returns a TAX error envelope when FIFO calculation fails', async () => {
@@ -262,6 +331,8 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
       },
       meta: {}
     });
+
+    expect(getMixedHistoryDiagnostic).not.toHaveBeenCalled();
   });
 });
 
@@ -272,9 +343,11 @@ describe('TaxController integration: GET /tax/lots', () => {
 
   let controller: TaxController;
   let getFifoActivities: jest.Mock;
+  let getMixedHistoryDiagnostic: jest.Mock;
 
   beforeEach(async () => {
     getFifoActivities = jest.fn().mockResolvedValue(activities);
+    getMixedHistoryDiagnostic = jest.fn().mockResolvedValue(null);
 
     const moduleRef = await Test.createTestingModule({
       controllers: [TaxController],
@@ -287,7 +360,8 @@ describe('TaxController integration: GET /tax/lots', () => {
         {
           provide: TaxDataService,
           useValue: {
-            getFifoActivities
+            getFifoActivities,
+            getMixedHistoryDiagnostic
           }
         }
       ]
@@ -315,6 +389,12 @@ describe('TaxController integration: GET /tax/lots', () => {
     await controller.getTaxLots(context);
 
     expect(getFifoActivities).toHaveBeenCalledWith('user-1');
+  });
+
+  it('checks FIFO mixed-history completeness for the tax-lot view', async () => {
+    await controller.getTaxLots(context);
+
+    expect(getMixedHistoryDiagnostic).toHaveBeenCalledWith('user-1', 'FIFO');
   });
 
   it('returns derived closed and partially consumed tax lots', async () => {
@@ -354,6 +434,23 @@ describe('TaxController integration: GET /tax/lots', () => {
       error: null,
       meta: {}
     });
+  });
+
+  it('returns incomplete tax-lot results with the mixed-history diagnostic', async () => {
+    getMixedHistoryDiagnostic.mockResolvedValue(mixedHistoryDiagnostic);
+
+    const response = await controller.getTaxLots(context);
+
+    expect(response).toMatchObject({
+      data: {
+        diagnostics: [mixedHistoryDiagnostic],
+        isComplete: false
+      },
+      error: null,
+      meta: {}
+    });
+
+    expect(response.data?.lots).toHaveLength(2);
   });
 
   it('serializes tiny quantities without exponential notation', async () => {
@@ -400,6 +497,8 @@ describe('TaxController integration: GET /tax/lots', () => {
       error: null,
       meta: {}
     });
+
+    expect(getMixedHistoryDiagnostic).toHaveBeenCalledWith('user-1', 'FIFO');
   });
 
   it('returns TAX_LOTS_FAILED when the activity history cannot be reconciled', async () => {
@@ -427,5 +526,7 @@ describe('TaxController integration: GET /tax/lots', () => {
       },
       meta: {}
     });
+
+    expect(getMixedHistoryDiagnostic).not.toHaveBeenCalled();
   });
 });

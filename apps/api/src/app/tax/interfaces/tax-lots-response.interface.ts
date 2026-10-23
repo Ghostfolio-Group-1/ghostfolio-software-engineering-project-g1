@@ -1,3 +1,5 @@
+import type { TaxResultCompleteness } from './tax-diagnostic.interface';
+
 export type TaxLotStatus = 'OPEN' | 'PARTIALLY_CONSUMED' | 'CLOSED';
 
 export interface TaxLotResponse {
@@ -14,6 +16,6 @@ export interface TaxLotResponse {
   relatedSellActivityIds: string[];
 }
 
-export interface TaxLotsResponse {
+export interface TaxLotsResponse extends TaxResultCompleteness {
   lots: TaxLotResponse[];
 }

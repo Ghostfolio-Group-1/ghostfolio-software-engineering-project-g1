@@ -6,6 +6,10 @@ import {
   FifoRealizedGainSale
 } from './fifo-realized-gain';
 import { deriveFifoTaxLots, DerivedFifoTaxLot } from './fifo-tax-lot';
+import type {
+  TaxResultCompleteness,
+  TaxScopeDiagnostic
+} from './interfaces/tax-diagnostic.interface';
 import {
   TaxLotResponse,
   TaxLotsResponse
@@ -36,20 +40,34 @@ export class TaxService {
     if (calculator.method === 'AVERAGE_COST') {
       const averageCostResult = calculator.calculate(activities);
 
-      return {
+      const response: TaxRealizedGainsResponse = {
         method: 'AVERAGE_COST',
         sales: averageCostResult.sales.map((sale) =>
           this.toAverageCostSaleResponse(sale)
         )
       };
+
+      const diagnostic = await this.taxDataService.getMixedHistoryDiagnostic(
+        userId,
+        'AVERAGE_COST'
+      );
+
+      return this.withDiagnostic(response, diagnostic);
     }
 
     const fifoResult = calculator.calculate(activities);
 
-    return {
+    const response: TaxRealizedGainsResponse = {
       method: 'FIFO',
       sales: fifoResult.sales.map((sale) => this.toFifoSaleResponse(sale))
     };
+
+    const diagnostic = await this.taxDataService.getMixedHistoryDiagnostic(
+      userId,
+      'FIFO'
+    );
+
+    return this.withDiagnostic(response, diagnostic);
   }
 
   public async getFifoRealizedGains(
@@ -63,8 +81,30 @@ export class TaxService {
 
     const lots = deriveFifoTaxLots(activities);
 
-    return {
+    const response: TaxLotsResponse = {
       lots: lots.map((lot) => this.toTaxLotResponse(lot))
+    };
+
+    const diagnostic = await this.taxDataService.getMixedHistoryDiagnostic(
+      userId,
+      'FIFO'
+    );
+
+    return this.withDiagnostic(response, diagnostic);
+  }
+
+  private withDiagnostic<T extends TaxResultCompleteness>(
+    response: T,
+    diagnostic: TaxScopeDiagnostic | null
+  ): T {
+    if (!diagnostic) {
+      return response;
+    }
+
+    return {
+      ...response,
+      diagnostics: [diagnostic],
+      isComplete: false
     };
   }
 
