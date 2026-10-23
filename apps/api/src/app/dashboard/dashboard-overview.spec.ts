@@ -10,7 +10,10 @@ import { Logger } from '@nestjs/common';
 
 import { ChartsApi } from '../charts/charts-api';
 import { ExposureService } from '../risk/exposure.service';
-import { toRiskConcentrationResponse } from '../risk/risk-concentration.mapper';
+import {
+  parseConcentrationLimit,
+  toRiskConcentrationResponse
+} from '../risk/risk-concentration.mapper';
 import { TaxService } from '../tax/tax.service';
 import { DASHBOARD_CHART_RANGE, DashboardOverview } from './dashboard-overview';
 
@@ -189,5 +192,42 @@ describe('DashboardOverview.getOverview', () => {
       tax: unavailable('tax')
     });
     expect(loggerError).toHaveBeenCalledTimes(3);
+  });
+  it('logs a non-Error rejection and still marks the section unavailable', async () => {
+    getFifoRealizedGains.mockRejectedValue('plain string failure');
+
+    const result = await load();
+
+    expect(result.tax).toEqual(unavailable('tax'));
+    expect(loggerError).toHaveBeenCalledWith(
+      'Dashboard tax section failed',
+      'plain string failure'
+    );
+  });
+
+  it('omits the first activity date when it is not a valid date', async () => {
+    getPerformance.mockResolvedValue({
+      chart: performanceHistoryFixture,
+      dateOfFirstActivity: new Date('not a date')
+    });
+
+    await load();
+
+    expect(getSeries).toHaveBeenCalledWith({
+      earliestActivityDate: undefined,
+      history: performanceHistoryFixture,
+      range: DASHBOARD_CHART_RANGE
+    });
+  });
+
+  it('marks risk unavailable without loading holdings when the default limit is invalid', async () => {
+    (parseConcentrationLimit as jest.Mock).mockReturnValueOnce(null);
+
+    const result = await load();
+
+    expect(result.risk).toEqual(unavailable('risk'));
+    expect(getHoldings).not.toHaveBeenCalled();
+    expect(result.tax.status).toBe('available');
+    expect(result.charts.status).toBe('available');
   });
 });
