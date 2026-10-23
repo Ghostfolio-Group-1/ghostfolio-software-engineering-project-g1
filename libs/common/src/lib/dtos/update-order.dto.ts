@@ -10,6 +10,7 @@ import { Transform, TransformFnParams } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsNumber,
@@ -17,7 +18,8 @@ import {
   IsString,
   MaxLength,
   Min,
-  Validate
+  Validate,
+  ValidateIf
 } from 'class-validator';
 import { isString } from 'lodash';
 
@@ -62,6 +64,10 @@ export class UpdateOrderDto {
 
   @IsString()
   id: string;
+
+  @ValidateIf((_, value) => value !== undefined)
+  @IsBoolean()
+  isTaxRelevant?: boolean;
 
   @IsNumber()
   @Min(0)

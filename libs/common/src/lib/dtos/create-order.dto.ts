@@ -18,7 +18,8 @@ import {
   IsString,
   MaxLength,
   Min,
-  Validate
+  Validate,
+  ValidateIf
 } from 'class-validator';
 import { isString } from 'lodash';
 
@@ -61,6 +62,10 @@ export class CreateOrderDto {
   @IsNumber()
   @Min(0)
   fee: number;
+
+  @ValidateIf((_, value) => value !== undefined)
+  @IsBoolean()
+  isTaxRelevant?: boolean;
 
   @IsNumber()
   @Min(0)

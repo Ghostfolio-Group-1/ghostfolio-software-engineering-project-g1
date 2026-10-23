@@ -1,3 +1,4 @@
+import { TargetAllocationSettings } from '@ghostfolio/common/interfaces/target-allocation-settings.interface';
 import { XRayRulesSettings } from '@ghostfolio/common/interfaces/x-ray-rules-settings.interface';
 import {
   ColorScheme,
@@ -31,6 +32,7 @@ export interface UserSettings {
   retirementDate?: string;
   safeWithdrawalRate?: number;
   savingsRate?: number;
+  targetAllocation?: TargetAllocationSettings;
   viewMode?: ViewMode;
   xRayRules?: XRayRulesSettings;
 }

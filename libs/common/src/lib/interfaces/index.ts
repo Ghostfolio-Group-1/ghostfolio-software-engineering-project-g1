@@ -11,6 +11,11 @@ import type { AssetProfileIdentifier } from './asset-profile-identifier.interfac
 import type { AssetProfileItem } from './asset-profile-item.interface';
 import type { BenchmarkProperty } from './benchmark-property.interface';
 import type { Benchmark } from './benchmark.interface';
+import type {
+  ChartSeriesKind,
+  ChartSeriesPoint,
+  ChartSeriesResponse
+} from './chart-series-response.interface';
 import type { Coupon } from './coupon.interface';
 import type { DataProviderInfo } from './data-provider-info.interface';
 import type { EnhancedAssetProfile } from './enhanced-asset-profile.interface';
@@ -94,6 +99,11 @@ import type { SubscriptionOffer } from './subscription-offer.interface';
 import type { SymbolItem } from './symbol-item.interface';
 import type { SymbolMetrics } from './symbol-metrics.interface';
 import type { SystemMessage } from './system-message.interface';
+import type {
+  TargetAllocationEntry,
+  TargetAllocationGroupBy,
+  TargetAllocationSettings
+} from './target-allocation-settings.interface';
 import type { UserItem } from './user-item.interface';
 import type { UserSettings } from './user-settings.interface';
 import type { User } from './user.interface';
@@ -132,6 +142,9 @@ export {
   BenchmarkMarketDataDetailsResponse,
   BenchmarkProperty,
   BenchmarkResponse,
+  ChartSeriesKind,
+  ChartSeriesPoint,
+  ChartSeriesResponse,
   Coupon,
   CreateStripeCheckoutSessionResponse,
   DataEnhancerHealthResponse,
@@ -190,6 +203,9 @@ export {
   SymbolItem,
   SymbolMetrics,
   SystemMessage,
+  TargetAllocationEntry,
+  TargetAllocationGroupBy,
+  TargetAllocationSettings,
   User,
   UserItem,
   UserSettings,
