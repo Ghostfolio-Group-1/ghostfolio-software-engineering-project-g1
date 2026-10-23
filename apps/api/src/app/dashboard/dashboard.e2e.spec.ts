@@ -1,4 +1,5 @@
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
+import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import { ImpersonationService } from '@ghostfolio/api/services/impersonation/impersonation.service';
 import { PrismaService } from '@ghostfolio/api/services/prisma/prisma.service';
 import {
@@ -65,6 +66,12 @@ describe('GET /api/v1/dashboard/overview (end to end)', () => {
             DashboardOverview,
             TaxDataService,
             TaxService,
+            {
+              provide: ExchangeRateDataService,
+              useValue: {
+                toCurrencyAtDate: jest.fn()
+              }
+            },
             { provide: ExposureService, useValue: { getRiskSummary } },
             { provide: ImpersonationService, useValue: {} },
             {

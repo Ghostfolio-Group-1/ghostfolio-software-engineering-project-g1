@@ -1,14 +1,17 @@
 import { WHERE_ACCOUNT_NOT_EXCLUDED } from '@ghostfolio/api/helper/account.helper';
 import { PrismaService } from '@ghostfolio/api/services/prisma/prisma.service';
 import {
+  DEFAULT_CURRENCY,
   TAG_ID_DRAFT,
   TAG_ID_EXCLUDE_FROM_ANALYSIS
 } from '@ghostfolio/common/config';
+import type { UserSettings } from '@ghostfolio/common/interfaces';
 
 import { Injectable } from '@nestjs/common';
 import type { Order } from '@prisma/client';
 import { Prisma, Type as ActivityType } from '@prisma/client';
 
+import type { DividendRecordSource } from './dividend-record';
 import { FifoRealizedGainActivitySource } from './fifo-realized-gain';
 import { FifoTaxActivitySource, orderFifoActivities } from './fifo-tax-lot';
 import {
@@ -28,15 +31,19 @@ type TaxHistoryActivity = Pick<
   | 'userId'
 >;
 
+interface MixedHistoryWindow {
+  endDateExclusive?: Date;
+  sellDateFrom?: Date;
+}
+
 // Data-access layer for the tax engine.
 //
 // Tax activity eligibility is intentionally stricter than normal portfolio
 // eligibility: an activity must satisfy Ghostfolio's existing analysis
 // exclusions and also be explicitly tax relevant.
 //
-// FIFO/average-cost calculations currently consume BUY and SELL activities.
-// DIVIDEND uses the same shared tax filter when dividend tax analytics are
-// loaded by later tax services.
+// FIFO/average-cost calculations consume BUY and SELL activities.
+// DIVIDEND activities use the same shared tax filter for yearly tax analytics.
 @Injectable()
 export class TaxDataService {
   public constructor(private readonly prismaService: PrismaService) {}
@@ -66,13 +73,22 @@ export class TaxDataService {
   }
 
   public async getFifoRealizedGainActivities(
-    userId: string
+    userId: string,
+    endDateExclusive?: Date
   ): Promise<FifoRealizedGainActivitySource[]> {
+    const where = this.getTaxActivityWhere(userId, [
+      ActivityType.BUY,
+      ActivityType.SELL
+    ]);
+
+    if (endDateExclusive) {
+      where.date = {
+        lt: endDateExclusive
+      };
+    }
+
     const activities = await this.prismaService.order.findMany({
-      where: this.getTaxActivityWhere(userId, [
-        ActivityType.BUY,
-        ActivityType.SELL
-      ]),
+      where,
       select: {
         accountId: true,
         currency: true,
@@ -90,15 +106,80 @@ export class TaxDataService {
     return orderFifoActivities(activities);
   }
 
+  public async getDividendActivities(
+    userId: string,
+    {
+      endDateExclusive,
+      startDate
+    }: {
+      endDateExclusive: Date;
+      startDate: Date;
+    }
+  ): Promise<DividendRecordSource[]> {
+    return this.prismaService.order.findMany({
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      where: {
+        ...this.getTaxActivityWhere(userId, [ActivityType.DIVIDEND]),
+        date: {
+          gte: startDate,
+          lt: endDateExclusive
+        }
+      },
+      select: {
+        accountId: true,
+        currency: true,
+        date: true,
+        fee: true,
+        id: true,
+        quantity: true,
+        symbolProfileId: true,
+        type: true,
+        unitPrice: true,
+        withholdingTax: true
+      }
+    });
+  }
+
+  public async getBaseCurrency(userId: string): Promise<string> {
+    const settings = await this.prismaService.settings.findUnique({
+      select: {
+        settings: true
+      },
+      where: {
+        userId
+      }
+    });
+
+    const userSettings = (settings?.settings ?? {}) as UserSettings;
+
+    if (
+      typeof userSettings.baseCurrency === 'string' &&
+      userSettings.baseCurrency.length > 0
+    ) {
+      return userSettings.baseCurrency;
+    }
+
+    return DEFAULT_CURRENCY;
+  }
+
   public async getMixedHistoryDiagnostic(
     userId: string,
-    method: TaxCalculationMethod
+    method: TaxCalculationMethod,
+    { endDateExclusive, sellDateFrom }: MixedHistoryWindow = {}
   ): Promise<TaxScopeDiagnostic | null> {
+    const where = this.getNormalTaxActivityWhere(userId, [
+      ActivityType.BUY,
+      ActivityType.SELL
+    ]);
+
+    if (endDateExclusive) {
+      where.date = {
+        lt: endDateExclusive
+      };
+    }
+
     const activities = await this.prismaService.order.findMany({
-      where: this.getNormalTaxActivityWhere(userId, [
-        ActivityType.BUY,
-        ActivityType.SELL
-      ]),
+      where,
       select: {
         accountId: true,
         date: true,
@@ -115,8 +196,20 @@ export class TaxDataService {
     );
 
     const taxRelevantSells = orderedActivities.filter(
-      ({ isTaxRelevant, type }) => {
-        return isTaxRelevant === true && type === ActivityType.SELL;
+      ({ date, isTaxRelevant, type }) => {
+        if (!isTaxRelevant || type !== ActivityType.SELL) {
+          return false;
+        }
+
+        if (sellDateFrom && date.getTime() < sellDateFrom.getTime()) {
+          return false;
+        }
+
+        if (endDateExclusive && date.getTime() >= endDateExclusive.getTime()) {
+          return false;
+        }
+
+        return true;
       }
     );
 
