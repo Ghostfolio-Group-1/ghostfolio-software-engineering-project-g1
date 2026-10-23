@@ -40,6 +40,13 @@ describe('isTaxRelevant DTO validation', () => {
         expect(getTaxRelevantErrors(create(), false)).toHaveLength(0);
       });
 
+      it('rejects null', () => {
+        const errors = getTaxRelevantErrors(create(), null);
+
+        expect(errors).toHaveLength(1);
+        expect(errors[0].constraints?.isBoolean).toBeDefined();
+      });
+
       it('rejects a string value', () => {
         const errors = getTaxRelevantErrors(create(), 'false');
 

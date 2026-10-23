@@ -8,6 +8,7 @@ import { DataSource, Type as ActivityType } from '@prisma/client';
 
 import { ActivitiesService } from './activities.service';
 
+type CreateActivityData = Parameters<ActivitiesService['createActivity']>[0];
 type UpdateActivityArgs = Parameters<ActivitiesService['updateActivity']>[0];
 type UpdateActivityData = UpdateActivityArgs['data'];
 
@@ -20,6 +21,7 @@ describe('ActivitiesService isTaxRelevant persistence', () => {
 
   let prismaService: {
     order: {
+      create: jest.Mock;
       update: jest.Mock;
     };
   };
@@ -40,11 +42,8 @@ describe('ActivitiesService isTaxRelevant persistence', () => {
 
     prismaService = {
       order: {
-        update: jest.fn().mockResolvedValue({
-          id: 'activity-id',
-          isTaxRelevant: false,
-          userId: 'user-id'
-        })
+        create: jest.fn(),
+        update: jest.fn()
       }
     };
 
@@ -73,11 +72,72 @@ describe('ActivitiesService isTaxRelevant persistence', () => {
     );
   });
 
-  it.each([true, false])(
-    'persists isTaxRelevant=%s when explicitly supplied',
-    async (isTaxRelevant) => {
+  describe('createActivity', () => {
+    it.each([true, false])(
+      'persists isTaxRelevant=%s when explicitly supplied',
+      async (isTaxRelevant) => {
+        prismaService.order.create.mockResolvedValue(
+          persistedActivity(isTaxRelevant)
+        );
+
+        await activitiesService.createActivity(
+          createDividendData({ isTaxRelevant })
+        );
+
+        expect(prismaService.order.create).toHaveBeenCalledTimes(1);
+
+        expect(
+          prismaService.order.create.mock.calls[0][0].data.isTaxRelevant
+        ).toBe(isTaxRelevant);
+      }
+    );
+
+    it('leaves isTaxRelevant out of the create payload when omitted so the database default can apply', async () => {
+      prismaService.order.create.mockResolvedValue(persistedActivity(true));
+
+      await activitiesService.createActivity(createDividendData());
+
+      expect(prismaService.order.create).toHaveBeenCalledTimes(1);
+
+      const persistedData = prismaService.order.create.mock.calls[0][0].data;
+
+      expect(
+        Object.prototype.hasOwnProperty.call(persistedData, 'isTaxRelevant')
+      ).toBe(false);
+    });
+  });
+
+  describe('updateActivity', () => {
+    it.each([true, false])(
+      'persists isTaxRelevant=%s when explicitly supplied',
+      async (isTaxRelevant) => {
+        prismaService.order.update.mockResolvedValue(
+          persistedActivity(isTaxRelevant)
+        );
+
+        await activitiesService.updateActivity({
+          data: createUpdateData({ isTaxRelevant }),
+          originalDate: new Date('2026-10-01T00:00:00.000Z'),
+          originalWithholdingTax: null,
+          userId: 'user-id',
+          where: {
+            id: 'activity-id'
+          }
+        });
+
+        expect(prismaService.order.update).toHaveBeenCalledTimes(1);
+
+        expect(
+          prismaService.order.update.mock.calls[0][0].data.isTaxRelevant
+        ).toBe(isTaxRelevant);
+      }
+    );
+
+    it('leaves isTaxRelevant out of the update when the field is omitted', async () => {
+      prismaService.order.update.mockResolvedValue(persistedActivity(false));
+
       await activitiesService.updateActivity({
-        data: createUpdateData({ isTaxRelevant }),
+        data: createUpdateData(),
         originalDate: new Date('2026-10-01T00:00:00.000Z'),
         originalWithholdingTax: null,
         userId: 'user-id',
@@ -88,56 +148,57 @@ describe('ActivitiesService isTaxRelevant persistence', () => {
 
       expect(prismaService.order.update).toHaveBeenCalledTimes(1);
 
+      const persistedData = prismaService.order.update.mock.calls[0][0].data;
+
       expect(
-        prismaService.order.update.mock.calls[0][0].data.isTaxRelevant
-      ).toBe(isTaxRelevant);
-    }
-  );
-
-  it('leaves isTaxRelevant out of the update when the field is omitted', async () => {
-    await activitiesService.updateActivity({
-      data: createUpdateData(),
-      originalDate: new Date('2026-10-01T00:00:00.000Z'),
-      originalWithholdingTax: null,
-      userId: 'user-id',
-      where: {
-        id: 'activity-id'
-      }
+        Object.prototype.hasOwnProperty.call(persistedData, 'isTaxRelevant')
+      ).toBe(false);
     });
-
-    const persistedData = prismaService.order.update.mock.calls[0][0].data;
-
-    expect(
-      Object.prototype.hasOwnProperty.call(persistedData, 'isTaxRelevant')
-    ).toBe(false);
-  });
-
-  it('therefore does not reset an existing false value when the field is omitted', async () => {
-    prismaService.order.update.mockResolvedValue({
-      id: 'activity-id',
-      isTaxRelevant: false,
-      userId: 'user-id'
-    });
-
-    const activity = await activitiesService.updateActivity({
-      data: createUpdateData(),
-      originalDate: new Date('2026-10-01T00:00:00.000Z'),
-      originalWithholdingTax: null,
-      userId: 'user-id',
-      where: {
-        id: 'activity-id'
-      }
-    });
-
-    const persistedData = prismaService.order.update.mock.calls[0][0].data;
-
-    expect(
-      Object.prototype.hasOwnProperty.call(persistedData, 'isTaxRelevant')
-    ).toBe(false);
-
-    expect(activity.isTaxRelevant).toBe(false);
   });
 });
+
+function createDividendData({
+  isTaxRelevant
+}: {
+  isTaxRelevant?: boolean;
+} = {}): CreateActivityData {
+  const data = {
+    currency: 'USD',
+    date: new Date('2026-10-07T00:00:00.000Z'),
+    fee: 0,
+    quantity: 10,
+    type: ActivityType.DIVIDEND,
+    unitPrice: 2,
+    withholdingTax: null,
+    userId: 'user-id',
+    SymbolProfile: {
+      connectOrCreate: {
+        create: {
+          currency: 'USD',
+          dataSource: DataSource.MANUAL,
+          symbol: 'DIVIDEND'
+        },
+        where: {
+          dataSource_symbol: {
+            dataSource: DataSource.MANUAL,
+            symbol: 'DIVIDEND'
+          }
+        }
+      }
+    },
+    user: {
+      connect: {
+        id: 'user-id'
+      }
+    }
+  } as unknown as CreateActivityData;
+
+  if (isTaxRelevant !== undefined) {
+    data.isTaxRelevant = isTaxRelevant;
+  }
+
+  return data;
+}
 
 function createUpdateData({
   isTaxRelevant
@@ -173,4 +234,25 @@ function createUpdateData({
   }
 
   return data;
+}
+
+function persistedActivity(isTaxRelevant: boolean) {
+  return {
+    currency: 'USD',
+    date: new Date('2026-10-07T00:00:00.000Z'),
+    fee: 0,
+    id: 'activity-id',
+    isTaxRelevant,
+    quantity: 10,
+    symbolProfileId: 'symbol-profile-id',
+    type: ActivityType.DIVIDEND,
+    unitPrice: 2,
+    withholdingTax: null,
+    userId: 'user-id',
+    SymbolProfile: {
+      currency: 'USD',
+      dataSource: DataSource.MANUAL,
+      symbol: 'DIVIDEND'
+    }
+  };
 }
