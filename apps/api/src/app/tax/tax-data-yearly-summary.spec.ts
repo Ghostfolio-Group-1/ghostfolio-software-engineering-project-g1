@@ -157,6 +157,23 @@ describe('TaxDataService yearly tax summary support', () => {
     );
   });
 
+  it('falls back to the Ghostfolio default currency when no settings row exists', async () => {
+    findSettings.mockResolvedValue(null);
+
+    await expect(service.getBaseCurrency('user-1')).resolves.toBe(
+      DEFAULT_CURRENCY
+    );
+
+    expect(findSettings).toHaveBeenCalledWith({
+      select: {
+        settings: true
+      },
+      where: {
+        userId: 'user-1'
+      }
+    });
+  });
+
   it('limits mixed-history diagnostics to SELLs in the requested summary year', async () => {
     findMany.mockResolvedValue([
       {

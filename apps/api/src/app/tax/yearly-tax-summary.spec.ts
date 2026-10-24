@@ -14,6 +14,7 @@ import {
   BaseCurrencyRateResolver,
   calculateYearlyTaxSummary,
   MISSING_DIVIDEND_BASE_CURRENCY_CONVERSION,
+  MISSING_REALIZED_GAIN_BASE_CURRENCY_CONVERSION,
   UNKNOWN_DIVIDEND_WITHHOLDING,
   YearlyRealizedGainSource
 } from './yearly-tax-summary';
@@ -142,6 +143,11 @@ describe('calculateYearlyTaxSummary', () => {
     expect(summary.totalWithholdingTaxBaseCurrency).toBeNull();
     expect(summary.netDividendsBaseCurrency).toBeNull();
 
+    expect(summary.dividendCount).toBe(1);
+
+    expect(summary.dividendRecords[0].withholdingTax).toBeNull();
+    expect(summary.dividendRecords[0].netDividend).toBeNull();
+
     expect(summary.isComplete).toBe(false);
 
     expect(summary.warnings).toEqual([
@@ -196,6 +202,101 @@ describe('calculateYearlyTaxSummary', () => {
     expect(eur?.totalGrossDividends.toString()).toBe('100');
     expect(eur?.totalWithholdingTax?.toString()).toBe('5');
     expect(eur?.totalNetDividends?.toString()).toBe('95');
+  });
+
+  it('converts each realized-gain row at its SELL date before aggregating totals', async () => {
+    const firstSellDate = new Date('2026-03-01T00:00:00.000Z');
+    const secondSellDate = new Date('2026-09-01T00:00:00.000Z');
+
+    const ratesByDate: Record<string, string> = {
+      [firstSellDate.toISOString()]: '1.1',
+      [secondSellDate.toISOString()]: '1.2'
+    };
+
+    const getBaseCurrencyRate: BaseCurrencyRateResolver = async ({ date }) => {
+      const rate = ratesByDate[date.toISOString()];
+
+      return rate ? new Big(rate) : null;
+    };
+
+    const summary = await calculateYearlyTaxSummary({
+      baseCurrency: 'USD',
+      calculatedAt: CALCULATED_AT,
+      dividendRecords: [],
+      getBaseCurrencyRate,
+      method: 'FIFO',
+      realizedGains: [
+        createRealizedGainSource({
+          sellActivityId: 'sell-march',
+          sellDate: firstSellDate,
+          transactionCurrency: 'EUR'
+        }),
+        createRealizedGainSource({
+          sellActivityId: 'sell-september',
+          sellDate: secondSellDate,
+          transactionCurrency: 'EUR'
+        })
+      ],
+      year: 2026
+    });
+
+    expect(summary.realizedGains[0].grossProceedsBaseCurrency?.toString()).toBe(
+      '110'
+    );
+
+    expect(summary.realizedGains[1].grossProceedsBaseCurrency?.toString()).toBe(
+      '120'
+    );
+
+    expect(summary.grossProceedsBaseCurrency?.toString()).toBe('230');
+    expect(summary.grossCostBasisBaseCurrency?.toString()).toBe('138');
+    expect(summary.grossRealizedGainBaseCurrency?.toString()).toBe('92');
+    expect(summary.totalActivityFeesBaseCurrency?.toString()).toBe('4.6');
+
+    expect(summary.realizedGainAfterActivityFeesBaseCurrency?.toString()).toBe(
+      '87.4'
+    );
+
+    expect(summary.isComplete).toBe(true);
+  });
+
+  it('marks realized-gain base-currency totals unavailable when SELL-date FX is missing', async () => {
+    const summary = await calculateYearlyTaxSummary({
+      baseCurrency: 'USD',
+      calculatedAt: CALCULATED_AT,
+      dividendRecords: [],
+      getBaseCurrencyRate: createRateResolver({
+        EUR: null
+      }),
+      method: 'FIFO',
+      realizedGains: [
+        createRealizedGainSource({
+          sellActivityId: 'sell-missing-fx',
+          sellDate: new Date('2026-06-01T00:00:00.000Z'),
+          transactionCurrency: 'EUR'
+        })
+      ],
+      year: 2026
+    });
+
+    expect(summary.grossProceedsBaseCurrency).toBeNull();
+    expect(summary.grossCostBasisBaseCurrency).toBeNull();
+    expect(summary.grossRealizedGainBaseCurrency).toBeNull();
+    expect(summary.totalActivityFeesBaseCurrency).toBeNull();
+    expect(summary.realizedGainAfterActivityFeesBaseCurrency).toBeNull();
+
+    expect(summary.isComplete).toBe(false);
+
+    expect(summary.errors).toEqual([
+      {
+        code: MISSING_REALIZED_GAIN_BASE_CURRENCY_CONVERSION,
+        message:
+          'Historical base-currency conversion is unavailable for one or more realized-gain activities.',
+        sellActivityIds: ['sell-missing-fx']
+      }
+    ]);
+
+    expect(summary.currencySummaries[0].grossProceeds.toString()).toBe('100');
   });
 
   it('preserves prior-year FIFO acquisition basis for a sale in the requested year', async () => {
@@ -317,14 +418,14 @@ describe('calculateYearlyTaxSummary', () => {
     expect(summary.isComplete).toBe(true);
   });
 
-  it('excludes realized sales outside the requested UTC year', async () => {
-    const realizedGain = createRealizedGainSource({
-      sellActivityId: 'sell-2026',
-      sellDate: new Date('2026-06-01T00:00:00.000Z')
+  it('includes the final millisecond of the requested UTC year and excludes the next year boundary', async () => {
+    const finalSellInYear = createRealizedGainSource({
+      sellActivityId: 'sell-2026-final',
+      sellDate: new Date('2026-12-31T23:59:59.999Z')
     });
 
-    const futureRealizedGain = createRealizedGainSource({
-      sellActivityId: 'sell-2027',
+    const firstSellNextYear = createRealizedGainSource({
+      sellActivityId: 'sell-2027-first',
       sellDate: new Date('2027-01-01T00:00:00.000Z')
     });
 
@@ -336,13 +437,14 @@ describe('calculateYearlyTaxSummary', () => {
         USD: '1'
       }),
       method: 'FIFO',
-      realizedGains: [realizedGain, futureRealizedGain],
+      realizedGains: [finalSellInYear, firstSellNextYear],
       year: 2026
     });
 
     expect(summary.disposalCount).toBe(1);
     expect(summary.realizedGains).toHaveLength(1);
-    expect(summary.realizedGains[0].sellActivityId).toBe('sell-2026');
+
+    expect(summary.realizedGains[0].sellActivityId).toBe('sell-2026-final');
 
     expect(summary.grossProceedsBaseCurrency?.toString()).toBe('100');
   });
@@ -443,15 +545,17 @@ function toAverageCostSummarySource(
 
 function createRealizedGainSource({
   sellActivityId,
-  sellDate
+  sellDate,
+  transactionCurrency = 'USD'
 }: {
   sellActivityId: string;
   sellDate: Date;
+  transactionCurrency?: string | null;
 }): YearlyRealizedGainSource {
   return {
     sellActivityId,
     sellDate,
-    transactionCurrency: 'USD',
+    transactionCurrency,
 
     sellQuantity: new Big(1),
     matchedQuantity: new Big(1),

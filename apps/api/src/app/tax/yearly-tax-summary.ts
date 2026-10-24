@@ -182,6 +182,22 @@ export async function calculateYearlyTaxSummary({
 
   const convertedDividendRecords: YearlyDividendRecord[] = [];
 
+  /*
+   * Base-currency conversion convention:
+   *
+   * - Dividend rows use the source DIVIDEND activity date.
+   * - Realized-gain rows are sale-level analytics records, so all
+   *   base-currency fields on one realized-gain row use that row's SELL date.
+   *
+   * This keeps each converted row internally reconcilable and avoids
+   * introducing a jurisdiction-specific acquisition-date FX rule.
+   *
+   * Transaction-currency values remain the authoritative calculated values.
+   *
+   * If the historical rate for a required date is unavailable, the affected
+   * base-currency values remain null and the yearly summary is incomplete.
+   */
+
   for (const record of yearlyDividendRecords) {
     const rate = await getBaseCurrencyRate({
       baseCurrency,
@@ -232,13 +248,18 @@ export async function calculateYearlyTaxSummary({
       ...record,
       baseCurrency,
       totalActivityFees,
+
       grossProceedsBaseCurrency: multiplyOrNull(record.grossProceeds, rate),
+
       grossCostBasisBaseCurrency: multiplyOrNull(record.grossCostBasis, rate),
+
       grossRealizedGainBaseCurrency: multiplyOrNull(
         record.grossRealizedGain,
         rate
       ),
+
       totalActivityFeesBaseCurrency: multiplyOrNull(totalActivityFees, rate),
+
       realizedGainAfterActivityFeesBaseCurrency: multiplyOrNull(
         record.realizedGainAfterActivityFees,
         rate
@@ -393,12 +414,15 @@ function buildCurrencySummaries({
 
     const summary: YearlyTaxCurrencySummary = {
       currency,
+
       totalGrossDividends: new Big(0),
       totalWithholdingTax: new Big(0),
       totalNetDividends: new Big(0),
+
       grossProceeds: new Big(0),
       grossCostBasis: new Big(0),
       grossRealizedGain: new Big(0),
+
       allocatedFees: new Big(0),
       realizedGainAfterActivityFees: new Big(0)
     };
