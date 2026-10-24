@@ -1,4 +1,5 @@
 import { REQUIRES_SCOPE_KEY } from '@ghostfolio/api/decorators/requires-scope.decorator';
+import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import { ImpersonationService } from '@ghostfolio/api/services/impersonation/impersonation.service';
 import { scopes } from '@ghostfolio/common/scopes';
 import type { ImpersonationContext } from '@ghostfolio/common/types';
@@ -76,6 +77,12 @@ describe('TaxController integration: GET /tax/realized-gains', () => {
       controllers: [TaxController],
       providers: [
         TaxService,
+        {
+          provide: ExchangeRateDataService,
+          useValue: {
+            toCurrencyAtDate: jest.fn()
+          }
+        },
         {
           provide: ImpersonationService,
           useValue: {}
@@ -353,6 +360,12 @@ describe('TaxController integration: GET /tax/lots', () => {
       controllers: [TaxController],
       providers: [
         TaxService,
+        {
+          provide: ExchangeRateDataService,
+          useValue: {
+            toCurrencyAtDate: jest.fn()
+          }
+        },
         {
           provide: ImpersonationService,
           useValue: {}

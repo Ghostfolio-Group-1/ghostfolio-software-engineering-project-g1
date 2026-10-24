@@ -1,4 +1,5 @@
 import { WHERE_ACCOUNT_NOT_EXCLUDED } from '@ghostfolio/api/helper/account.helper';
+import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import { PrismaService } from '@ghostfolio/api/services/prisma/prisma.service';
 import {
   E2E_NO_LOGIN,
@@ -85,6 +86,12 @@ describe('GET /api/v1/tax/realized-gains (end to end)', () => {
           providers: [
             TaxDataService,
             TaxService,
+            {
+              provide: ExchangeRateDataService,
+              useValue: {
+                toCurrencyAtDate: jest.fn()
+              }
+            },
             {
               provide: PrismaService,
               useValue: {
@@ -390,6 +397,12 @@ describe('GET /api/v1/tax/lots (end to end)', () => {
           providers: [
             TaxDataService,
             TaxService,
+            {
+              provide: ExchangeRateDataService,
+              useValue: {
+                toCurrencyAtDate: jest.fn()
+              }
+            },
             {
               provide: PrismaService,
               useValue: {
