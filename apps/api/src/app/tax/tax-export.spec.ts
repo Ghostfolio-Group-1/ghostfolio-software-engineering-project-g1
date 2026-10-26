@@ -26,8 +26,9 @@ describe('TaxExport', () => {
     });
 
     const goldenPath = join(
-      process.cwd(),
-      'apps/api/src/app/tax/fixtures/tax-export-fifo.golden.csv'
+      __dirname,
+      'fixtures',
+      'tax-export-fifo.golden.csv'
     );
 
     /*
@@ -97,6 +98,7 @@ describe('TaxExport', () => {
 
     expect(zeroWithholdingRow.withholdingTaxBaseCurrency).toBe('0');
     expect(zeroWithholdingRow.netDividendBaseCurrency).toBe('50');
+    expect(zeroWithholdingRow.activityFeeBaseCurrency).toBe('0');
 
     const unknownWithholdingRow = getRow(
       rows,
@@ -120,7 +122,9 @@ describe('TaxExport', () => {
 
     expect(warningRow.warningCodes).toBe(UNKNOWN_DIVIDEND_WITHHOLDING);
 
-    expect(warningRow.sourceActivityId).toBe('div-unknown');
+    expect(warningRow.relatedActivityIds).toBe('div-unknown');
+    expect(warningRow.sourceActivityId).toBe('');
+    expect(warningRow.traceIds).toBe('');
   });
 
   it('preserves missing FX as empty values and exports the error diagnostic', () => {
@@ -185,20 +189,54 @@ describe('TaxExport', () => {
 
     expect(errorRow.errorCodes).toBe(MISSING_DIVIDEND_BASE_CURRENCY_CONVERSION);
 
-    expect(errorRow.sourceActivityId).toBe('div-1');
+    expect(errorRow.relatedActivityIds).toBe('div-1');
+    expect(errorRow.sourceActivityId).toBe('');
+    expect(errorRow.traceIds).toBe('');
 
     expect(errorRow.message).toBe(
       'Historical base-currency conversion is unavailable for one or more dividend activities.'
     );
   });
 
-  it('reconciles complete financial detail rows to the summary without double-counting FIFO matches', () => {
+  it('reconciles a sale consuming two FIFO lots without double-counting match rows', () => {
     const summary = createCompleteFifoSummary();
+
+    const trace: TaxExportTrace = {
+      method: 'FIFO',
+      matches: [
+        {
+          traceId: 'lot-1:sell-1',
+          buyActivityId: 'buy-1',
+          sellActivityId: 'sell-1',
+          acquiredAt: new Date('2025-01-01T00:00:00.000Z'),
+          realizedAt: new Date('2026-06-01T14:30:00.000Z'),
+          matchedQuantity: new Big('1.5'),
+          grossCostBasisBaseCurrency: new Big(15),
+          grossProceedsBaseCurrency: new Big(30),
+          grossRealizedGainBaseCurrency: new Big(15),
+          activityFeesBaseCurrency: new Big('0.675'),
+          realizedGainAfterActivityFeesBaseCurrency: new Big('14.325')
+        },
+        {
+          traceId: 'lot-2:sell-1',
+          buyActivityId: 'buy-2',
+          sellActivityId: 'sell-1',
+          acquiredAt: new Date('2025-02-01T00:00:00.000Z'),
+          realizedAt: new Date('2026-06-01T14:30:00.000Z'),
+          matchedQuantity: new Big('2.5'),
+          grossCostBasisBaseCurrency: new Big(25),
+          grossProceedsBaseCurrency: new Big(50),
+          grossRealizedGainBaseCurrency: new Big(25),
+          activityFeesBaseCurrency: new Big('1.125'),
+          realizedGainAfterActivityFeesBaseCurrency: new Big('23.875')
+        }
+      ]
+    };
 
     const result = TaxExport.generate({
       generatedAt: GENERATED_AT,
       summary,
-      trace: createFifoTrace()
+      trace
     });
 
     const rows = parseCsv(result.content);
@@ -252,12 +290,36 @@ describe('TaxExport', () => {
       ).toString()
     ).toBe(summaryRow.summaryRealizedGainAfterActivityFees);
 
-    /*
-     * The FIFO trace contains the same sale economics for traceability,
-     * but those rows must never be added again to annual sale totals.
-     */
-    expect(fifoMatchRows).toHaveLength(1);
+    expect(fifoMatchRows).toHaveLength(2);
     expect(realizedGainRows).toHaveLength(1);
+
+    expect(sumColumn(fifoMatchRows, 'matchedQuantity').toString()).toBe(
+      realizedGainRows[0].matchedQuantity
+    );
+
+    expect(
+      sumColumn(fifoMatchRows, 'grossProceedsBaseCurrency').toString()
+    ).toBe(realizedGainRows[0].grossProceedsBaseCurrency);
+
+    expect(
+      sumColumn(fifoMatchRows, 'grossCostBasisBaseCurrency').toString()
+    ).toBe(realizedGainRows[0].grossCostBasisBaseCurrency);
+
+    expect(
+      sumColumn(fifoMatchRows, 'grossRealizedGainBaseCurrency').toString()
+    ).toBe(realizedGainRows[0].grossRealizedGainBaseCurrency);
+
+    expect(
+      sumColumn(fifoMatchRows, 'activityFeesBaseCurrency').toString()
+    ).toBe(realizedGainRows[0].activityFeesBaseCurrency);
+
+    expect(
+      sumColumn(
+        fifoMatchRows,
+        'realizedGainAfterActivityFeesBaseCurrency'
+      ).toString()
+    ).toBe(realizedGainRows[0].realizedGainAfterActivityFeesBaseCurrency);
+
     expect(summaryRow.disposalCount).toBe('1');
   });
 
@@ -370,6 +432,121 @@ describe('TaxExport', () => {
     ).toEqual(['trace-a', 'trace-z']);
   });
 
+  it('uses code-unit ordering for identifiers independent of host locale', () => {
+    const base = createCompleteFifoSummary();
+    const date = new Date('2026-03-15T12:00:00.000Z');
+
+    const createDividend = (sourceActivityId: string) => ({
+      ...base.dividendRecords[0],
+      sourceActivityId,
+      date
+    });
+
+    const summary: YearlyTaxSummary = {
+      ...base,
+      dividendCount: 3,
+      dividendRecords: [
+        createDividend('a_1'),
+        createDividend('a-1'),
+        createDividend('A-1')
+      ]
+    };
+
+    const result = TaxExport.generate({
+      generatedAt: GENERATED_AT,
+      summary,
+      trace: createFifoTrace()
+    });
+
+    const rows = parseCsv(result.content);
+
+    expect(
+      rows
+        .filter(({ recordType }) => recordType === 'DIVIDEND')
+        .map(({ sourceActivityId }) => sourceActivityId)
+    ).toEqual(['A-1', 'a-1', 'a_1']);
+  });
+
+  it('keeps transaction-currency values distinct from converted base-currency values', () => {
+    const base = createCompleteFifoSummary();
+
+    const summary: YearlyTaxSummary = {
+      ...base,
+      grossDividendsBaseCurrency: new Big(108),
+      totalWithholdingTaxBaseCurrency: new Big('10.8'),
+      netDividendsBaseCurrency: new Big('97.2'),
+      grossProceedsBaseCurrency: new Big('86.4'),
+      grossCostBasisBaseCurrency: new Big('43.2'),
+      grossRealizedGainBaseCurrency: new Big('43.2'),
+      totalActivityFeesBaseCurrency: new Big('1.944'),
+      realizedGainAfterActivityFeesBaseCurrency: new Big('41.256'),
+      dividendRecords: [
+        {
+          ...base.dividendRecords[0],
+          transactionCurrency: 'EUR',
+          grossDividend: new Big(100),
+          withholdingTax: new Big(10),
+          netDividend: new Big(90),
+          activityFee: new Big(2),
+          grossDividendBaseCurrency: new Big(108),
+          withholdingTaxBaseCurrency: new Big('10.8'),
+          netDividendBaseCurrency: new Big('97.2'),
+          activityFeeBaseCurrency: new Big('2.16')
+        }
+      ],
+      realizedGains: [
+        {
+          ...base.realizedGains[0],
+          transactionCurrency: 'EUR',
+          grossProceedsBaseCurrency: new Big('86.4'),
+          grossCostBasisBaseCurrency: new Big('43.2'),
+          grossRealizedGainBaseCurrency: new Big('43.2'),
+          totalActivityFeesBaseCurrency: new Big('1.944'),
+          realizedGainAfterActivityFeesBaseCurrency: new Big('41.256')
+        }
+      ]
+    };
+
+    const trace: TaxExportTrace = {
+      method: 'FIFO',
+      matches: [
+        {
+          ...createFifoTrace().matches[0],
+          grossCostBasisBaseCurrency: new Big('43.2'),
+          grossProceedsBaseCurrency: new Big('86.4'),
+          grossRealizedGainBaseCurrency: new Big('43.2'),
+          activityFeesBaseCurrency: new Big('1.944'),
+          realizedGainAfterActivityFeesBaseCurrency: new Big('41.256')
+        }
+      ]
+    };
+
+    const result = TaxExport.generate({
+      generatedAt: GENERATED_AT,
+      summary,
+      trace
+    });
+
+    const rows = parseCsv(result.content);
+
+    const dividend = getRow(rows, 'DIVIDEND', 'sourceActivityId', 'div-1');
+
+    expect(dividend.transactionCurrency).toBe('EUR');
+    expect(dividend.grossDividendTransactionCurrency).toBe('100');
+    expect(dividend.grossDividendBaseCurrency).toBe('108');
+    expect(dividend.withholdingTaxTransactionCurrency).toBe('10');
+    expect(dividend.withholdingTaxBaseCurrency).toBe('10.8');
+    expect(dividend.activityFeeTransactionCurrency).toBe('2');
+    expect(dividend.activityFeeBaseCurrency).toBe('2.16');
+
+    const gain = getRow(rows, 'REALIZED_GAIN');
+
+    expect(gain.transactionCurrency).toBe('EUR');
+    expect(gain.grossProceedsBaseCurrency).toBe('86.4');
+    expect(gain.grossCostBasisBaseCurrency).toBe('43.2');
+    expect(gain.grossRealizedGainBaseCurrency).toBe('43.2');
+  });
+
   it('exports average-cost trace rows without inventing FIFO matches', () => {
     const base = createCompleteFifoSummary();
 
@@ -381,6 +558,17 @@ describe('TaxExport', () => {
     const trace: TaxExportTrace = {
       method: 'AVERAGE_COST',
       events: [
+        {
+          traceId: 'average-buy-1',
+          sourceActivityId: 'buy-1',
+          sellActivityId: null,
+          activityDate: new Date('2026-01-15T10:00:00.000Z'),
+          quantity: new Big(10),
+          poolQuantityBefore: new Big(0),
+          averageGrossUnitCostBefore: null,
+          poolQuantityAfter: new Big(10),
+          averageGrossUnitCostAfter: new Big(10)
+        },
         {
           traceId: 'average-sell-1',
           sourceActivityId: 'sell-1',
@@ -409,17 +597,36 @@ describe('TaxExport', () => {
       rows.filter(({ recordType }) => recordType === 'FIFO_MATCH')
     ).toHaveLength(0);
 
-    const event = getRow(rows, 'AVERAGE_COST_EVENT');
+    const buyEvent = getRow(
+      rows,
+      'AVERAGE_COST_EVENT',
+      'sourceActivityId',
+      'buy-1'
+    );
 
-    expect(event.sourceActivityId).toBe('sell-1');
-    expect(event.sellActivityId).toBe('sell-1');
-    expect(event.quantity).toBe('4');
+    expect(buyEvent.sellActivityId).toBe('');
+    expect(buyEvent.quantity).toBe('10');
+    expect(buyEvent.poolQuantityBefore).toBe('0');
+    expect(buyEvent.averageGrossUnitCostBefore).toBe('');
+    expect(buyEvent.poolQuantityAfter).toBe('10');
+    expect(buyEvent.averageGrossUnitCostAfter).toBe('10');
 
-    expect(event.poolQuantityBefore).toBe('10');
-    expect(event.averageGrossUnitCostBefore).toBe('10');
+    const sellEvent = getRow(
+      rows,
+      'AVERAGE_COST_EVENT',
+      'sourceActivityId',
+      'sell-1'
+    );
 
-    expect(event.poolQuantityAfter).toBe('6');
-    expect(event.averageGrossUnitCostAfter).toBe('10');
+    expect(sellEvent.sellActivityId).toBe('sell-1');
+    expect(sellEvent.quantity).toBe('4');
+    expect(sellEvent.poolQuantityBefore).toBe('10');
+    expect(sellEvent.averageGrossUnitCostBefore).toBe('10');
+    expect(sellEvent.poolQuantityAfter).toBe('6');
+    expect(sellEvent.averageGrossUnitCostAfter).toBe('10');
+
+    const realizedGain = getRow(rows, 'REALIZED_GAIN');
+    expect(realizedGain.traceIds).toBe('average-sell-1');
   });
 
   it('copies source summary totals instead of recalculating them inside the exporter', () => {
@@ -487,7 +694,8 @@ describe('TaxExport', () => {
 
     const warning = getRow(rows, 'WARNING');
 
-    expect(warning.sourceActivityId).toBe("'@activity");
+    expect(warning.relatedActivityIds).toBe("'@activity");
+    expect(warning.sourceActivityId).toBe('');
 
     expect(warning.message).toBe("'=SUM(1,2)\nreview this warning");
 
@@ -649,7 +857,7 @@ function createCompleteFifoSummary(): YearlyTaxSummary {
   };
 }
 
-function createFifoTrace(): TaxExportTrace {
+function createFifoTrace(): Extract<TaxExportTrace, { method: 'FIFO' }> {
   return {
     method: 'FIFO',
 

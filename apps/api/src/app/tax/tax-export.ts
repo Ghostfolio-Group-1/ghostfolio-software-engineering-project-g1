@@ -37,6 +37,7 @@ export const TAX_EXPORT_COLUMNS = [
   'withholdingTaxRate',
   'netDividendTransactionCurrency',
   'activityFeeTransactionCurrency',
+  'activityFeeBaseCurrency',
 
   'grossDividendBaseCurrency',
   'withholdingTaxBaseCurrency',
@@ -67,6 +68,8 @@ export const TAX_EXPORT_COLUMNS = [
 
   'traceId',
   'traceIds',
+  'relatedActivityIds',
+  'excludedActivityIds',
   'warningCodes',
   'errorCodes',
   'message'
@@ -265,11 +268,15 @@ export class TaxExport {
     row.disposalCount = summary.disposalCount.toString();
 
     row.warningCodes = TaxExport.joinTextValues(
-      summary.warnings.map(({ code }) => code).sort()
+      summary.warnings
+        .map(({ code }) => code)
+        .sort((left, right) => TaxExport.compareText(left, right))
     );
 
     row.errorCodes = TaxExport.joinTextValues(
-      summary.errors.map(({ code }) => code).sort()
+      summary.errors
+        .map(({ code }) => code)
+        .sort((left, right) => TaxExport.compareText(left, right))
     );
 
     return row;
@@ -290,7 +297,10 @@ export class TaxExport {
           return dateDifference;
         }
 
-        return left.sourceActivityId.localeCompare(right.sourceActivityId);
+        return TaxExport.compareText(
+          left.sourceActivityId,
+          right.sourceActivityId
+        );
       })
       .map((record) => {
         const row = TaxExport.createCommonRow({
@@ -310,6 +320,13 @@ export class TaxExport {
         row.transactionCurrency = TaxExport.safeTextOrEmpty(
           record.transactionCurrency
         );
+
+        /*
+         * assetCurrency is intentionally left empty because
+         * YearlyTaxSummary does not currently expose an authoritative
+         * asset-currency value. Populating it belongs in the upstream
+         * tax-domain identity contract rather than this serializer.
+         */
 
         row.grossDividendTransactionCurrency = TaxExport.decimal(
           record.grossDividend
@@ -332,6 +349,10 @@ export class TaxExport {
 
         row.activityFeeTransactionCurrency = TaxExport.decimal(
           record.activityFee
+        );
+
+        row.activityFeeBaseCurrency = TaxExport.decimalOrEmpty(
+          record.activityFeeBaseCurrency
         );
 
         row.grossDividendBaseCurrency = TaxExport.decimalOrEmpty(
@@ -378,7 +399,7 @@ export class TaxExport {
           return dateDifference;
         }
 
-        return left.sellActivityId.localeCompare(right.sellActivityId);
+        return TaxExport.compareText(left.sellActivityId, right.sellActivityId);
       })
       .map((record) => {
         const row = TaxExport.createCommonRow({
@@ -399,6 +420,11 @@ export class TaxExport {
 
         row.matchedQuantity = TaxExport.decimal(record.matchedQuantity);
 
+        /*
+         * unmatchedQuantity is a presentation-only identity derived from two
+         * already-calculated quantities. No cost basis, gain, withholding, FX,
+         * or yearly total is recalculated here.
+         */
         row.unmatchedQuantity = TaxExport.decimal(
           record.sellQuantity.minus(record.matchedQuantity)
         );
@@ -464,7 +490,8 @@ export class TaxExport {
             return realizedDifference;
           }
 
-          const sellDifference = left.sellActivityId.localeCompare(
+          const sellDifference = TaxExport.compareText(
+            left.sellActivityId,
             right.sellActivityId
           );
 
@@ -479,7 +506,8 @@ export class TaxExport {
             return acquiredDifference;
           }
 
-          const buyDifference = left.buyActivityId.localeCompare(
+          const buyDifference = TaxExport.compareText(
+            left.buyActivityId,
             right.buyActivityId
           );
 
@@ -487,7 +515,7 @@ export class TaxExport {
             return buyDifference;
           }
 
-          return left.traceId.localeCompare(right.traceId);
+          return TaxExport.compareText(left.traceId, right.traceId);
         })
         .map((match) => {
           const row = TaxExport.createCommonRow({
@@ -540,7 +568,8 @@ export class TaxExport {
           return dateDifference;
         }
 
-        const activityDifference = left.sourceActivityId.localeCompare(
+        const activityDifference = TaxExport.compareText(
+          left.sourceActivityId,
           right.sourceActivityId
         );
 
@@ -548,7 +577,7 @@ export class TaxExport {
           return activityDifference;
         }
 
-        return left.traceId.localeCompare(right.traceId);
+        return TaxExport.compareText(left.traceId, right.traceId);
       })
       .map((event) => {
         const row = TaxExport.createCommonRow({
@@ -592,13 +621,13 @@ export class TaxExport {
   }): TaxExportRow[] {
     return [...summary.warnings]
       .sort((left, right) => {
-        const codeDifference = left.code.localeCompare(right.code);
+        const codeDifference = TaxExport.compareText(left.code, right.code);
 
         if (codeDifference !== 0) {
           return codeDifference;
         }
 
-        return left.message.localeCompare(right.message);
+        return TaxExport.compareText(left.message, right.message);
       })
       .map((warning) => {
         const row = TaxExport.createCommonRow({
@@ -607,13 +636,13 @@ export class TaxExport {
           summary
         });
 
-        const relatedIds = TaxExport.getDiagnosticActivityIds(warning);
+        row.relatedActivityIds = TaxExport.joinTextValues(
+          TaxExport.getDiagnosticRelatedActivityIds(warning)
+        );
 
-        if (relatedIds.length === 1) {
-          row.sourceActivityId = TaxExport.safeText(relatedIds[0]);
-        } else {
-          row.traceIds = TaxExport.joinTextValues(relatedIds);
-        }
+        row.excludedActivityIds = TaxExport.joinTextValues(
+          TaxExport.getDiagnosticExcludedActivityIds(warning)
+        );
 
         row.warningCodes = TaxExport.safeText(warning.code);
         row.message = TaxExport.safeText(warning.message);
@@ -631,13 +660,13 @@ export class TaxExport {
   }): TaxExportRow[] {
     return [...summary.errors]
       .sort((left, right) => {
-        const codeDifference = left.code.localeCompare(right.code);
+        const codeDifference = TaxExport.compareText(left.code, right.code);
 
         if (codeDifference !== 0) {
           return codeDifference;
         }
 
-        return left.message.localeCompare(right.message);
+        return TaxExport.compareText(left.message, right.message);
       })
       .map((error) => {
         const row = TaxExport.createCommonRow({
@@ -646,13 +675,13 @@ export class TaxExport {
           summary
         });
 
-        const relatedIds = TaxExport.getDiagnosticActivityIds(error);
+        row.relatedActivityIds = TaxExport.joinTextValues(
+          TaxExport.getDiagnosticRelatedActivityIds(error)
+        );
 
-        if (relatedIds.length === 1) {
-          row.sourceActivityId = TaxExport.safeText(relatedIds[0]);
-        } else {
-          row.traceIds = TaxExport.joinTextValues(relatedIds);
-        }
+        row.excludedActivityIds = TaxExport.joinTextValues(
+          TaxExport.getDiagnosticExcludedActivityIds(error)
+        );
 
         row.errorCodes = TaxExport.safeText(error.code);
         row.message = TaxExport.safeText(error.message);
@@ -718,13 +747,13 @@ export class TaxExport {
       return trace.matches
         .filter((match) => match.sellActivityId === sellActivityId)
         .map(({ traceId }) => traceId)
-        .sort();
+        .sort((left, right) => TaxExport.compareText(left, right));
     }
 
     return trace.events
       .filter((event) => event.sellActivityId === sellActivityId)
       .map(({ traceId }) => traceId)
-      .sort();
+      .sort((left, right) => TaxExport.compareText(left, right));
   }
 
   private static getRelatedWarningCodes({
@@ -742,7 +771,7 @@ export class TaxExport {
           );
         })
         .map(({ code }) => code)
-        .sort()
+        .sort((left, right) => TaxExport.compareText(left, right))
     );
   }
 
@@ -759,11 +788,24 @@ export class TaxExport {
           return TaxExport.getDiagnosticActivityIds(error).includes(activityId);
         })
         .map(({ code }) => code)
-        .sort()
+        .sort((left, right) => TaxExport.compareText(left, right))
     );
   }
 
   private static getDiagnosticActivityIds(
+    diagnostic: YearlyTaxSummaryWarning | YearlyTaxSummaryError
+  ): string[] {
+    return [
+      ...TaxExport.getDiagnosticRelatedActivityIds(diagnostic),
+      ...TaxExport.getDiagnosticExcludedActivityIds(diagnostic)
+    ]
+      .filter(
+        (activityId, index, values) => values.indexOf(activityId) === index
+      )
+      .sort((left, right) => TaxExport.compareText(left, right));
+  }
+
+  private static getDiagnosticRelatedActivityIds(
     diagnostic: YearlyTaxSummaryWarning | YearlyTaxSummaryError
   ): string[] {
     let activityIds: string[];
@@ -773,13 +815,36 @@ export class TaxExport {
     } else if ('sellActivityIds' in diagnostic) {
       activityIds = diagnostic.sellActivityIds;
     } else {
-      activityIds = [
-        ...diagnostic.affectedSellActivityIds,
-        ...diagnostic.excludedActivityIds
-      ];
+      activityIds = diagnostic.affectedSellActivityIds;
     }
 
-    return [...new Set(activityIds)].sort();
+    return [...new Set(activityIds)].sort((left, right) =>
+      TaxExport.compareText(left, right)
+    );
+  }
+
+  private static getDiagnosticExcludedActivityIds(
+    diagnostic: YearlyTaxSummaryWarning | YearlyTaxSummaryError
+  ): string[] {
+    if (!('excludedActivityIds' in diagnostic)) {
+      return [];
+    }
+
+    return [...new Set(diagnostic.excludedActivityIds)].sort((left, right) =>
+      TaxExport.compareText(left, right)
+    );
+  }
+
+  private static compareText(left: string, right: string): number {
+    if (left < right) {
+      return -1;
+    }
+
+    if (left > right) {
+      return 1;
+    }
+
+    return 0;
   }
 
   private static getMethodSlug(method: YearlyTaxSummary['method']): string {
