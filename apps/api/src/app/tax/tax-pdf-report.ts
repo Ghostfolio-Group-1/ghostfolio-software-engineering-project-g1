@@ -13,6 +13,8 @@ import type {
 
 export const TAX_PDF_TITLE = 'Ghostfolio Tax Analytics';
 export const TAX_PDF_NOT_AVAILABLE = 'Not available';
+export const TAX_PDF_NOT_APPLICABLE = 'Not applicable';
+export const TAX_PDF_UNDEFINED_EMPTY_POOL = 'Undefined (empty pool)';
 
 export interface TaxPdfMetadata {
   title: typeof TAX_PDF_TITLE;
@@ -197,12 +199,16 @@ export class TaxPdfReportBuilder {
             activityDate: record.date.toISOString(),
             transactionCurrency:
               record.transactionCurrency ?? TAX_PDF_NOT_AVAILABLE,
-            grossDividendTransactionCurrency: record.grossDividend.toString(),
+            grossDividendTransactionCurrency: TaxPdfReportBuilder.decimal(
+              record.grossDividend
+            ),
             withholdingTaxTransactionCurrency:
               TaxPdfReportBuilder.decimalOrUnavailable(record.withholdingTax),
             netDividendTransactionCurrency:
               TaxPdfReportBuilder.decimalOrUnavailable(record.netDividend),
-            activityFeeTransactionCurrency: record.activityFee.toString(),
+            activityFeeTransactionCurrency: TaxPdfReportBuilder.decimal(
+              record.activityFee
+            ),
             grossDividendBaseCurrency: TaxPdfReportBuilder.decimalOrUnavailable(
               record.grossDividendBaseCurrency
             ),
@@ -238,8 +244,10 @@ export class TaxPdfReportBuilder {
             realizedAt: record.sellDate.toISOString(),
             transactionCurrency:
               record.transactionCurrency ?? TAX_PDF_NOT_AVAILABLE,
-            sellQuantity: record.sellQuantity.toString(),
-            matchedQuantity: record.matchedQuantity.toString(),
+            sellQuantity: TaxPdfReportBuilder.decimal(record.sellQuantity),
+            matchedQuantity: TaxPdfReportBuilder.decimal(
+              record.matchedQuantity
+            ),
             grossProceedsBaseCurrency: TaxPdfReportBuilder.decimalOrUnavailable(
               record.grossProceedsBaseCurrency
             ),
@@ -332,7 +340,7 @@ export class TaxPdfReportBuilder {
       sellActivityId: match.sellActivityId,
       acquiredAt: match.acquiredAt.toISOString(),
       realizedAt: match.realizedAt.toISOString(),
-      matchedQuantity: match.matchedQuantity.toString(),
+      matchedQuantity: TaxPdfReportBuilder.decimal(match.matchedQuantity),
       grossCostBasisBaseCurrency: TaxPdfReportBuilder.decimalOrUnavailable(
         match.grossCostBasisBaseCurrency
       ),
@@ -358,17 +366,19 @@ export class TaxPdfReportBuilder {
     return {
       traceId: event.traceId,
       sourceActivityId: event.sourceActivityId,
-      sellActivityId: event.sellActivityId ?? TAX_PDF_NOT_AVAILABLE,
+      sellActivityId: event.sellActivityId ?? TAX_PDF_NOT_APPLICABLE,
       activityDate: event.activityDate.toISOString(),
-      quantity: event.quantity.toString(),
-      poolQuantityBefore: event.poolQuantityBefore.toString(),
-      averageGrossUnitCostBefore: TaxPdfReportBuilder.decimalOrUnavailable(
-        event.averageGrossUnitCostBefore
-      ),
-      poolQuantityAfter: event.poolQuantityAfter.toString(),
-      averageGrossUnitCostAfter: TaxPdfReportBuilder.decimalOrUnavailable(
-        event.averageGrossUnitCostAfter
-      )
+      quantity: TaxPdfReportBuilder.decimal(event.quantity),
+      poolQuantityBefore: TaxPdfReportBuilder.decimal(event.poolQuantityBefore),
+      averageGrossUnitCostBefore: TaxPdfReportBuilder.averageCostOrStatus({
+        averageGrossUnitCost: event.averageGrossUnitCostBefore,
+        poolQuantity: event.poolQuantityBefore
+      }),
+      poolQuantityAfter: TaxPdfReportBuilder.decimal(event.poolQuantityAfter),
+      averageGrossUnitCostAfter: TaxPdfReportBuilder.averageCostOrStatus({
+        averageGrossUnitCost: event.averageGrossUnitCostAfter,
+        poolQuantity: event.poolQuantityAfter
+      })
     };
   }
 
@@ -436,8 +446,37 @@ export class TaxPdfReportBuilder {
     return [];
   }
 
+  /**
+   * Big#toFixed() is intentionally used instead of Big#toString().
+   *
+   * Big#toString() can switch to exponential notation for very small or
+   * large values. Tax exports require plain decimal strings so the PDF and
+   * CSV represent the same source values consistently.
+   */
+  private static decimal(value: Big): string {
+    return value.toFixed();
+  }
+
   private static decimalOrUnavailable(value: Big | null): string {
-    return value === null ? TAX_PDF_NOT_AVAILABLE : value.toString();
+    return value === null
+      ? TAX_PDF_NOT_AVAILABLE
+      : TaxPdfReportBuilder.decimal(value);
+  }
+
+  private static averageCostOrStatus({
+    averageGrossUnitCost,
+    poolQuantity
+  }: {
+    averageGrossUnitCost: Big | null;
+    poolQuantity: Big;
+  }): string {
+    if (averageGrossUnitCost !== null) {
+      return TaxPdfReportBuilder.decimal(averageGrossUnitCost);
+    }
+
+    return poolQuantity.eq(0)
+      ? TAX_PDF_UNDEFINED_EMPTY_POOL
+      : TAX_PDF_NOT_AVAILABLE;
   }
 
   private static compareText(this: void, left: string, right: string): number {

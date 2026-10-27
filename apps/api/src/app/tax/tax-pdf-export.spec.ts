@@ -1,9 +1,14 @@
 import { Big } from 'big.js';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, PDFPage } from 'pdf-lib';
 
 import type { TaxExportTrace } from './tax-export';
 import { TaxPdfExport } from './tax-pdf-export';
-import { TAX_PDF_NOT_AVAILABLE, TaxPdfReportBuilder } from './tax-pdf-report';
+import {
+  TAX_PDF_NOT_APPLICABLE,
+  TAX_PDF_NOT_AVAILABLE,
+  TAX_PDF_UNDEFINED_EMPTY_POOL,
+  TaxPdfReportBuilder
+} from './tax-pdf-report';
 import {
   MISSING_DIVIDEND_BASE_CURRENCY_CONVERSION,
   UNKNOWN_DIVIDEND_WITHHOLDING,
@@ -206,7 +211,7 @@ describe('TaxPdfReportBuilder', () => {
           sourceActivityId: 'sell-1',
           sellActivityId: 'sell-1',
           activityDate: new Date('2026-06-01T14:30:00.000Z'),
-          quantity: new Big(-4),
+          quantity: new Big(4),
           poolQuantityBefore: new Big(10),
           averageGrossUnitCostBefore: new Big(10),
           poolQuantityAfter: new Big(6),
@@ -230,20 +235,76 @@ describe('TaxPdfReportBuilder', () => {
     expect(report.trace.events).toHaveLength(2);
     expect(report.trace.events[0]).toMatchObject({
       traceId: 'average-buy-1',
-      sellActivityId: TAX_PDF_NOT_AVAILABLE,
+      sellActivityId: TAX_PDF_NOT_APPLICABLE,
+      quantity: '10',
       poolQuantityBefore: '0',
-      averageGrossUnitCostBefore: TAX_PDF_NOT_AVAILABLE,
+      averageGrossUnitCostBefore: TAX_PDF_UNDEFINED_EMPTY_POOL,
       poolQuantityAfter: '10',
       averageGrossUnitCostAfter: '10'
     });
     expect(report.trace.events[1]).toMatchObject({
       traceId: 'average-sell-1',
       sellActivityId: 'sell-1',
+      quantity: '4',
       poolQuantityBefore: '10',
       averageGrossUnitCostBefore: '10',
       poolQuantityAfter: '6',
       averageGrossUnitCostAfter: '10'
     });
+  });
+
+  it('serializes tiny Big values as plain decimals instead of exponent notation', () => {
+    const base = createCompleteFifoSummary();
+    const tiny = new Big('0.00000001');
+
+    const report = TaxPdfReportBuilder.build({
+      generatedAt: GENERATED_AT,
+      summary: {
+        ...base,
+        grossDividendsBaseCurrency: tiny,
+        dividendRecords: [
+          {
+            ...base.dividendRecords[0],
+            grossDividend: tiny,
+            activityFee: tiny,
+            grossDividendBaseCurrency: tiny,
+            activityFeeBaseCurrency: tiny
+          }
+        ],
+        realizedGains: [
+          {
+            ...base.realizedGains[0],
+            sellQuantity: tiny,
+            matchedQuantity: tiny
+          }
+        ]
+      },
+      trace: {
+        method: 'FIFO',
+        matches: [
+          {
+            ...createFifoTrace().matches[0],
+            matchedQuantity: tiny
+          }
+        ]
+      }
+    });
+
+    expect(report.annualSummary.grossDividends).toBe('0.00000001');
+    expect(report.dividends[0].grossDividendTransactionCurrency).toBe(
+      '0.00000001'
+    );
+    expect(report.dividends[0].activityFeeTransactionCurrency).toBe(
+      '0.00000001'
+    );
+    expect(report.realizedGains[0].sellQuantity).toBe('0.00000001');
+    expect(report.realizedGains[0].matchedQuantity).toBe('0.00000001');
+
+    if (report.trace.method !== 'FIFO') {
+      throw new Error('Expected FIFO PDF trace.');
+    }
+
+    expect(report.trace.matches[0].matchedQuantity).toBe('0.00000001');
   });
 
   it('exports warning and error diagnostics for an incomplete report', () => {
@@ -354,6 +415,216 @@ describe('TaxPdfExport', () => {
     expect(document.getTitle()).toBe('Ghostfolio Tax Analytics');
     expect(document.getCreationDate()).toEqual(GENERATED_AT);
     expect(document.getModificationDate()).toEqual(GENERATED_AT);
+  });
+
+  it('renders full FIFO report values through the PDF draw path', async () => {
+    const drawTextSpy = jest.spyOn(PDFPage.prototype, 'drawText');
+
+    try {
+      await TaxPdfExport.generate({
+        generatedAt: GENERATED_AT,
+        summary: createCompleteFifoSummary(),
+        trace: createFifoTrace()
+      });
+
+      const drawnText = drawTextSpy.mock.calls.map(([text]) => text);
+
+      expect(drawnText).toContain('Gross Dividends: 100 USD');
+      expect(drawnText).toContain('Gross Realized Gain: 40 USD');
+      expect(drawnText).toContain('Dividend div-1');
+      expect(drawnText).toContain('Sale sell-1');
+      expect(drawnText).toContain('FIFO Match lot-1:sell-1');
+    } finally {
+      drawTextSpy.mockRestore();
+    }
+  });
+
+  it('renders zero, unavailable and incomplete values distinctly', async () => {
+    const drawTextSpy = jest.spyOn(PDFPage.prototype, 'drawText');
+
+    try {
+      await TaxPdfExport.generate({
+        generatedAt: GENERATED_AT,
+        summary: createNullAndZeroSummary(),
+        trace: {
+          method: 'FIFO',
+          matches: []
+        }
+      });
+
+      const drawnText = drawTextSpy.mock.calls.map(([text]) => text);
+
+      expect(drawnText).toContain('Withholding Tax: Not available');
+      expect(drawnText).toContain('Gross Sale Proceeds: 0 USD');
+
+      const combinedText = drawnText.join(' ');
+
+      expect(combinedText).toContain(
+        'Incomplete report: one or more tax values are unavailable. Review the warnings and errors before relying on the report.'
+      );
+    } finally {
+      drawTextSpy.mockRestore();
+    }
+  });
+
+  it('renders average-cost not-applicable and empty-pool states distinctly', async () => {
+    const base = createEmptyFifoSummary();
+    const drawTextSpy = jest.spyOn(PDFPage.prototype, 'drawText');
+
+    try {
+      await TaxPdfExport.generate({
+        generatedAt: GENERATED_AT,
+        summary: {
+          ...base,
+          method: 'AVERAGE_COST'
+        },
+        trace: {
+          method: 'AVERAGE_COST',
+          events: [
+            {
+              traceId: 'average-buy-1',
+              sourceActivityId: 'buy-1',
+              sellActivityId: null,
+              activityDate: new Date('2026-01-15T10:00:00.000Z'),
+              quantity: new Big(10),
+              poolQuantityBefore: new Big(0),
+              averageGrossUnitCostBefore: null,
+              poolQuantityAfter: new Big(10),
+              averageGrossUnitCostAfter: new Big(10)
+            }
+          ]
+        }
+      });
+
+      const drawnText = drawTextSpy.mock.calls.map(([text]) => text);
+      const combined = drawnText.join('\n');
+
+      expect(combined).toContain('SELL: Not applicable');
+      expect(combined).toContain(
+        'Average gross unit cost: Undefined (empty pool)'
+      );
+    } finally {
+      drawTextSpy.mockRestore();
+    }
+  });
+
+  it('adds pages when the report contains many dividend rows', async () => {
+    const base = createCompleteFifoSummary();
+    const dividendRecords = Array.from({ length: 250 }, (_, index) => ({
+      ...base.dividendRecords[0],
+      sourceActivityId: `div-${index.toString().padStart(3, '0')}`,
+      date: new Date(Date.UTC(2026, 0, 1, 0, 0, index % 60))
+    }));
+
+    const result = await TaxPdfExport.generate({
+      generatedAt: GENERATED_AT,
+      summary: {
+        ...base,
+        dividendCount: dividendRecords.length,
+        dividendRecords
+      },
+      trace: createFifoTrace()
+    });
+
+    const document = await PDFDocument.load(result.content, {
+      updateMetadata: false
+    });
+
+    expect(document.getPageCount()).toBeGreaterThan(1);
+  });
+
+  it('sanitizes unsupported Unicode before drawing text', async () => {
+    const base = createCompleteFifoSummary();
+    const drawTextSpy = jest.spyOn(PDFPage.prototype, 'drawText');
+
+    try {
+      await expect(
+        TaxPdfExport.generate({
+          generatedAt: GENERATED_AT,
+          summary: {
+            ...base,
+            isComplete: false,
+            warnings: [
+              {
+                code: UNKNOWN_DIVIDEND_WITHHOLDING,
+                message: 'Unsupported ł 漢 − characters.',
+                sourceActivityIds: ['div-1']
+              }
+            ]
+          },
+          trace: createFifoTrace()
+        })
+      ).resolves.toBeDefined();
+
+      const combined = drawTextSpy.mock.calls.map(([text]) => text).join('\n');
+
+      expect(combined).toContain('Unsupported ? ? ? characters.');
+      expect(combined).not.toContain('ł');
+      expect(combined).not.toContain('漢');
+      expect(combined).not.toContain('−');
+    } finally {
+      drawTextSpy.mockRestore();
+    }
+  });
+
+  it('generates identical bytes for equivalent deterministically ordered input', async () => {
+    const base = createCompleteFifoSummary();
+
+    const earlyDividend = {
+      ...base.dividendRecords[0],
+      sourceActivityId: 'div-a',
+      date: new Date('2026-01-01T00:00:00.000Z')
+    };
+
+    const lateDividend = {
+      ...base.dividendRecords[0],
+      sourceActivityId: 'div-z',
+      date: new Date('2026-09-01T00:00:00.000Z')
+    };
+
+    const summary: YearlyTaxSummary = {
+      ...base,
+      dividendCount: 2,
+      dividendRecords: [lateDividend, earlyDividend]
+    };
+
+    const trace: Extract<TaxExportTrace, { method: 'FIFO' }> = {
+      method: 'FIFO',
+      matches: [
+        {
+          ...createFifoTrace().matches[0],
+          traceId: 'trace-z',
+          buyActivityId: 'buy-z',
+          acquiredAt: new Date('2025-09-01T00:00:00.000Z')
+        },
+        {
+          ...createFifoTrace().matches[0],
+          traceId: 'trace-a',
+          buyActivityId: 'buy-a',
+          acquiredAt: new Date('2025-01-01T00:00:00.000Z')
+        }
+      ]
+    };
+
+    const first = await TaxPdfExport.generate({
+      generatedAt: GENERATED_AT,
+      summary,
+      trace
+    });
+
+    const second = await TaxPdfExport.generate({
+      generatedAt: GENERATED_AT,
+      summary: {
+        ...summary,
+        dividendRecords: [...summary.dividendRecords].reverse()
+      },
+      trace: {
+        method: 'FIFO',
+        matches: [...trace.matches].reverse()
+      }
+    });
+
+    expect(Buffer.from(second.content)).toEqual(Buffer.from(first.content));
   });
 
   it('uses the average-cost filename slug', async () => {
