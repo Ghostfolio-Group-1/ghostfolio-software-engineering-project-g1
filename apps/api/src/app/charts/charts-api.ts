@@ -1,9 +1,14 @@
 import {
+  BenchmarkPricePoint,
+  toBenchmarkComparisonResponse
+} from '@ghostfolio/common/benchmark-comparison';
+import {
   InvalidTimeRangeError,
   resolveTimeRange
 } from '@ghostfolio/common/calculation-helper';
 import { toChartSeriesResponse } from '@ghostfolio/common/chart-series';
 import { DATE_FORMAT } from '@ghostfolio/common/helper';
+import { BenchmarkComparisonResponse } from '@ghostfolio/common/interfaces/benchmark-comparison-response.interface';
 import {
   CHART_SERIES_KINDS,
   ChartSeriesKind,
@@ -25,6 +30,17 @@ export interface ChartSeriesRequest {
   history?: HistoricalDataItem[];
   kind?: ChartSeriesKind;
   now?: Date;
+  range?: string;
+  startDate?: string;
+}
+
+export interface BenchmarkComparisonRequest {
+  benchmarkHistory?: BenchmarkPricePoint[];
+  benchmarkSymbol: string;
+  earliestActivityDate?: string;
+  endDate?: string;
+  now?: Date;
+  portfolioHistory?: HistoricalDataItem[];
   range?: string;
   startDate?: string;
 }
@@ -65,6 +81,57 @@ export class ChartsApi {
       endDate: window.endDate,
       history: request.history ?? [],
       kind,
+      startDate: window.startDate
+    });
+  }
+
+  public getBenchmarkComparison(
+    request: BenchmarkComparisonRequest
+  ): BenchmarkComparisonResponse {
+    const benchmarkSymbol = request.benchmarkSymbol?.trim();
+
+    if (!benchmarkSymbol) {
+      throw new BadRequestException('benchmark is required');
+    }
+
+    const now = request.now instanceof Date ? request.now : new Date();
+    const selection = this.readSelection(request);
+
+    if (
+      selection.mode === 'custom' &&
+      request.earliestActivityDate &&
+      selection.endDate < request.earliestActivityDate
+    ) {
+      return toBenchmarkComparisonResponse({
+        benchmarkHistory: request.benchmarkHistory ?? [],
+        benchmarkSymbol,
+        endDate: selection.endDate,
+        portfolioHistory: [],
+        startDate: selection.startDate
+      });
+    }
+
+    const window = this.resolveWindow({
+      earliestActivityDate: request.earliestActivityDate,
+      now,
+      selection
+    });
+
+    if (window.empty) {
+      return toBenchmarkComparisonResponse({
+        benchmarkHistory: request.benchmarkHistory ?? [],
+        benchmarkSymbol,
+        endDate: window.endDate,
+        portfolioHistory: [],
+        startDate: window.startDate
+      });
+    }
+
+    return toBenchmarkComparisonResponse({
+      benchmarkHistory: request.benchmarkHistory ?? [],
+      benchmarkSymbol,
+      endDate: window.endDate,
+      portfolioHistory: request.portfolioHistory ?? [],
       startDate: window.startDate
     });
   }
