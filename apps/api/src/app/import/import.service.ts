@@ -173,6 +173,7 @@ export class ImportService {
             feeInAssetProfileCurrency: 0,
             feeInBaseCurrency: 0,
             id: assetProfile.id,
+            isTaxRelevant: true,
             symbolProfileId: assetProfile.id,
             type: 'DIVIDEND',
             unitPrice: marketPrice,
@@ -844,6 +845,7 @@ export class ImportService {
       const date = activity.date;
       const error = activity.error;
       const fee = activity.fee;
+      const isTaxRelevant = activity.isTaxRelevant ?? true;
       const quantity = activity.quantity;
       const tagIds = activity.tagIds ?? [];
       const type = activity.type;
@@ -909,6 +911,7 @@ export class ImportService {
           currency,
           date,
           fee,
+          isTaxRelevant,
           quantity,
           type,
           unitPrice,
@@ -960,6 +963,7 @@ export class ImportService {
           currency,
           date,
           fee,
+          isTaxRelevant,
           quantity,
           type,
           unitPrice,
@@ -1068,6 +1072,7 @@ export class ImportService {
         dataSource,
         date: dateString,
         fee,
+        isTaxRelevant,
         quantity,
         symbol,
         tags,
@@ -1103,6 +1108,7 @@ export class ImportService {
           error,
           fee,
           quantity,
+          isTaxRelevant: isTaxRelevant ?? true,
           type,
           unitPrice,
           assetProfile: {

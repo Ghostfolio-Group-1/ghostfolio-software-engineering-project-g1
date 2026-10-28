@@ -1,0 +1,2 @@
+ALTER TABLE "Order"
+ADD COLUMN "isTaxRelevant" BOOLEAN NOT NULL DEFAULT true;

@@ -44,6 +44,7 @@ import { AuthDeviceModule } from './auth-device/auth-device.module';
 import { AuthModule } from './auth/auth.module';
 import { CacheModule } from './cache/cache.module';
 import { ChartsModule } from './charts/charts.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { AiModule } from './endpoints/ai/ai.module';
 import { ApiKeysModule } from './endpoints/api-keys/api-keys.module';
 import { AssetProfilesModule } from './endpoints/asset-profiles/asset-profiles.module';
@@ -76,6 +77,7 @@ import { UserModule } from './user/user.module';
   controllers: [AppController],
   imports: [
     ChartsModule,
+    DashboardModule,
     RiskModule,
     TaxModule,
     AdminModule,

@@ -12,7 +12,7 @@ import {
   performanceHistoryFixture
 } from '@ghostfolio/api/testing/fixtures/portfolio.fixtures';
 
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import Ajv from 'ajv';
 import request from 'supertest';
@@ -189,5 +189,18 @@ describe('GET /api/v1/charts/series (end to end)', () => {
       .expect(401);
 
     expect(getPerformance).not.toHaveBeenCalled();
+  });
+  it('returns 500 CHARTS_SERIES_FAILED when the history cannot be loaded', async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    getPerformance.mockRejectedValue(new Error('database unavailable'));
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/series')
+      .query({ endDate: '2026-04-01', startDate: '2026-01-05' })
+      .expect(500);
+
+    expect(validateError(response.body)).toBe(true);
+    expect(response.body.error.code).toBe('CHARTS_SERIES_FAILED');
+    expect(JSON.stringify(response.body)).not.toContain('database unavailable');
   });
 });

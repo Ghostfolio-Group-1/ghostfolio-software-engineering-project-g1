@@ -32,6 +32,7 @@ export interface FixtureOrder {
   date: Date;
   fee: number;
   id: string;
+  isTaxRelevant: boolean;
   quantity: number;
   symbolProfileId: string;
   tags: { id: string }[];
@@ -43,13 +44,16 @@ export interface FixtureOrder {
 
 function order({
   draft = false,
+  isTaxRelevant = true,
   ...fields
-}: Omit<FixtureOrder, 'accountId' | 'tags' | 'userId'> & {
+}: Omit<FixtureOrder, 'accountId' | 'isTaxRelevant' | 'tags' | 'userId'> & {
   draft?: boolean;
+  isTaxRelevant?: boolean;
 }): FixtureOrder {
   return {
     ...fields,
     accountId: FIXTURE_ACCOUNT_ID,
+    isTaxRelevant,
     tags: draft ? [{ id: TAG_ID_DRAFT }] : [],
     userId: FIXTURE_USER_ID
   };
@@ -139,12 +143,13 @@ export const ordersFixture: FixtureOrder[] = [
 ];
 
 // What TaxDataService.getFifoActivities() selects from the database for this
-// user: non-draft BUY/SELL rows with the contract fields, in database order.
-// Use as the mocked prisma.order.findMany result.
+// user: tax-relevant, non-draft BUY/SELL rows with the contract fields, in
+// database order. Use as the mocked prisma.order.findMany result.
 export function fifoActivitiesFrom(orders: FixtureOrder[]) {
   return orders
-    .filter(({ tags, type }) => {
+    .filter(({ isTaxRelevant, tags, type }) => {
       return (
+        isTaxRelevant &&
         (type === ActivityType.BUY || type === ActivityType.SELL) &&
         !tags.some(({ id }) => id === TAG_ID_DRAFT)
       );

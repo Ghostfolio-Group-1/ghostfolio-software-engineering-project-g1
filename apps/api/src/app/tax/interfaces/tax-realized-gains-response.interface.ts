@@ -1,3 +1,5 @@
+import type { TaxResultCompleteness } from './tax-diagnostic.interface';
+
 export interface TaxRealizedGainMatchResponse {
   lotId: string;
   buyActivityId: string;
@@ -45,7 +47,7 @@ export interface TaxAverageCostRealizedGainSaleResponse extends TaxRealizedGainS
 export type TaxRealizedGainSaleResponse =
   TaxFifoRealizedGainSaleResponse | TaxAverageCostRealizedGainSaleResponse;
 
-export type TaxRealizedGainsResponse =
+export type TaxRealizedGainsResponse = (
   | {
       method: 'FIFO';
       sales: TaxFifoRealizedGainSaleResponse[];
@@ -53,4 +55,6 @@ export type TaxRealizedGainsResponse =
   | {
       method: 'AVERAGE_COST';
       sales: TaxAverageCostRealizedGainSaleResponse[];
-    };
+    }
+) &
+  TaxResultCompleteness;

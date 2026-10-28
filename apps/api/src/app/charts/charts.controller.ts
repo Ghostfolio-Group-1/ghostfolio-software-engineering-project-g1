@@ -20,6 +20,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Logger,
   Query
 } from '@nestjs/common';
 import { format, isValid } from 'date-fns';
@@ -28,6 +29,8 @@ import { ChartsApi } from './charts-api';
 
 @Controller('charts')
 export class ChartsController {
+  private readonly logger = new Logger(ChartsController.name);
+
   public constructor(
     private readonly chartsApi: ChartsApi,
     private readonly portfolioService: PortfolioService
@@ -44,10 +47,13 @@ export class ChartsController {
     @Query('range') range?: string,
     @Query('startDate') startDate?: string
   ): Promise<ApiResponse<ChartSeriesResponse>> {
-    const { chart, dateOfFirstActivity } =
-      await this.portfolioService.getPerformance({ dateRange: 'max', userId });
-
     try {
+      const { chart, dateOfFirstActivity } =
+        await this.portfolioService.getPerformance({
+          dateRange: 'max',
+          userId
+        });
+
       return createSuccessResponse(
         this.chartsApi.getSeries({
           endDate,
@@ -69,7 +75,20 @@ export class ChartsController {
         );
       }
 
-      throw error;
+      // Loading or building the series failed: log the real error, return
+      // the shared envelope without internal details.
+      this.logger.error(
+        'Charts series failed',
+        error instanceof Error ? error.stack : String(error)
+      );
+
+      throw new HttpException(
+        createErrorResponse(
+          'CHARTS_SERIES_FAILED',
+          'Unable to load the chart series'
+        ),
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 }

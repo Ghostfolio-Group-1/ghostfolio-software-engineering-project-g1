@@ -1,4 +1,5 @@
-import { Order, Type as ActivityType } from '@prisma/client';
+import type { Order } from '@prisma/client';
+import { Type as ActivityType } from '@prisma/client';
 import { Big } from 'big.js';
 
 export type FifoTaxActivitySource = Pick<
@@ -42,6 +43,27 @@ export interface LotConsumption {
 export interface FifoLotConsumptionResult {
   lots: TaxLot[];
   consumptions: LotConsumption[];
+}
+
+export const FIFO_TAX_LOT_STATUSES = [
+  'OPEN',
+  'PARTIALLY_CONSUMED',
+  'CLOSED'
+] as const;
+
+export type FifoTaxLotStatus = (typeof FIFO_TAX_LOT_STATUSES)[number];
+
+export interface DerivedFifoTaxLot {
+  lotId: string;
+  sourceActivityId: string;
+  scope: TaxCalculationScope;
+  acquiredAt: Date;
+  currency: string | null;
+  originalQuantity: Big;
+  consumedQuantity: Big;
+  remainingQuantity: Big;
+  status: FifoTaxLotStatus;
+  relatedSellActivityIds: string[];
 }
 
 export function orderFifoActivities<T extends FifoTaxActivitySource>(
@@ -108,6 +130,7 @@ export function consumeFifoTaxLots(
   for (const activity of orderFifoActivities(activities)) {
     if (activity.type === ActivityType.BUY) {
       lots.push(createTaxLotFromBuy(activity));
+
       continue;
     }
 
@@ -127,7 +150,9 @@ export function consumeFifoTaxLots(
         : lot.remainingQuantity;
 
       lot.remainingQuantity = lot.remainingQuantity.minus(matchedQuantity);
+
       lot.costBasis = lot.remainingQuantity.times(lot.unitPrice);
+
       quantityToMatch = quantityToMatch.minus(matchedQuantity);
 
       consumptions.push({
@@ -149,6 +174,60 @@ export function consumeFifoTaxLots(
     lots,
     consumptions
   };
+}
+
+export function deriveFifoTaxLots(
+  activities: readonly FifoTaxActivitySource[]
+): DerivedFifoTaxLot[] {
+  const { lots, consumptions } = consumeFifoTaxLots(activities);
+
+  const consumptionsByLotId = new Map<string, LotConsumption[]>();
+
+  for (const consumption of consumptions) {
+    const existing = consumptionsByLotId.get(consumption.lotId) ?? [];
+
+    existing.push(consumption);
+
+    consumptionsByLotId.set(consumption.lotId, existing);
+  }
+
+  return lots.map((lot) => {
+    const lotConsumptions = consumptionsByLotId.get(lot.lotId) ?? [];
+
+    const consumedQuantity = lot.initialQuantity.minus(lot.remainingQuantity);
+
+    return {
+      lotId: lot.lotId,
+      sourceActivityId: lot.sourceActivityId,
+      scope: { ...lot.scope },
+      acquiredAt: lot.acquiredAt,
+      currency: lot.currency,
+      originalQuantity: new Big(lot.initialQuantity),
+      consumedQuantity,
+      remainingQuantity: new Big(lot.remainingQuantity),
+      status: getFifoTaxLotStatus(lot.initialQuantity, lot.remainingQuantity),
+      relatedSellActivityIds: [
+        ...new Set(
+          lotConsumptions.map((consumption) => consumption.sellActivityId)
+        )
+      ]
+    };
+  });
+}
+
+function getFifoTaxLotStatus(
+  originalQuantity: Big,
+  remainingQuantity: Big
+): FifoTaxLotStatus {
+  if (remainingQuantity.eq(0)) {
+    return 'CLOSED';
+  }
+
+  if (remainingQuantity.eq(originalQuantity)) {
+    return 'OPEN';
+  }
+
+  return 'PARTIALLY_CONSUMED';
 }
 
 function createTaxLotFromBuy(activity: FifoTaxActivitySource): TaxLot {
