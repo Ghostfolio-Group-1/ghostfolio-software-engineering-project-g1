@@ -703,125 +703,256 @@ describe('listOpenFifoTaxLots', () => {
     expect(listOpenFifoTaxLots(lots)[0].remainingQuantity.toString()).toBe('5');
   });
 
-  it('shows one open row for each buy of the same symbol', () => {
-    const openLots = listOpenFifoTaxLots(
-      createFifoTaxLots([
-        createActivity({
-          date: new Date('2026-01-01T10:00:00.000Z'),
-          id: 'buy-jan',
-          quantity: 10,
-          symbolProfileId: 'asset-aapl',
-          unitPrice: 50
-        }),
-        createActivity({
-          date: new Date('2026-02-01T10:00:00.000Z'),
-          id: 'buy-feb',
-          quantity: 4,
-          symbolProfileId: 'asset-aapl',
-          unitPrice: 80
-        })
-      ])
-    );
-
-    expect(openLots.map((lot) => lot.lotId)).toEqual(['buy-jan', 'buy-feb']);
-    expect(openLots[0].remainingQuantity.toString()).toBe('10');
-    expect(openLots[0].costBasis.toString()).toBe('500');
-    expect(openLots[1].remainingQuantity.toString()).toBe('4');
-    expect(openLots[1].costBasis.toString()).toBe('320');
-  });
-
-  it('reduces one open row on a partial sale and leaves the other intact', () => {
+  it('reports the BUY date and keeps it after a partial sale', () => {
+    const acquiredAt = new Date('2026-01-01T10:00:00.000Z');
     const { lots } = consumeFifoTaxLots([
       createActivity({
-        date: new Date('2026-01-01T10:00:00.000Z'),
-        id: 'buy-jan',
-        quantity: 10,
-        symbolProfileId: 'asset-aapl',
-        unitPrice: 50
-      }),
-      createActivity({
-        date: new Date('2026-02-01T10:00:00.000Z'),
-        id: 'buy-feb',
-        quantity: 4,
-        symbolProfileId: 'asset-aapl',
-        unitPrice: 80
-      }),
-      createActivity({
-        date: new Date('2026-03-01T10:00:00.000Z'),
-        id: 'sell-3',
-        quantity: 3,
-        symbolProfileId: 'asset-aapl',
-        type: ActivityType.SELL,
-        unitPrice: 90
-      })
-    ]);
-
-    const openLots = listOpenFifoTaxLots(lots);
-
-    expect(openLots.map((lot) => lot.lotId)).toEqual(['buy-jan', 'buy-feb']);
-    expect(openLots[0].remainingQuantity.toString()).toBe('7');
-    expect(openLots[0].costBasis.toString()).toBe('350');
-    expect(openLots[1].remainingQuantity.toString()).toBe('4');
-    expect(openLots[1].costBasis.toString()).toBe('320');
-  });
-
-  it('returns an empty list when the user has no buys', () => {
-    expect(listOpenFifoTaxLots(createFifoTaxLots([]))).toEqual([]);
-    expect(listOpenFifoTaxLots(consumeFifoTaxLots([]).lots)).toEqual([]);
-  });
-
-  it('returns an empty list after the entire position is sold', () => {
-    const { lots } = consumeFifoTaxLots([
-      createActivity({
-        date: new Date('2026-01-01T10:00:00.000Z'),
+        date: acquiredAt,
         id: 'buy-10',
         quantity: 10
       }),
       createActivity({
-        date: new Date('2026-01-02T10:00:00.000Z'),
-        id: 'buy-4',
-        quantity: 4
-      }),
-      createActivity({
-        date: new Date('2026-01-03T10:00:00.000Z'),
-        id: 'sell-all',
-        quantity: 14,
+        date: new Date('2026-03-01T10:00:00.000Z'),
+        id: 'sell-4',
+        quantity: 4,
         type: ActivityType.SELL
       })
     ]);
 
-    expect(lots.map((lot) => lot.remainingQuantity.toString())).toEqual([
-      '0',
-      '0'
-    ]);
-    expect(listOpenFifoTaxLots(lots)).toEqual([]);
+    const [openLot] = listOpenFifoTaxLots(lots);
+
+    expect(openLot.acquiredAt).toBe(acquiredAt);
+    expect(openLot.remainingQuantity.toString()).toBe('6');
   });
 
-  it('carries the BUY account on each lot', () => {
-    const [lot] = createFifoTaxLots([
+  it('lists open lots oldest-acquisition first', () => {
+    const older = new Date('2026-01-01T10:00:00.000Z');
+    const newer = new Date('2026-02-01T10:00:00.000Z');
+    const sameDay = new Date('2026-01-01T10:00:00.000Z');
+    const { lots } = consumeFifoTaxLots([
       createActivity({
-        accountId: 'account-brokerage',
-        id: 'buy-brokerage'
+        date: newer,
+        id: 'buy-newer',
+        quantity: 5
+      }),
+      createActivity({
+        date: older,
+        id: 'buy-z',
+        quantity: 4
+      }),
+      createActivity({
+        date: sameDay,
+        id: 'buy-a',
+        quantity: 2
       })
     ]);
 
-    expect(lot.scope.accountId).toBe('account-brokerage');
+    expect(
+      listOpenFifoTaxLots([...lots].reverse()).map((lot) => lot.lotId)
+    ).toEqual(['buy-a', 'buy-z', 'buy-newer']);
+    expect(
+      listOpenFifoTaxLots(lots).map((lot) => lot.acquiredAt.toISOString())
+    ).toEqual([
+      sameDay.toISOString(),
+      older.toISOString(),
+      newer.toISOString()
+    ]);
   });
 
-  it('lists the same symbol in two accounts as separate lots', () => {
+  it('carries the BUY user id on each lot', () => {
+    const [lot] = createFifoTaxLots([
+      createActivity({
+        id: 'buy-user-a',
+        userId: 'user-a'
+      })
+    ]);
+
+    expect(lot.scope.userId).toBe('user-a');
+  });
+
+  it('lists two users holding the same symbol as separate lots', () => {
     const openLots = listOpenFifoTaxLots(
       createFifoTaxLots([
         createActivity({
           accountId: 'account-1',
-          id: 'buy-account-1',
+          id: 'buy-user-a',
+          quantity: 10,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 50,
+          userId: 'user-a'
+        }),
+        createActivity({
+          accountId: 'account-1',
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'buy-user-b',
+          quantity: 4,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 80,
+          userId: 'user-b'
+        })
+      ])
+    );
+
+    expect(openLots).toHaveLength(2);
+    expect(openLots[0].scope.userId).toBe('user-a');
+    expect(openLots[0].scope.accountId).toBe('account-1');
+    expect(openLots[0].scope.symbolProfileId).toBe('asset-aapl');
+    expect(openLots[0].remainingQuantity.toString()).toBe('10');
+    expect(openLots[0].costBasis.toString()).toBe('500');
+    expect(openLots[1].scope.userId).toBe('user-b');
+    expect(openLots[1].scope.accountId).toBe('account-1');
+    expect(openLots[1].scope.symbolProfileId).toBe('asset-aapl');
+    expect(openLots[1].remainingQuantity.toString()).toBe('4');
+    expect(openLots[1].costBasis.toString()).toBe('320');
+  });
+
+  it('does not reduce the other user when one user sells', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-user-b',
+        quantity: 10,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 50,
+        userId: 'user-b'
+      }),
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-user-a',
+        quantity: 4,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 80,
+        userId: 'user-a'
+      }),
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-user-a',
+        quantity: 1,
+        symbolProfileId: 'asset-aapl',
+        type: ActivityType.SELL,
+        unitPrice: 90,
+        userId: 'user-a'
+      })
+    ]);
+
+    const openLots = listOpenFifoTaxLots(lots);
+    const userB = openLots.find((lot) => lot.scope.userId === 'user-b');
+    const userA = openLots.find((lot) => lot.scope.userId === 'user-a');
+
+    expect(openLots).toHaveLength(2);
+    expect(userB?.remainingQuantity.toString()).toBe('10');
+    expect(userB?.costBasis.toString()).toBe('500');
+    expect(userA?.remainingQuantity.toString()).toBe('3');
+    expect(userA?.costBasis.toString()).toBe('240');
+  });
+
+  it('carries the BUY user id on each lot', () => {
+    const [lot] = createFifoTaxLots([
+      createActivity({
+        id: 'buy-user-a',
+        userId: 'user-a'
+      })
+    ]);
+
+    expect(lot.scope.userId).toBe('user-a');
+  });
+
+  it('lists two users holding the same symbol as separate lots', () => {
+    const openLots = listOpenFifoTaxLots(
+      createFifoTaxLots([
+        createActivity({
+          accountId: 'account-1',
+          id: 'buy-user-a',
+          quantity: 10,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 50,
+          userId: 'user-a'
+        }),
+        createActivity({
+          accountId: 'account-1',
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'buy-user-b',
+          quantity: 4,
+          symbolProfileId: 'asset-aapl',
+          unitPrice: 80,
+          userId: 'user-b'
+        })
+      ])
+    );
+
+    expect(openLots).toHaveLength(2);
+    expect(openLots[0].scope.userId).toBe('user-a');
+    expect(openLots[0].scope.accountId).toBe('account-1');
+    expect(openLots[0].scope.symbolProfileId).toBe('asset-aapl');
+    expect(openLots[0].remainingQuantity.toString()).toBe('10');
+    expect(openLots[0].costBasis.toString()).toBe('500');
+    expect(openLots[1].scope.userId).toBe('user-b');
+    expect(openLots[1].scope.accountId).toBe('account-1');
+    expect(openLots[1].scope.symbolProfileId).toBe('asset-aapl');
+    expect(openLots[1].remainingQuantity.toString()).toBe('4');
+    expect(openLots[1].costBasis.toString()).toBe('320');
+  });
+
+  it('does not reduce the other user when one user sells', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-user-b',
+        quantity: 10,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 50,
+        userId: 'user-b'
+      }),
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-user-a',
+        quantity: 4,
+        symbolProfileId: 'asset-aapl',
+        unitPrice: 80,
+        userId: 'user-a'
+      }),
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-user-a',
+        quantity: 1,
+        symbolProfileId: 'asset-aapl',
+        type: ActivityType.SELL,
+        unitPrice: 90,
+        userId: 'user-a'
+      })
+    ]);
+
+    const openLots = listOpenFifoTaxLots(lots);
+    const userB = openLots.find((lot) => lot.scope.userId === 'user-b');
+    const userA = openLots.find((lot) => lot.scope.userId === 'user-a');
+
+    expect(openLots).toHaveLength(2);
+    expect(userB?.remainingQuantity.toString()).toBe('10');
+    expect(userB?.costBasis.toString()).toBe('500');
+    expect(userA?.remainingQuantity.toString()).toBe('3');
+    expect(userA?.costBasis.toString()).toBe('240');
+  });
+
+  it('lists an unassigned buy separately from the same symbol in a named account', () => {
+    const openLots = listOpenFifoTaxLots(
+      createFifoTaxLots([
+        createActivity({
+          accountId: null,
+          id: 'buy-unassigned',
           quantity: 10,
           symbolProfileId: 'asset-aapl',
           unitPrice: 50
         }),
         createActivity({
-          accountId: 'account-2',
+          accountId: 'account-1',
           date: new Date('2026-01-02T10:00:00.000Z'),
-          id: 'buy-account-2',
+          id: 'buy-named',
           quantity: 4,
           symbolProfileId: 'asset-aapl',
           unitPrice: 80
@@ -830,39 +961,38 @@ describe('listOpenFifoTaxLots', () => {
     );
 
     expect(openLots).toHaveLength(2);
-    expect(openLots[0].scope.accountId).toBe('account-1');
+    expect(openLots[0].scope.accountId).toBeNull();
     expect(openLots[0].scope.symbolProfileId).toBe('asset-aapl');
     expect(openLots[0].remainingQuantity.toString()).toBe('10');
     expect(openLots[0].costBasis.toString()).toBe('500');
-
-    expect(openLots[1].scope.accountId).toBe('account-2');
+    expect(openLots[1].scope.accountId).toBe('account-1');
     expect(openLots[1].scope.symbolProfileId).toBe('asset-aapl');
     expect(openLots[1].remainingQuantity.toString()).toBe('4');
     expect(openLots[1].costBasis.toString()).toBe('320');
   });
 
-  it('does not change the other account when one account is sold', () => {
+  it('does not reduce the unassigned lot when the named account is sold', () => {
     const { lots } = consumeFifoTaxLots([
       createActivity({
-        accountId: 'account-1',
+        accountId: null,
         date: new Date('2026-01-01T10:00:00.000Z'),
-        id: 'buy-account-1',
+        id: 'buy-unassigned',
         quantity: 10,
         symbolProfileId: 'asset-aapl',
         unitPrice: 50
       }),
       createActivity({
-        accountId: 'account-2',
+        accountId: 'account-1',
         date: new Date('2026-01-02T10:00:00.000Z'),
-        id: 'buy-account-2',
+        id: 'buy-named',
         quantity: 4,
         symbolProfileId: 'asset-aapl',
         unitPrice: 80
       }),
       createActivity({
-        accountId: 'account-2',
+        accountId: 'account-1',
         date: new Date('2026-01-03T10:00:00.000Z'),
-        id: 'sell-account-2',
+        id: 'sell-named',
         quantity: 1,
         symbolProfileId: 'asset-aapl',
         type: ActivityType.SELL,
@@ -871,24 +1001,14 @@ describe('listOpenFifoTaxLots', () => {
     ]);
 
     const openLots = listOpenFifoTaxLots(lots);
-
-    const account1 = openLots.find(
-      (lot) => lot.scope.accountId === 'account-1'
-    );
-
-    const account2 = openLots.find(
-      (lot) => lot.scope.accountId === 'account-2'
-    );
+    const unassigned = openLots.find((lot) => lot.scope.accountId === null);
+    const named = openLots.find((lot) => lot.scope.accountId === 'account-1');
 
     expect(openLots).toHaveLength(2);
-
-    expect(account1?.remainingQuantity.toString()).toBe('10');
-    expect(account1?.costBasis.toString()).toBe('500');
-    expect(account1?.scope.symbolProfileId).toBe('asset-aapl');
-
-    expect(account2?.remainingQuantity.toString()).toBe('3');
-    expect(account2?.costBasis.toString()).toBe('240');
-    expect(account2?.scope.symbolProfileId).toBe('asset-aapl');
+    expect(unassigned?.remainingQuantity.toString()).toBe('10');
+    expect(unassigned?.costBasis.toString()).toBe('500');
+    expect(named?.remainingQuantity.toString()).toBe('3');
+    expect(named?.costBasis.toString()).toBe('240');
   });
 });
 
