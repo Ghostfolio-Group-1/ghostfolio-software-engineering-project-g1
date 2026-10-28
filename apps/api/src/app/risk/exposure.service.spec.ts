@@ -40,7 +40,7 @@ describe('ExposureService', () => {
       holding({ symbol: 'VTI', value: 70000, assetSubClass: 'ETF' })
     ];
 
-    const summary = service.buildRiskSummary(holdings, 'USD');
+    const summary = service.getRiskSummary(holdings, 'USD');
 
     expect(summary.totalValue).toBe(100000);
     // Stock concentration only considers AAPL (VTI is an ETF) as a candidate
@@ -59,7 +59,7 @@ describe('ExposureService', () => {
   });
 
   it('returns an empty summary for an empty portfolio', () => {
-    const summary = service.buildRiskSummary([], 'USD');
+    const summary = service.getRiskSummary([], 'USD');
 
     expect(summary.totalValue).toBe(0);
     expect(summary.concentration.stock).toHaveLength(0);

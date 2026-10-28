@@ -199,6 +199,7 @@ export const holdingsFixture = [
       assetSubClass: 'STOCK',
       countries: [{ code: 'US', weight: 1 }],
       currency: 'USD',
+      dataSource: 'YAHOO',
       name: 'Apple Inc.',
       sectors: [{ name: 'Technology', weight: 1 }],
       symbol: 'AAPL'
@@ -212,6 +213,7 @@ export const holdingsFixture = [
       assetSubClass: 'STOCK',
       countries: [{ code: 'US', weight: 1 }],
       currency: 'USD',
+      dataSource: 'YAHOO',
       name: 'Microsoft Corp.',
       sectors: [{ name: 'Technology', weight: 1 }],
       symbol: 'MSFT'
@@ -225,6 +227,7 @@ export const holdingsFixture = [
       assetSubClass: 'STOCK',
       countries: [{ code: 'DE', weight: 1 }],
       currency: 'EUR',
+      dataSource: 'YAHOO',
       name: 'SAP SE',
       sectors: [{ name: 'Technology', weight: 1 }],
       symbol: 'SAP'
@@ -265,3 +268,13 @@ export const performanceHistoryFixture: HistoricalDataItem[] = [
     valueWithCurrencyEffect: 2540
   }
 ];
+
+// What TaxDataService.getFifoRealizedGainActivities() selects: the FIFO rows
+// plus fee. Use as the mocked prisma.order.findMany result.
+export function fifoRealizedGainActivitiesFrom(orders: FixtureOrder[]) {
+  const feeById = new Map(orders.map(({ fee, id }) => [id, fee]));
+
+  return fifoActivitiesFrom(orders).map((activity) => {
+    return { ...activity, fee: feeById.get(activity.id) ?? 0 };
+  });
+}

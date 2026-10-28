@@ -8,6 +8,7 @@ import { ChartsController } from './charts.controller';
 
 @Module({
   controllers: [ChartsController],
+  exports: [ChartsApi],
   imports: [ImpersonationModule, PortfolioModule],
   providers: [ChartsApi]
 })

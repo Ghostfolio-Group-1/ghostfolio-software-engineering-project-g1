@@ -23,7 +23,7 @@ export class ExposureService {
     private exposureCalculatorService: ExposureCalculatorService
   ) {}
 
-  public buildRiskSummary(
+  public getRiskSummary(
     holdings: PortfolioPosition[],
     baseCurrency: string
   ): RiskSummary {
