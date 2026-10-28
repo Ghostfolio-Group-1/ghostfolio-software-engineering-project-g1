@@ -15,6 +15,7 @@ export const activityDummyData = {
   symbolProfileId: undefined,
   unitPrice: undefined,
   unitPriceInAssetProfileCurrency: undefined,
+  withholdingTax: null,
   updatedAt: new Date(),
   userId: undefined,
   value: undefined,

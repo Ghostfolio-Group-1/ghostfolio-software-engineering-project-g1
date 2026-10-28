@@ -177,6 +177,7 @@ export class ImportService {
             type: 'DIVIDEND',
             unitPrice: marketPrice,
             unitPriceInAssetProfileCurrency: marketPrice,
+            withholdingTax: null,
             updatedAt: undefined,
             userId: account?.userId,
             valueInBaseCurrency: value
@@ -911,6 +912,7 @@ export class ImportService {
           quantity,
           type,
           unitPrice,
+          withholdingTax: null,
           account: validatedAccount,
           accountId: validatedAccount?.id,
           accountUserId: undefined,

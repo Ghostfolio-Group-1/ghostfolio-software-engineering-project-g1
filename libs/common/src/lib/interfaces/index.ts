@@ -11,6 +11,11 @@ import type { AssetProfileIdentifier } from './asset-profile-identifier.interfac
 import type { AssetProfileItem } from './asset-profile-item.interface';
 import type { BenchmarkProperty } from './benchmark-property.interface';
 import type { Benchmark } from './benchmark.interface';
+import type {
+  ChartSeriesKind,
+  ChartSeriesPoint,
+  ChartSeriesResponse
+} from './chart-series-response.interface';
 import type { Coupon } from './coupon.interface';
 import type { DataProviderInfo } from './data-provider-info.interface';
 import type { EnhancedAssetProfile } from './enhanced-asset-profile.interface';
@@ -81,6 +86,7 @@ import type { PortfolioReportResponse } from './responses/portfolio-report.inter
 import type { PublicPortfolioResponse } from './responses/public-portfolio-response.interface';
 import type { QuotesResponse } from './responses/quotes-response.interface';
 import type { WatchlistResponse } from './responses/watchlist-response.interface';
+import type { ReturnComparisonResponse } from './return-comparison-response.interface';
 import type { RuleSettings } from './rule-settings.interface';
 import type { ScraperConfiguration } from './scraper-configuration.interface';
 import type {
@@ -132,6 +138,9 @@ export {
   BenchmarkMarketDataDetailsResponse,
   BenchmarkProperty,
   BenchmarkResponse,
+  ChartSeriesKind,
+  ChartSeriesPoint,
+  ChartSeriesResponse,
   Coupon,
   CreateStripeCheckoutSessionResponse,
   DataEnhancerHealthResponse,
@@ -183,6 +192,7 @@ export {
   QuotesResponse,
   ReferralPartner,
   ResponseError,
+  ReturnComparisonResponse,
   RuleSettings,
   ScraperConfiguration,
   Statistics,

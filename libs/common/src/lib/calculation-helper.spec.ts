@@ -1,11 +1,14 @@
 import { Big } from 'big.js';
-import { format } from 'date-fns';
+import { endOfDay, format } from 'date-fns';
 
 import {
   getAnnualizedPerformancePercent,
-  getIntervalFromDateRange
+  getIntervalFromDateRange,
+  InvalidTimeRangeError,
+  resolveTimeRange
 } from './calculation-helper';
 import { DATE_FORMAT } from './helper';
+import { TIME_RANGE_PRESETS } from './types/time-range-selection.type';
 
 describe('CalculationHelper', () => {
   describe('interval from date range', () => {
@@ -22,6 +25,82 @@ describe('CalculationHelper', () => {
       // The start date is exclusive, hence the first instant of the year is
       // part of the interval
       expect(startDate.getTime()).toEqual(new Date(2024, 0, 1).getTime() - 1);
+    });
+  });
+
+  describe('resolveTimeRange', () => {
+    const now = new Date(2026, 2, 15, 15, 30, 0);
+
+    it.each(TIME_RANGE_PRESETS)(
+      'resolves the %s preset with the existing date-range interval',
+      (preset) => {
+        const resolved = resolveTimeRange({
+          now,
+          selection: { mode: 'preset', preset }
+        });
+        const expected = getIntervalFromDateRange({
+          dateRange: preset === 'today' ? '1d' : preset,
+          now
+        });
+
+        expect(resolved.startDate.getTime()).toBe(expected.startDate.getTime());
+        expect(resolved.endDate.getTime()).toBe(expected.endDate.getTime());
+      }
+    );
+
+    it('resolves a custom range from inclusive calendar dates', () => {
+      const { endDate, startDate } = resolveTimeRange({
+        now,
+        selection: {
+          mode: 'custom',
+          startDate: '2026-03-01',
+          endDate: '2026-03-10'
+        }
+      });
+
+      expect(startDate.getTime()).toBe(Date.UTC(2026, 2, 1));
+      expect(endDate.getTime()).toBe(endOfDay(new Date(2026, 2, 10)).getTime());
+    });
+
+    it('clamps a custom end date that is after today', () => {
+      const { endDate } = resolveTimeRange({
+        now,
+        selection: {
+          mode: 'custom',
+          startDate: '2026-03-01',
+          endDate: '2026-04-01'
+        }
+      });
+
+      expect(endDate.getTime()).toBe(endOfDay(now).getTime());
+    });
+
+    it('clamps a custom start date that is before the earliest activity', () => {
+      const earliestDate = new Date(Date.UTC(2026, 2, 5));
+      const { startDate } = resolveTimeRange({
+        earliestDate,
+        now,
+        selection: {
+          mode: 'custom',
+          startDate: '2026-01-01',
+          endDate: '2026-03-10'
+        }
+      });
+
+      expect(startDate.getTime()).toBe(earliestDate.getTime());
+    });
+
+    it('rejects a custom range whose end is before its start', () => {
+      expect(() => {
+        resolveTimeRange({
+          now,
+          selection: {
+            mode: 'custom',
+            startDate: '2026-03-10',
+            endDate: '2026-03-01'
+          }
+        });
+      }).toThrow(InvalidTimeRangeError);
     });
   });
 

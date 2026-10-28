@@ -371,6 +371,7 @@ export class ActivitiesController {
         user: { connect: { id: userId } }
       },
       originalDate: originalActivity.date,
+      originalWithholdingTax: originalActivity.withholdingTax,
       where: {
         id
       }

@@ -8,6 +8,7 @@ const compat = new FlatCompat({
 });
 
 module.exports = (async () => {
+  // eslint-plugin-storybook is an ES module. Node before 22.12 cannot require() it.
   const storybook = await import('eslint-plugin-storybook');
 
   return [
