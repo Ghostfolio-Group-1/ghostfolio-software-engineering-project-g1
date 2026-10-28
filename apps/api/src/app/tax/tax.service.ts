@@ -1,6 +1,10 @@
+import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
+
 import { Injectable } from '@nestjs/common';
+import { Big } from 'big.js';
 
 import { AverageCostRealizedGainSale } from './average-cost-realized-gain';
+import { createDividendRecord } from './dividend-record';
 import {
   FifoRealizedGainMatch,
   FifoRealizedGainSale
@@ -23,10 +27,18 @@ import {
 } from './interfaces/tax-realized-gains-response.interface';
 import { getTaxCalculator } from './tax-calculator';
 import { TaxDataService } from './tax-data.service';
+import {
+  calculateYearlyTaxSummary,
+  type YearlyRealizedGainSource,
+  type YearlyTaxSummary
+} from './yearly-tax-summary';
 
 @Injectable()
 export class TaxService {
-  public constructor(private readonly taxDataService: TaxDataService) {}
+  public constructor(
+    private readonly exchangeRateDataService: ExchangeRateDataService,
+    private readonly taxDataService: TaxDataService
+  ) {}
 
   public async getRealizedGains(
     userId: string,
@@ -91,6 +103,116 @@ export class TaxService {
     );
 
     return this.withDiagnostic(response, diagnostic);
+  }
+
+  public async getYearlySummary(
+    userId: string,
+    year: number,
+    method: string = 'FIFO'
+  ): Promise<YearlyTaxSummary> {
+    if (!Number.isInteger(year)) {
+      throw new Error('Yearly tax summary requires an integer year.');
+    }
+
+    const calculator = getTaxCalculator(method);
+
+    const startDate = new Date(Date.UTC(year, 0, 1));
+    const endDateExclusive = new Date(Date.UTC(year + 1, 0, 1));
+
+    const [investmentActivities, dividendActivities, baseCurrency, diagnostic] =
+      await Promise.all([
+        this.taxDataService.getFifoRealizedGainActivities(
+          userId,
+          endDateExclusive
+        ),
+        this.taxDataService.getDividendActivities(userId, {
+          endDateExclusive,
+          startDate
+        }),
+        this.taxDataService.getBaseCurrency(userId),
+        this.taxDataService.getMixedHistoryDiagnostic(
+          userId,
+          calculator.method,
+          {
+            endDateExclusive,
+            sellDateFrom: startDate
+          }
+        )
+      ]);
+
+    const dividendRecords = dividendActivities.map((activity) =>
+      createDividendRecord(activity)
+    );
+
+    let realizedGains: YearlyRealizedGainSource[];
+
+    if (calculator.method === 'AVERAGE_COST') {
+      const result = calculator.calculate(investmentActivities);
+
+      realizedGains = result.sales.map((sale) =>
+        this.toAverageCostYearlyRealizedGainSource(sale)
+      );
+    } else {
+      const result = calculator.calculate(investmentActivities);
+
+      realizedGains = result.sales.map((sale) =>
+        this.toFifoYearlyRealizedGainSource(sale)
+      );
+    }
+
+    return calculateYearlyTaxSummary({
+      baseCurrency,
+      dividendRecords,
+      getBaseCurrencyRate: async ({ baseCurrency, currency, date }) =>
+        this.getBaseCurrencyRate({
+          baseCurrency,
+          currency,
+          date
+        }),
+      method: calculator.method,
+      realizedGains,
+      sourceDiagnostics: diagnostic ? [diagnostic] : [],
+      year
+    });
+  }
+
+  private async getBaseCurrencyRate({
+    baseCurrency,
+    currency,
+    date
+  }: {
+    baseCurrency: string;
+    currency: string | null;
+    date: Date;
+  }): Promise<Big | null> {
+    if (!currency) {
+      return null;
+    }
+
+    if (currency === baseCurrency) {
+      return new Big(1);
+    }
+
+    try {
+      const convertedValue =
+        await this.exchangeRateDataService.toCurrencyAtDate(
+          1,
+          currency,
+          baseCurrency,
+          date
+        );
+
+      if (
+        typeof convertedValue !== 'number' ||
+        !Number.isFinite(convertedValue)
+      ) {
+        return null;
+      }
+
+      return new Big(convertedValue);
+    } catch {
+      return null;
+    }
   }
 
   private withDiagnostic<T extends TaxResultCompleteness>(
@@ -179,6 +301,50 @@ export class TaxService {
       realizedGainAfterActivityFees:
         sale.realizedGainAfterActivityFees.toString(),
       matches: sale.matches.map((match) => this.toMatchResponse(match))
+    };
+  }
+
+  private toAverageCostYearlyRealizedGainSource(
+    sale: AverageCostRealizedGainSale
+  ): YearlyRealizedGainSource {
+    return {
+      sellActivityId: sale.sellActivityId,
+      sellDate: sale.sellDate,
+      transactionCurrency: sale.currency,
+
+      sellQuantity: sale.sellQuantity,
+      matchedQuantity: sale.sellQuantity,
+
+      grossProceeds: sale.grossProceeds,
+      grossCostBasis: sale.grossCostBasis,
+      grossRealizedGain: sale.grossRealizedGain,
+
+      allocatedAcquisitionFees: sale.allocatedAcquisitionFees,
+      allocatedSellFees: sale.sellFee,
+
+      realizedGainAfterActivityFees: sale.realizedGainAfterActivityFees
+    };
+  }
+
+  private toFifoYearlyRealizedGainSource(
+    sale: FifoRealizedGainSale
+  ): YearlyRealizedGainSource {
+    return {
+      sellActivityId: sale.sellActivityId,
+      sellDate: sale.sellDate,
+      transactionCurrency: sale.currency,
+
+      sellQuantity: sale.sellQuantity,
+      matchedQuantity: sale.matchedQuantity,
+
+      grossProceeds: sale.grossProceeds,
+      grossCostBasis: sale.grossCostBasis,
+      grossRealizedGain: sale.grossRealizedGain,
+
+      allocatedAcquisitionFees: sale.allocatedBuyFees,
+      allocatedSellFees: sale.allocatedSellFee,
+
+      realizedGainAfterActivityFees: sale.realizedGainAfterActivityFees
     };
   }
 
