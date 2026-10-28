@@ -4,6 +4,7 @@ import {
   consumeFifoTaxLots,
   createFifoTaxLots,
   FifoTaxActivitySource,
+  listOpenFifoTaxLots,
   orderFifoActivities
 } from './fifo-tax-lot';
 
@@ -194,6 +195,21 @@ describe('createFifoTaxLots', () => {
       ])
     ).toThrow('FIFO BUY quantity must be greater than zero.');
   });
+
+  it('reports cost basis as quantity times acquisition price in the activity currency', () => {
+    const [lot] = createFifoTaxLots([
+      createActivity({
+        currency: 'USD',
+        id: 'buy-10-at-50',
+        quantity: 10,
+        unitPrice: 50
+      })
+    ]);
+
+    expect(lot.unitPrice.toString()).toBe('50');
+    expect(lot.costBasis.toString()).toBe('500');
+    expect(lot.currency).toBe('USD');
+  });
 });
 
 describe('consumeFifoTaxLots', () => {
@@ -361,6 +377,160 @@ describe('consumeFifoTaxLots', () => {
     expect(result.lots[1].remainingQuantity.toString()).toBe('4');
   });
 
+  it('throws when a SELL exceeds available holdings after a partial match', () => {
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          date: new Date('2026-01-01T10:00:00.000Z'),
+          id: 'buy-5',
+          quantity: 5
+        }),
+        createActivity({
+          date: new Date('2026-01-02T10:00:00.000Z'),
+          id: 'sell-7',
+          quantity: 7,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL sell-7 exceeds available holdings by 2.');
+  });
+
+  it('throws when a SELL has no matching open lot', () => {
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          id: 'sell-unmatched',
+          quantity: 3,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL sell-unmatched exceeds available holdings by 3.');
+  });
+
+  it('rejects zero or negative SELL quantities', () => {
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          id: 'sell-zero',
+          quantity: 0,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL quantity must be greater than zero.');
+
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          id: 'sell-negative',
+          quantity: -1,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL quantity must be greater than zero.');
+  });
+
+  it('matches a same-timestamp SELL when the BUY id sorts first', () => {
+    const date = new Date('2026-01-01T10:00:00.000Z');
+
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date,
+        id: 'a-buy',
+        quantity: 5
+      }),
+      createActivity({
+        date,
+        id: 'b-sell',
+        quantity: 2,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions).toHaveLength(1);
+    expect(result.consumptions[0].buyActivityId).toBe('a-buy');
+    expect(result.consumptions[0].sellActivityId).toBe('b-sell');
+    expect(result.consumptions[0].matchedQuantity.toString()).toBe('2');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('3');
+  });
+
+  it('throws for a same-timestamp SELL when the SELL id sorts first', () => {
+    const date = new Date('2026-01-01T10:00:00.000Z');
+
+    expect(() =>
+      consumeFifoTaxLots([
+        createActivity({
+          date,
+          id: 'b-buy',
+          quantity: 5
+        }),
+        createActivity({
+          date,
+          id: 'a-sell',
+          quantity: 2,
+          type: ActivityType.SELL
+        })
+      ])
+    ).toThrow('FIFO SELL a-sell exceeds available holdings by 2.');
+  });
+
+  it('does not consume lots from another asset', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-asset-1',
+        quantity: 5,
+        symbolProfileId: 'asset-1'
+      }),
+      createActivity({
+        date: new Date('2026-01-01T11:00:00.000Z'),
+        id: 'buy-asset-2',
+        quantity: 4,
+        symbolProfileId: 'asset-2'
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-asset-2',
+        quantity: 2,
+        symbolProfileId: 'asset-2',
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions).toHaveLength(1);
+    expect(result.consumptions[0].buyActivityId).toBe('buy-asset-2');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('5');
+    expect(result.lots[1].remainingQuantity.toString()).toBe('2');
+  });
+
+  it('keeps null-account activity inside the null-account scope', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        accountId: 'account-1',
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-account',
+        quantity: 5
+      }),
+      createActivity({
+        accountId: null,
+        date: new Date('2026-01-01T11:00:00.000Z'),
+        id: 'buy-null-account',
+        quantity: 4
+      }),
+      createActivity({
+        accountId: null,
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-null-account',
+        quantity: 3,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(result.consumptions).toHaveLength(1);
+    expect(result.consumptions[0].buyActivityId).toBe('buy-null-account');
+    expect(result.lots[0].remainingQuantity.toString()).toBe('5');
+    expect(result.lots[1].remainingQuantity.toString()).toBe('1');
+  });
+
   it('produces the same lot and consumption state on repeated execution', () => {
     const activities = [
       createActivity({
@@ -412,6 +582,181 @@ describe('consumeFifoTaxLots', () => {
       ]
     });
   });
+
+  it('keeps the cost basis of the remaining shares after a partial sale', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        currency: 'EUR',
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-10',
+        quantity: 10,
+        unitPrice: 50
+      }),
+      createActivity({
+        currency: 'EUR',
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-4',
+        quantity: 4,
+        type: ActivityType.SELL,
+        unitPrice: 80
+      })
+    ]);
+
+    expect(result.lots[0].remainingQuantity.toString()).toBe('6');
+    expect(result.lots[0].unitPrice.toString()).toBe('50');
+    expect(result.lots[0].costBasis.toString()).toBe('300');
+    expect(result.lots[0].currency).toBe('EUR');
+  });
+
+  it('uses each lot acquisition price for the shares that remain', () => {
+    const result = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-10',
+        quantity: 10,
+        unitPrice: 50
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-5',
+        quantity: 5,
+        unitPrice: 80
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-12',
+        quantity: 12,
+        type: ActivityType.SELL,
+        unitPrice: 90
+      })
+    ]);
+
+    expect(result.lots[0].remainingQuantity.toString()).toBe('0');
+    expect(result.lots[0].costBasis.toString()).toBe('0');
+    expect(result.lots[1].remainingQuantity.toString()).toBe('3');
+    expect(result.lots[1].costBasis.toString()).toBe('240');
+  });
+});
+
+describe('listOpenFifoTaxLots', () => {
+  it('starts a lot with its full buy quantity open', () => {
+    const lots = createFifoTaxLots([
+      createActivity({
+        id: 'buy-10',
+        quantity: 10
+      })
+    ]);
+
+    expect(lots[0].remainingQuantity.toString()).toBe('10');
+    expect(listOpenFifoTaxLots(lots).map((lot) => lot.lotId)).toEqual([
+      'buy-10'
+    ]);
+  });
+
+  it('reports the remainder as the open quantity after a partial sale', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-10',
+        quantity: 10
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'sell-4',
+        quantity: 4,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    const [openLot] = listOpenFifoTaxLots(lots);
+
+    expect(lots[0].remainingQuantity.toString()).toBe('6');
+    expect(openLot.lotId).toBe('buy-10');
+    expect(openLot.remainingQuantity.toString()).toBe('6');
+  });
+
+  it('reports zero for a fully sold lot and omits it from the open list', () => {
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: new Date('2026-01-01T10:00:00.000Z'),
+        id: 'buy-10',
+        quantity: 10
+      }),
+      createActivity({
+        date: new Date('2026-01-02T10:00:00.000Z'),
+        id: 'buy-5',
+        quantity: 5
+      }),
+      createActivity({
+        date: new Date('2026-01-03T10:00:00.000Z'),
+        id: 'sell-10',
+        quantity: 10,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    expect(lots[0].remainingQuantity.toString()).toBe('0');
+    expect(listOpenFifoTaxLots(lots).map((lot) => lot.lotId)).toEqual([
+      'buy-5'
+    ]);
+    expect(listOpenFifoTaxLots(lots)[0].remainingQuantity.toString()).toBe('5');
+  });
+
+  it('reports the BUY date and keeps it after a partial sale', () => {
+    const acquiredAt = new Date('2026-01-01T10:00:00.000Z');
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: acquiredAt,
+        id: 'buy-10',
+        quantity: 10
+      }),
+      createActivity({
+        date: new Date('2026-03-01T10:00:00.000Z'),
+        id: 'sell-4',
+        quantity: 4,
+        type: ActivityType.SELL
+      })
+    ]);
+
+    const [openLot] = listOpenFifoTaxLots(lots);
+
+    expect(openLot.acquiredAt).toBe(acquiredAt);
+    expect(openLot.remainingQuantity.toString()).toBe('6');
+  });
+
+  it('lists open lots oldest-acquisition first', () => {
+    const older = new Date('2026-01-01T10:00:00.000Z');
+    const newer = new Date('2026-02-01T10:00:00.000Z');
+    const sameDay = new Date('2026-01-01T10:00:00.000Z');
+    const { lots } = consumeFifoTaxLots([
+      createActivity({
+        date: newer,
+        id: 'buy-newer',
+        quantity: 5
+      }),
+      createActivity({
+        date: older,
+        id: 'buy-z',
+        quantity: 4
+      }),
+      createActivity({
+        date: sameDay,
+        id: 'buy-a',
+        quantity: 2
+      })
+    ]);
+
+    expect(
+      listOpenFifoTaxLots([...lots].reverse()).map((lot) => lot.lotId)
+    ).toEqual(['buy-a', 'buy-z', 'buy-newer']);
+    expect(
+      listOpenFifoTaxLots(lots).map((lot) => lot.acquiredAt.toISOString())
+    ).toEqual([
+      sameDay.toISOString(),
+      older.toISOString(),
+      newer.toISOString()
+    ]);
+  });
 });
 
 function summarizeConsumptionResult(
@@ -438,6 +783,7 @@ function createActivity({
   quantity = 1,
   symbolProfileId = 'asset-1',
   type = ActivityType.BUY,
+  unitPrice = 1,
   userId = 'user-1'
 }: Partial<FifoTaxActivitySource> = {}): FifoTaxActivitySource {
   return {
@@ -448,6 +794,7 @@ function createActivity({
     quantity,
     symbolProfileId,
     type,
+    unitPrice,
     userId
   };
 }

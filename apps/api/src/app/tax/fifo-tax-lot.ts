@@ -10,6 +10,7 @@ export type FifoTaxActivitySource = Pick<
   | 'quantity'
   | 'symbolProfileId'
   | 'type'
+  | 'unitPrice'
   | 'userId'
 >;
 
@@ -26,6 +27,8 @@ export interface TaxLot {
   acquiredAt: Date;
   initialQuantity: Big;
   remainingQuantity: Big;
+  unitPrice: Big;
+  costBasis: Big;
   currency: string | null;
 }
 
@@ -41,9 +44,9 @@ export interface FifoLotConsumptionResult {
   consumptions: LotConsumption[];
 }
 
-export function orderFifoActivities(
-  activities: readonly FifoTaxActivitySource[]
-): FifoTaxActivitySource[] {
+export function orderFifoActivities<T extends FifoTaxActivitySource>(
+  activities: readonly T[]
+): T[] {
   activities.forEach(assertEligibleFifoActivity);
 
   return [...activities].sort((left, right) => {
@@ -63,6 +66,29 @@ export function orderFifoActivities(
 
     return 0;
   });
+}
+
+export function listOpenFifoTaxLots(lots: readonly TaxLot[]): TaxLot[] {
+  return lots
+    .filter((lot) => lot.remainingQuantity.gt(0))
+    .sort((left, right) => {
+      const dateDifference =
+        left.acquiredAt.getTime() - right.acquiredAt.getTime();
+
+      if (dateDifference !== 0) {
+        return dateDifference;
+      }
+
+      if (left.lotId < right.lotId) {
+        return -1;
+      }
+
+      if (left.lotId > right.lotId) {
+        return 1;
+      }
+
+      return 0;
+    });
 }
 
 export function createFifoTaxLots(
@@ -101,6 +127,7 @@ export function consumeFifoTaxLots(
         : lot.remainingQuantity;
 
       lot.remainingQuantity = lot.remainingQuantity.minus(matchedQuantity);
+      lot.costBasis = lot.remainingQuantity.times(lot.unitPrice);
       quantityToMatch = quantityToMatch.minus(matchedQuantity);
 
       consumptions.push({
@@ -109,6 +136,12 @@ export function consumeFifoTaxLots(
         sellActivityId: activity.id,
         matchedQuantity
       });
+    }
+
+    if (quantityToMatch.gt(0)) {
+      throw new Error(
+        `FIFO SELL ${activity.id} exceeds available holdings by ${quantityToMatch.toString()}.`
+      );
     }
   }
 
@@ -120,6 +153,7 @@ export function consumeFifoTaxLots(
 
 function createTaxLotFromBuy(activity: FifoTaxActivitySource): TaxLot {
   const quantity = new Big(activity.quantity);
+  const unitPrice = new Big(activity.unitPrice);
 
   if (quantity.lte(0)) {
     throw new Error('FIFO BUY quantity must be greater than zero.');
@@ -136,6 +170,8 @@ function createTaxLotFromBuy(activity: FifoTaxActivitySource): TaxLot {
     acquiredAt: activity.date,
     initialQuantity: quantity,
     remainingQuantity: new Big(quantity),
+    unitPrice,
+    costBasis: quantity.times(unitPrice),
     currency: activity.currency
   };
 }
@@ -158,6 +194,14 @@ function assertEligibleFifoActivity(activity: FifoTaxActivitySource): void {
   ) {
     throw new Error(
       'FIFO input can only contain eligible BUY and SELL activities.'
+    );
+  }
+
+  const quantity = new Big(activity.quantity);
+
+  if (quantity.lte(0)) {
+    throw new Error(
+      `FIFO ${activity.type} quantity must be greater than zero.`
     );
   }
 }

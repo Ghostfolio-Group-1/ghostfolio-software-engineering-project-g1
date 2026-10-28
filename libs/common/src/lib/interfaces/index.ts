@@ -100,6 +100,11 @@ import type { SubscriptionOffer } from './subscription-offer.interface';
 import type { SymbolItem } from './symbol-item.interface';
 import type { SymbolMetrics } from './symbol-metrics.interface';
 import type { SystemMessage } from './system-message.interface';
+import type {
+  TargetAllocationEntry,
+  TargetAllocationGroupBy,
+  TargetAllocationSettings
+} from './target-allocation-settings.interface';
 import type { UserItem } from './user-item.interface';
 import type { UserSettings } from './user-settings.interface';
 import type { User } from './user.interface';
@@ -200,6 +205,9 @@ export {
   SymbolItem,
   SymbolMetrics,
   SystemMessage,
+  TargetAllocationEntry,
+  TargetAllocationGroupBy,
+  TargetAllocationSettings,
   User,
   UserItem,
   UserSettings,
