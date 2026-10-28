@@ -53,3 +53,5 @@ Cross-cutting concerns (guards, interceptors, filters) continue to wrap every mo
 - **Sep 18 (React migration scope):** the Presentation layer above maps directly onto the shared React component library — each feature owner ports their own module's UI once their backend module exists.
 - **Sep 21 (API conventions):** will formalize the shape of the DTOs/response envelope referenced above, applied consistently across all four folders listed in Section 2.
 - **Sep 22–23 (Dashboard spec):** will use the API-only access boundary defined here — the dashboard's data model will be built from whatever fields risk/tax/charts choose to expose through their controllers, not their internal service logic.
+
+> As built at the end of Iteration 2: see [architecture-as-built.md](iteration-2/architecture-as-built.md).
