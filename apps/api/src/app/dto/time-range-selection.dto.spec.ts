@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import 'reflect-metadata';
 
 import { TimeRangeSelectionDto } from './time-range-selection.dto';
 

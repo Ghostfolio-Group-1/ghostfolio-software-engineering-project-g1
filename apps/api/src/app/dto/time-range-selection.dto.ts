@@ -116,6 +116,7 @@ export class TimeRangeSelectionDto {
   // @IsOptional(), so class-validator always runs its validator,
   // regardless of which fields were actually provided. Its value is never
   // read, the constraint inspects the whole DTO via args.object.
+  // Public so TS6133 (noUnusedLocals) does not flag this validator hook.
   @Validate(IsValidTimeRangeSelectionConstraint)
-  private readonly _crossFieldCheck?: true;
+  _crossFieldCheck?: true;
 }
