@@ -12,6 +12,7 @@ import {
   chartSeriesResponseSchema,
   chartsErrorResponseSchema
 } from './contracts/chart-series.schema';
+import { drawdownResponseSchema } from './contracts/drawdown.schema';
 
 const history = [
   { date: '2026-03-01', netWorth: 1000, totalInvestment: 900 },
@@ -153,5 +154,89 @@ describe('ChartsController contract: GET /charts/series', () => {
         meta: {}
       })
     ).toBe(false);
+  });
+});
+
+describe('ChartsController contract: GET /charts/drawdown', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(drawdownResponseSchema);
+  const validateError = ajv.compile(chartsErrorResponseSchema);
+  const context = { userId: 'user-1' } as unknown as ImpersonationContext;
+
+  let controller: ChartsController;
+  let getPerformance: jest.Mock;
+
+  beforeEach(async () => {
+    getPerformance = jest.fn().mockResolvedValue({
+      chart: history,
+      dateOfFirstActivity: new Date(2026, 2, 1)
+    });
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ChartsController],
+      providers: [
+        ChartsApi,
+        { provide: ImpersonationService, useValue: {} },
+        { provide: PortfolioService, useValue: { getPerformance } }
+      ]
+    }).compile();
+
+    controller = moduleRef.get(ChartsController);
+  });
+
+  it('is routed at /charts/drawdown', () => {
+    expect(
+      Reflect.getMetadata('path', ChartsController.prototype.getDrawdown)
+    ).toBe('drawdown');
+  });
+
+  it('returns drawdown points and maxDrawdown in the contract envelope', async () => {
+    const response = await controller.getDrawdown(
+      context,
+      '2026-03-03',
+      undefined,
+      '2026-03-01'
+    );
+
+    validateResponse(response);
+
+    expect(validateResponse.errors ?? []).toEqual([]);
+    expect(getPerformance).toHaveBeenCalledWith({
+      dateRange: 'max',
+      userId: 'user-1'
+    });
+    expect(response.data).toEqual({
+      endDate: '2026-03-03',
+      granularity: 'daily',
+      maxDrawdown: (1050 - 1100) / 1100,
+      maxDrawdownDate: '2026-03-03',
+      startDate: '2026-03-01',
+      points: [
+        { date: '2026-03-01', drawdown: 0, isNewPeak: true },
+        { date: '2026-03-02', drawdown: 0, isNewPeak: true },
+        {
+          date: '2026-03-03',
+          drawdown: (1050 - 1100) / 1100,
+          isNewPeak: false
+        }
+      ]
+    });
+  });
+
+  it('rejects an invalid range as CHARTS_INVALID_QUERY', async () => {
+    const exception = await controller
+      .getDrawdown(context, '2026-03-01', undefined, '2026-03-03')
+      .then(
+        () => {
+          throw new Error('Expected the request to be rejected');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(400);
+    expect(validateError(exception.getResponse())).toBe(true);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'CHARTS_INVALID_QUERY' }
+    });
   });
 });

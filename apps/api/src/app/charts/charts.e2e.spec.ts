@@ -23,6 +23,7 @@ import {
   chartSeriesResponseSchema,
   chartsErrorResponseSchema
 } from './contracts/chart-series.schema';
+import { drawdownResponseSchema } from './contracts/drawdown.schema';
 
 // performanceHistoryFixture, first activity 2026-01-05:
 //   date        netWorth  totalInvestment
@@ -202,5 +203,126 @@ describe('GET /api/v1/charts/series (end to end)', () => {
     expect(validateError(response.body)).toBe(true);
     expect(response.body.error.code).toBe('CHARTS_SERIES_FAILED');
     expect(JSON.stringify(response.body)).not.toContain('database unavailable');
+  });
+});
+
+describe('GET /api/v1/charts/drawdown (end to end)', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(drawdownResponseSchema);
+  const validateError = ajv.compile(chartsErrorResponseSchema);
+  const getPerformance = jest.fn();
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [ChartsController],
+          providers: [
+            ChartsApi,
+            { provide: ImpersonationService, useValue: {} },
+            { provide: PortfolioService, useValue: { getPerformance } }
+          ]
+        }),
+        { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    getPerformance.mockReset();
+    getPerformance.mockResolvedValue({
+      chart: [
+        { date: '2026-01-05', netWorth: 3000 },
+        { date: '2026-02-02', netWorth: 4000 },
+        { date: '2026-03-02', netWorth: 3200 },
+        { date: '2026-04-01', netWorth: 3600 }
+      ],
+      dateOfFirstActivity: new Date(2026, 0, 5)
+    });
+  });
+
+  it('returns drawdown from the running peak in the contract shape', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/drawdown')
+      .query({ endDate: '2026-04-01', startDate: '2026-01-05' })
+      .expect(200);
+
+    validateResponse(response.body);
+
+    expect(validateResponse.errors ?? []).toEqual([]);
+    expect(getPerformance).toHaveBeenCalledWith({
+      dateRange: 'max',
+      userId: FIXTURE_USER_ID
+    });
+    expect(response.body.data).toEqual({
+      endDate: '2026-04-01',
+      granularity: 'daily',
+      maxDrawdown: (3200 - 4000) / 4000,
+      maxDrawdownDate: '2026-03-02',
+      startDate: '2026-01-05',
+      points: [
+        { date: '2026-01-05', drawdown: 0, isNewPeak: true },
+        { date: '2026-02-02', drawdown: 0, isNewPeak: true },
+        {
+          date: '2026-03-02',
+          drawdown: (3200 - 4000) / 4000,
+          isNewPeak: false
+        },
+        {
+          date: '2026-04-01',
+          drawdown: (3600 - 4000) / 4000,
+          isNewPeak: false
+        }
+      ]
+    });
+  });
+
+  it('keeps the peak from history before the selected range', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/drawdown')
+      .query({ endDate: '2026-04-01', startDate: '2026-03-02' })
+      .expect(200);
+
+    expect(response.body.data.startDate).toBe('2026-03-02');
+    expect(response.body.data.points).toEqual([
+      {
+        date: '2026-03-02',
+        drawdown: (3200 - 4000) / 4000,
+        isNewPeak: false
+      },
+      {
+        date: '2026-04-01',
+        drawdown: (3600 - 4000) / 4000,
+        isNewPeak: false
+      }
+    ]);
+    expect(response.body.data.maxDrawdown).toBe((3200 - 4000) / 4000);
+    expect(response.body.data.maxDrawdownDate).toBe('2026-03-02');
+  });
+
+  it('returns 400 CHARTS_INVALID_QUERY for an inverted custom range', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/drawdown')
+      .query({ endDate: '2026-01-05', startDate: '2026-04-01' })
+      .expect(400);
+
+    expect(validateError(response.body)).toBe(true);
+    expect(response.body.error.code).toBe('CHARTS_INVALID_QUERY');
+  });
+
+  it('returns 403 when the user lacks the portfolio:read scope', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/charts/drawdown')
+      .query({ endDate: '2026-04-01', startDate: '2026-01-05' })
+      .set(E2E_NO_SCOPES)
+      .expect(403);
+
+    expect(getPerformance).not.toHaveBeenCalled();
   });
 });

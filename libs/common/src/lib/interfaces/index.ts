@@ -18,6 +18,10 @@ import type {
 } from './chart-series-response.interface';
 import type { Coupon } from './coupon.interface';
 import type { DataProviderInfo } from './data-provider-info.interface';
+import type {
+  DrawdownPoint,
+  DrawdownResponse
+} from './drawdown-response.interface';
 import type { EnhancedAssetProfile } from './enhanced-asset-profile.interface';
 import type { FilterGroup } from './filter-group.interface';
 import type { Filter } from './filter.interface';
@@ -155,6 +159,8 @@ export {
   DataProviderInfo,
   DataProviderResponse,
   DividendsResponse,
+  DrawdownPoint,
+  DrawdownResponse,
   EnhancedAssetProfile,
   ExportResponse,
   Filter,
