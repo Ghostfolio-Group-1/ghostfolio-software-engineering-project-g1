@@ -48,9 +48,15 @@ AND
 isTaxRelevant = true
 ```
 
-Draft activities, activities excluded from analysis, and activities in excluded accounts are not silently included in tax calculations.
+Ghostfolio's normal analysis eligibility excludes draft activities, activities tagged to be excluded from analysis, and activities in excluded accounts. Tax calculations then apply the additional `isTaxRelevant = true` requirement.
 
-The data service also detects mixed tax history where excluded BUY or SELL activities may make a later tax calculation incomplete.
+The mixed-history diagnostic is narrower than those normal analysis exclusions. It first loads BUY and SELL activities that already satisfy Ghostfolio's normal analysis eligibility, then checks whether any of those activities have:
+
+```text
+isTaxRelevant = false
+```
+
+Therefore, `TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY` currently detects tax-relevance exclusions only. Draft activities, activities tagged exclude-from-analysis, and activities in excluded accounts are removed before this diagnostic is evaluated and do not themselves trigger this diagnostic.
 
 ### Dividend Records
 
@@ -86,7 +92,7 @@ withholdingTax = null
 netDividend = null
 ```
 
-A known zero withholding amount is different from an unknown amount.
+A known zero withholding amount is different from an unknown amount:
 
 ```text
 0    = known zero
@@ -94,6 +100,8 @@ null = unknown
 ```
 
 The source activity fee is not treated as withholding tax.
+
+`withholdingTaxRate` is not part of the current `DividendRecord` or `YearlyTaxSummary` contract. The CSV schema reserves a `withholdingTaxRate` column, but the serializer leaves it empty rather than deriving a new tax value.
 
 ### FIFO Tax Lots
 
@@ -125,6 +133,8 @@ Tax activities are ordered by:
 ```
 
 The second rule provides deterministic behavior when activities have exactly the same timestamp.
+
+There is no special BUY-before-SELL override. If a SELL and the BUY that would provide its holdings have the same timestamp and the SELL ID sorts first, the SELL is processed first and can fail with an insufficient-holdings error.
 
 FIFO lot states include:
 
@@ -227,6 +237,8 @@ AVERAGE_COST
 
 FIFO remains the default method when no method is supplied.
 
+Method values are case-sensitive. Values such as `fifo` or `average_cost` are not normalized and result in an unsupported-method error.
+
 The calculation engines remain separate while sharing the same service boundary.
 
 ## Fees
@@ -246,6 +258,8 @@ realized gain after activity fees
 Standalone FEE activities are not automatically assigned to a BUY or SELL because the existing source model does not provide an authoritative link between that fee and a specific trade.
 
 The software does not guess such a relationship.
+
+DIVIDEND activity fees remain visible on individual dividend records and export rows. They are not included in yearly `totalActivityFees` or currency-summary `allocatedFees` totals. Those aggregate fee values currently represent BUY and SELL fees allocated to realized disposals.
 
 ## Yearly Tax Summary
 
@@ -285,7 +299,17 @@ The yearly summary uses Ghostfolio's existing historical exchange-rate service.
 
 Dividend values use the DIVIDEND activity date.
 
-Realized-gain summary values use the SELL date.
+All base-currency fields on a realized-gain row use the SELL date, including:
+
+```text
+gross proceeds
+gross cost basis
+gross realized gain
+allocated activity fees
+realized gain after activity fees
+```
+
+This is an Iteration 2 reporting convention, not an acquisition-date FX rule. For positions acquired on an earlier date, historical FX movement between the acquisition date and SELL date is therefore not separately reflected in the base-currency cost basis.
 
 If:
 
@@ -301,20 +325,13 @@ the conversion rate is:
 
 If a required historical conversion cannot be obtained, the affected base-currency value remains unavailable instead of becoming zero.
 
-The summary then contains a diagnostic and is marked incomplete.
+The summary then contains an error diagnostic and is marked incomplete.
 
 ## Completeness and Diagnostics
 
 Tax calculations distinguish between a valid zero and unavailable information.
 
-Examples of conditions that can make a result incomplete include:
-
-- unknown dividend withholding;
-- missing historical base-currency conversion;
-- excluded BUY or SELL history that may affect basis-dependent calculations;
-- partially matched realized-gain information where applicable.
-
-Results expose:
+The yearly summary always exposes:
 
 ```text
 isComplete
@@ -322,7 +339,46 @@ warnings
 errors
 ```
 
+Current yearly-summary warning and diagnostic codes include:
+
+```text
+UNKNOWN_DIVIDEND_WITHHOLDING
+PARTIAL_REALIZED_GAIN_RESULT
+TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY
+```
+
+Current yearly-summary error codes include:
+
+```text
+MISSING_DIVIDEND_BASE_CURRENCY_CONVERSION
+MISSING_REALIZED_GAIN_BASE_CURRENCY_CONVERSION
+```
+
+Examples of conditions that can make a yearly summary incomplete include:
+
+- unknown dividend withholding;
+- missing historical base-currency conversion;
+- tax-relevance-excluded BUY or SELL history that may affect basis-dependent calculations;
+- partially matched realized-gain information where applicable.
+
 Known transaction-currency values are preserved even when a corresponding base-currency value is unavailable.
+
+For the public `/tax/realized-gains` and `/tax/lots` responses, completeness is represented differently.
+
+When no mixed-history diagnostic exists, `isComplete` and `diagnostics` are omitted.
+
+When a mixed-history diagnostic exists, the response adds:
+
+```text
+isComplete: false
+diagnostics: [...]
+```
+
+with the current diagnostic code:
+
+```text
+TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY
+```
 
 ## Tax-Relevant Filtering
 
@@ -336,7 +392,7 @@ are included in tax calculations.
 
 This condition is applied in addition to Ghostfolio's existing account and analysis exclusions.
 
-The mixed-history diagnostic checks whether excluded investment activity exists in the same relevant tax scope before or at a taxable SELL.
+The mixed-history diagnostic checks only normally eligible BUY and SELL activity with `isTaxRelevant = false` in the same tax scope before or at a tax-relevant SELL.
 
 For FIFO, scope includes:
 
@@ -356,7 +412,7 @@ user + asset
 
 CSV export consumes existing yearly tax results and method-specific trace data.
 
-It does not recalculate FIFO, average cost, withholding, or yearly totals.
+It does not recalculate FIFO, average cost, withholding, FX, or yearly totals.
 
 Supported row types include:
 
@@ -375,6 +431,19 @@ The output uses a fixed column order and deterministic row ordering.
 Unknown values are emitted as empty fields rather than being converted to zero.
 
 Decimal values are serialized as plain decimal strings.
+
+Two reserved columns currently remain intentionally empty:
+
+```text
+withholdingTaxRate
+assetCurrency
+```
+
+`withholdingTaxRate` remains empty because the authoritative tax-domain summary does not expose a withholding-rate value.
+
+`assetCurrency` remains empty because the yearly tax summary does not currently provide an authoritative asset-currency value.
+
+The serializer does not guess or independently derive either field.
 
 The filename format is:
 
@@ -424,6 +493,8 @@ Not applicable
 
 These are kept distinct from numeric zero.
 
+PDF decimal formatting uses `Big#toFixed()` rather than `Big#toString()` so very small values remain plain decimal strings instead of switching to exponential notation.
+
 The filename format is:
 
 ```text
@@ -451,7 +522,7 @@ Intermediate tax calculations are not rounded for presentation.
 
 Rounded or formatted presentation values are never fed back into later financial calculations.
 
-Exports preserve calculated decimal values as strings.
+CSV and PDF presentation values use plain decimal serialization.
 
 ## Current HTTP API
 
@@ -471,7 +542,48 @@ GET /api/v1/tax/realized-gains?method=AVERAGE_COST
 
 If `method` is omitted, FIFO is used.
 
+Method values are case-sensitive. The accepted values are exactly:
+
+```text
+FIFO
+AVERAGE_COST
+```
+
+Values such as `fifo` or `average_cost` are not normalized and result in an unsupported-method error.
+
 The tax-lot endpoint currently represents FIFO tax lots.
+
+Both endpoints use Ghostfolio's shared API envelope.
+
+Successful responses have the form:
+
+```text
+data: <tax response>
+error: null
+meta: {}
+```
+
+Calculation failures return HTTP `422 Unprocessable Entity` with:
+
+```text
+data: null
+error:
+  code: <tax error code>
+  message: <error message>
+meta: {}
+```
+
+Endpoint error codes are:
+
+```text
+TAX_REALIZED_GAINS_FAILED
+TAX_LOTS_FAILED
+```
+
+The response schemas are the source of truth for the current HTTP contracts:
+
+- [`contracts/tax-realized-gains.schema.ts`](./contracts/tax-realized-gains.schema.ts)
+- [`contracts/tax-lots.schema.ts`](./contracts/tax-lots.schema.ts)
 
 Yearly-summary, CSV-export, and PDF-export functionality exists in the tax service/domain layer but is not currently exposed through separate public HTTP endpoints.
 
@@ -492,6 +604,31 @@ Average cost requires activities within one pool to use a compatible transaction
 If conversion would be required, the engines fail explicitly rather than assuming a conversion rate or silently using `1:1`.
 
 Adding pre-calculation historical FX normalization is future work and was not added during the Iteration 2 code-freeze documentation task.
+
+### Equal-Timestamp BUY/SELL Ordering
+
+There is no special BUY-before-SELL override.
+
+Activities with the same timestamp are ordered by activity ID. If a SELL ID sorts before the BUY that would provide its holdings, the SELL is processed first and can fail with an insufficient-holdings error.
+
+This behavior is deterministic but is not an execution-sequence reconstruction or jurisdiction-specific ordering rule.
+
+### Reserved Tax Export Fields
+
+The CSV currently reserves:
+
+```text
+withholdingTaxRate
+assetCurrency
+```
+
+Both remain empty because authoritative upstream values are not present in the current yearly tax-domain model.
+
+### Realized-Gain Base-Currency FX Convention
+
+All base-currency values on one realized-gain row use the SELL-date historical exchange rate.
+
+This keeps the row internally reconcilable, but it does not apply a separate acquisition-date FX rate to cost basis.
 
 ### Asset Identity in Realized-Gain Export Data
 
@@ -531,8 +668,6 @@ npx nx format:check
 npx nx run api:build
 git diff --check
 ```
-
-Do not claim a check passed unless its command was actually run successfully for the relevant change.
 
 ## Decision Record
 

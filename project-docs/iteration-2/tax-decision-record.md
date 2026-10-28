@@ -1,5 +1,7 @@
 # Tax Decision Record — DR-1 to DR-3
 
+> **Current status:** DR-1 through DR-6 are closed. The original October 2 and October 5 decision history is preserved below. For the final Iteration 2 implementation status and known limitations, see [Oct 28 Final As-Built Reconciliation](#oct-28-final-as-built-reconciliation).
+
 **Owner:** Tharun Swaminathan
 **Iteration:** 2 — Backend Development
 **Date:** October 2, 2026
@@ -738,7 +740,7 @@ It does not replace the original decisions. Its purpose is to record which parts
 
 ### DR-1 - Net-Dividend Nullability
 
-**Final implementation status: Implemented**
+**Final implementation status: Implemented except withholding-rate output**
 
 The dividend record keeps these values separate:
 
@@ -771,19 +773,27 @@ null != 0
 
 The yearly summary and exports preserve this distinction.
 
-**Result:** DR-1 is implemented as decided.
+The original DR-1 design also proposed an authoritative `withholdingTaxRate`.
+
+That field is not part of the current `DividendRecord` or `YearlyTaxSummary` contract. The CSV reserves a `withholdingTaxRate` column but leaves it empty rather than deriving a new tax value inside the serializer.
+
+**Result:** DR-1 null/zero/net-dividend semantics are implemented. The proposed withholding-rate output remains unimplemented in the current domain contract.
 
 ---
 
 ### DR-2 - Currency Handling
 
-**Final implementation status: Partially implemented with an explicit limitation**
+**Final implementation status: Partially implemented with explicit limitations**
 
 The implemented behavior preserves source transaction-currency values and supports historical base-currency conversion in the yearly summary.
 
-Missing required FX data remains unavailable and produces a diagnostic. It is never silently converted to zero or treated as a `1:1` exchange rate unless the currencies are actually the same.
+Missing required FX data remains unavailable. It is never silently converted to zero or treated as a `1:1` exchange rate unless the currencies are actually the same.
 
-However, FIFO and average-cost cost-basis engines do not currently perform historical FX normalization before calculating basis.
+For yearly summaries, DIVIDEND values use the dividend activity date.
+
+All base-currency fields on a realized-gain row use the SELL date, including gross proceeds, gross cost basis, gross realized gain, allocated activity fees, and fee-adjusted realized gain. This is an Iteration 2 reporting convention rather than an acquisition-date FX rule, so historical FX movement between an acquisition date and the SELL date is not separately reflected in base-currency cost basis.
+
+FIFO and average-cost cost-basis engines do not currently perform historical FX normalization before calculating basis.
 
 FIFO requires compatible transaction currencies between matched BUY and SELL activities.
 
@@ -791,13 +801,22 @@ Average cost requires compatible currencies within a calculation pool.
 
 Where normalization would be required, the engine fails explicitly instead of inventing a converted value.
 
-**Result:** DR-2 is implemented for source-currency preservation, yearly-summary conversion, and missing-FX behavior. Pre-calculation mixed-currency normalization remains future work.
+The original design also anticipated an authoritative asset-currency value. The current yearly tax model does not expose that value. The CSV therefore reserves the `assetCurrency` column but leaves it empty.
+
+The earlier `MISSING_BASE_CURRENCY_CONVERSION` name in the October 2 design was a placeholder. The implemented yearly-summary FX error codes are:
+
+```text
+MISSING_DIVIDEND_BASE_CURRENCY_CONVERSION
+MISSING_REALIZED_GAIN_BASE_CURRENCY_CONVERSION
+```
+
+**Result:** DR-2 is partially implemented. Source-currency preservation, yearly-summary base-currency conversion, and explicit missing-FX behavior are implemented. Asset-currency output and pre-calculation mixed-currency normalization remain unimplemented.
 
 ---
 
 ### DR-3 - Same-Date Ordering Tie-Breaker
 
-**Final implementation status: Implemented**
+**Final implementation status: Implemented with a known ordering limitation**
 
 FIFO and average cost use deterministic ordering:
 
@@ -810,7 +829,11 @@ No separate BUY-before-SELL rule is introduced.
 
 The activity ID is used as the deterministic secondary key when timestamps are identical.
 
-**Result:** DR-3 is implemented as decided.
+Because there is no BUY-before-SELL override, a SELL whose ID sorts before the BUY that would supply its holdings is processed first and can produce an insufficient-holdings error.
+
+This behavior is deterministic and is covered by the calculation tests, but it is not an execution-sequence reconstruction or a jurisdiction-specific legal ordering rule.
+
+**Result:** DR-3 deterministic ordering is implemented with the documented same-timestamp SELL-before-BUY limitation.
 
 ---
 
@@ -897,6 +920,8 @@ Tax exports preserve decimal values as strings.
 
 CSV and PDF use plain-decimal serialization instead of allowing small values to drift into unintended exponent notation.
 
+The current PDF report builder explicitly uses `Big#toFixed()` rather than `Big#toString()` for decimal output, preventing very small values from being rendered in exponent notation.
+
 **Result:** DR-6 is implemented for the Iteration 2 tax calculation and export paths.
 
 ---
@@ -967,14 +992,14 @@ The PDF renderer contains presentation logic only.
 
 ## Final Iteration 2 Decision Status
 
-| Decision | Final As-Built Status           | Notes                                                                                                                                     |
-| -------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| DR-1     | Implemented                     | Unknown withholding remains `null`; known zero remains zero.                                                                              |
-| DR-2     | Partial / documented limitation | Yearly historical FX conversion is implemented; pre-calculation mixed-currency normalization is not implemented inside FIFO/average cost. |
-| DR-3     | Implemented                     | Deterministic `date ASC`, then `id ASC`.                                                                                                  |
-| DR-4     | Implemented                     | Attached BUY/SELL fees remain separate from gross values; standalone fee linkage is not guessed.                                          |
-| DR-5     | Implemented                     | Average-cost pool is `user + asset`; FIFO retains account-aware scope.                                                                    |
-| DR-6     | Implemented                     | Decimal-safe `Big` arithmetic with no intermediate presentation rounding.                                                                 |
+| Decision | Final As-Built Status                      | Notes                                                                                                                                                     |
+| -------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DR-1     | Implemented except withholding-rate output | Null/zero/net-dividend semantics are implemented; `withholdingTaxRate` is not part of the current domain model and its reserved CSV column remains empty. |
+| DR-2     | Partial / documented limitations           | Yearly base-currency conversion is implemented; authoritative asset-currency output and pre-calculation mixed-currency normalization are not.             |
+| DR-3     | Implemented with known ordering limitation | Deterministic `date ASC`, then `id ASC`; same-timestamp SELL-before-BUY ordering can produce insufficient holdings.                                       |
+| DR-4     | Implemented                                | Attached BUY/SELL fees remain separate from gross values; standalone fee linkage is not guessed.                                                          |
+| DR-5     | Implemented                                | Average-cost pool is `user + asset`; FIFO retains account-aware scope.                                                                                    |
+| DR-6     | Implemented                                | Decimal-safe `Big` arithmetic with no intermediate presentation rounding; PDF plain-decimal output uses `Big#toFixed()`.                                  |
 
 ## Iteration 2 Close-Out
 
