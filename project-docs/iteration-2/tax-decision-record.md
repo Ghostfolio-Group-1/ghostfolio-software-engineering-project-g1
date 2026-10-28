@@ -721,3 +721,276 @@ DR-1 through DR-6 are now closed.
 The tax coding gate is open for the first planned implementation task on Oct 6, provided the implementation task has its GitHub issue and follows the daily branch / PR / review process.
 
 Shared API decimal serialization remains owned by Raniya and must be consumed rather than redefined by the tax feature.
+
+---
+
+## Oct 28 Final As-Built Reconciliation
+
+**Owner:** Tharun Swaminathan
+**Date:** October 28, 2026
+**Issue:** #163 - Finalize tax README and decision record
+**Status:** Final Iteration 2 backend reconciliation
+**Scope:** Documentation of implemented tax behavior on `main`; no new tax calculation rules introduced
+
+This section reconciles DR-1 through DR-6 with the backend implementation completed during Iteration 2.
+
+It does not replace the original decisions. Its purpose is to record which parts are implemented, where the implementation is intentionally narrower than the original design, and which limitations remain for later work.
+
+### DR-1 - Net-Dividend Nullability
+
+**Final implementation status: Implemented**
+
+The dividend record keeps these values separate:
+
+```text
+grossDividend
+withholdingTax
+netDividend
+activityFee
+```
+
+If withholding is unknown:
+
+```text
+withholdingTax = null
+netDividend = null
+```
+
+If withholding is known as zero:
+
+```text
+withholdingTax = 0
+netDividend = grossDividend
+```
+
+Therefore:
+
+```text
+null != 0
+```
+
+The yearly summary and exports preserve this distinction.
+
+**Result:** DR-1 is implemented as decided.
+
+---
+
+### DR-2 - Currency Handling
+
+**Final implementation status: Partially implemented with an explicit limitation**
+
+The implemented behavior preserves source transaction-currency values and supports historical base-currency conversion in the yearly summary.
+
+Missing required FX data remains unavailable and produces a diagnostic. It is never silently converted to zero or treated as a `1:1` exchange rate unless the currencies are actually the same.
+
+However, FIFO and average-cost cost-basis engines do not currently perform historical FX normalization before calculating basis.
+
+FIFO requires compatible transaction currencies between matched BUY and SELL activities.
+
+Average cost requires compatible currencies within a calculation pool.
+
+Where normalization would be required, the engine fails explicitly instead of inventing a converted value.
+
+**Result:** DR-2 is implemented for source-currency preservation, yearly-summary conversion, and missing-FX behavior. Pre-calculation mixed-currency normalization remains future work.
+
+---
+
+### DR-3 - Same-Date Ordering Tie-Breaker
+
+**Final implementation status: Implemented**
+
+FIFO and average cost use deterministic ordering:
+
+```text
+1. activity date/time ASC
+2. activity ID ASC
+```
+
+No separate BUY-before-SELL rule is introduced.
+
+The activity ID is used as the deterministic secondary key when timestamps are identical.
+
+**Result:** DR-3 is implemented as decided.
+
+---
+
+### DR-4 - Fee Treatment
+
+**Final implementation status: Implemented for attached BUY/SELL fees**
+
+Gross values and activity fees remain separate.
+
+The implementation distinguishes:
+
+```text
+gross cost basis
+gross sale proceeds
+gross realized gain
+BUY fee allocation
+SELL fee allocation
+realized gain after activity fees
+```
+
+FIFO allocates BUY and SELL fees proportionally to matched quantities.
+
+Any allocation residual is assigned to the final allocation so the total reconciles to the original source fee.
+
+Average cost maintains acquisition fees separately from gross cost.
+
+Standalone `FEE` activities are not automatically assigned to a BUY or SELL because the existing Ghostfolio model does not provide an authoritative linkage.
+
+**Result:** DR-4 is implemented as decided for attached BUY and SELL fees. Standalone fee linkage remains unsupported.
+
+---
+
+### DR-5 - Average-Cost Pool Scope
+
+**Final implementation status: Implemented**
+
+Average-cost pools use:
+
+```text
+userId
++ symbolProfileId
+```
+
+Account ID is intentionally not part of the average-cost pool key.
+
+FIFO retains its separate method-specific scope:
+
+```text
+userId
++ accountId
++ symbolProfileId
+```
+
+**Result:** DR-5 is implemented as decided.
+
+---
+
+### DR-6 - Decimal-Safe Precision and Rounding
+
+**Final implementation status: Implemented for calculation state and tax exports**
+
+Core tax arithmetic uses `Big`.
+
+This includes values such as:
+
+```text
+quantity
+unit price
+gross proceeds
+gross cost basis
+fees
+withholding
+FIFO allocations
+average-cost pool values
+realized gains
+base-currency tax values
+```
+
+Intermediate values are not presentation-rounded and reused in later calculations.
+
+FIFO allocation residuals reconcile to their source amounts.
+
+Tax exports preserve decimal values as strings.
+
+CSV and PDF use plain-decimal serialization instead of allowing small values to drift into unintended exponent notation.
+
+**Result:** DR-6 is implemented for the Iteration 2 tax calculation and export paths.
+
+---
+
+## Additional As-Built Behavior
+
+### Tax-Relevant Filtering
+
+Tax activity eligibility requires:
+
+```text
+Ghostfolio normal analysis eligibility
+AND
+isTaxRelevant = true
+```
+
+Excluded BUY or SELL history that may affect a tax-relevant disposal can make a result incomplete and produce a diagnostic.
+
+The applicable scope follows the calculation method:
+
+```text
+FIFO:
+user + account + asset
+
+AVERAGE_COST:
+user + asset
+```
+
+### Yearly Tax Summary
+
+The yearly summary keeps transaction-currency and base-currency values separate and reports:
+
+```text
+gross dividends
+withholding tax
+net dividends
+gross proceeds
+gross cost basis
+gross realized gain
+activity fees
+realized gain after activity fees
+```
+
+It also preserves:
+
+```text
+dividendCount
+disposalCount
+currencySummaries
+warnings
+errors
+isComplete
+```
+
+Unavailable values are not replaced with zero.
+
+### CSV and PDF Export
+
+CSV and PDF export consume authoritative yearly-summary and method-trace values.
+
+They do not independently recalculate withholding, cost basis, or realized gains.
+
+Both outputs use deterministic ordering.
+
+The PDF renderer contains presentation logic only.
+
+---
+
+## Final Iteration 2 Decision Status
+
+| Decision | Final As-Built Status           | Notes                                                                                                                                     |
+| -------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| DR-1     | Implemented                     | Unknown withholding remains `null`; known zero remains zero.                                                                              |
+| DR-2     | Partial / documented limitation | Yearly historical FX conversion is implemented; pre-calculation mixed-currency normalization is not implemented inside FIFO/average cost. |
+| DR-3     | Implemented                     | Deterministic `date ASC`, then `id ASC`.                                                                                                  |
+| DR-4     | Implemented                     | Attached BUY/SELL fees remain separate from gross values; standalone fee linkage is not guessed.                                          |
+| DR-5     | Implemented                     | Average-cost pool is `user + asset`; FIFO retains account-aware scope.                                                                    |
+| DR-6     | Implemented                     | Decimal-safe `Big` arithmetic with no intermediate presentation rounding.                                                                 |
+
+## Iteration 2 Close-Out
+
+No new jurisdiction-specific tax rule is introduced by this reconciliation.
+
+The final backend preserves the main design goals:
+
+```text
+deterministic
+traceable
+decimal-safe
+testable
+explicit about incomplete data
+separate from presentation logic
+```
+
+Remaining limitations are recorded instead of being hidden or silently approximated.
+
+Future frontend, dashboard, export-download, and user-facing tax workflows belong to Iteration 3 and must reuse these backend results rather than reimplementing tax calculations in React.
