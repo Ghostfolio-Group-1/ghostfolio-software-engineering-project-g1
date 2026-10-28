@@ -112,6 +112,10 @@ export interface TaxExportAverageCostEvent {
 
   activityDate: Date;
 
+  /**
+   * Positive source-activity quantity magnitude for both BUY and SELL events.
+   * SELL direction is represented by sellActivityId being non-null.
+   */
   quantity: Big;
 
   poolQuantityBefore: Big;
