@@ -10,9 +10,12 @@ import { HistoricalDataItem } from './interfaces/historical-data-item.interface'
 const WEEK_STARTS_ON_MONDAY = 1;
 
 /**
- * Drawdown from the running all-time peak of portfolio value.
+ * Investment drawdown from the running all-time peak of the performance
+ * index 100 × (1 + netPerformanceInPercentageWithCurrencyEffect). Cash
+ * flows do not create false peaks or fake losses the way netWorth would.
  * Peak tracking always uses full history (even before startDate); only
- * points inside [startDate, endDate] are returned.
+ * points inside [startDate, endDate] are returned. maxDrawdown is always
+ * taken from the daily series before any weekly thinning.
  */
 export function toDrawdownResponse({
   endDate,
@@ -23,19 +26,19 @@ export function toDrawdownResponse({
   history: readonly HistoricalDataItem[];
   startDate: string;
 }): DrawdownResponse {
-  const values = readPortfolioValues(history);
+  const values = readPerformanceIndexValues(history);
   const dailyPoints = buildDrawdownPoints({
     endDate,
     startDate,
     values
   });
+  const { maxDrawdown, maxDrawdownDate } = summarizeMaxDrawdown({
+    fallbackDate: startDate,
+    points: dailyPoints
+  });
   const granularity = resolveGranularity({ endDate, startDate });
   const points =
     granularity === 'weekly' ? toWeeklyPoints(dailyPoints) : dailyPoints;
-  const { maxDrawdown, maxDrawdownDate } = summarizeMaxDrawdown({
-    fallbackDate: startDate,
-    points
-  });
 
   return {
     endDate,
@@ -102,13 +105,13 @@ function summarizeMaxDrawdown({
   return { maxDrawdown, maxDrawdownDate };
 }
 
-function readPortfolioValues(
+function readPerformanceIndexValues(
   history: readonly HistoricalDataItem[]
 ): { date: string; value: number }[] {
   const pointsByDate = new Map<string, number>();
 
   for (const item of history) {
-    const value = readPortfolioValue(item);
+    const value = readPerformanceIndex(item);
 
     if (value === undefined) {
       continue;
@@ -124,19 +127,14 @@ function readPortfolioValues(
     });
 }
 
-function readPortfolioValue(item: HistoricalDataItem): number | undefined {
-  if (Number.isFinite(item.netWorth)) {
-    return item.netWorth;
-  }
+function readPerformanceIndex(item: HistoricalDataItem): number | undefined {
+  const performance = item.netPerformanceInPercentageWithCurrencyEffect;
 
-  const holdings = item.valueWithCurrencyEffect ?? item.value;
-  const cash = item.totalCashInBaseCurrency;
-
-  if (!Number.isFinite(holdings) && !Number.isFinite(cash)) {
+  if (!Number.isFinite(performance)) {
     return undefined;
   }
 
-  return (holdings ?? 0) + (cash ?? 0);
+  return 100 * (1 + performance);
 }
 
 function resolveGranularity({

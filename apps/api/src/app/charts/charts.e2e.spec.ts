@@ -238,10 +238,22 @@ describe('GET /api/v1/charts/drawdown (end to end)', () => {
     getPerformance.mockReset();
     getPerformance.mockResolvedValue({
       chart: [
-        { date: '2026-01-05', netWorth: 3000 },
-        { date: '2026-02-02', netWorth: 4000 },
-        { date: '2026-03-02', netWorth: 3200 },
-        { date: '2026-04-01', netWorth: 3600 }
+        {
+          date: '2026-01-05',
+          netPerformanceInPercentageWithCurrencyEffect: 0
+        },
+        {
+          date: '2026-02-02',
+          netPerformanceInPercentageWithCurrencyEffect: 1
+        },
+        {
+          date: '2026-03-02',
+          netPerformanceInPercentageWithCurrencyEffect: 0.6
+        },
+        {
+          date: '2026-04-01',
+          netPerformanceInPercentageWithCurrencyEffect: 0.8
+        }
       ],
       dateOfFirstActivity: new Date(2026, 0, 5)
     });
@@ -260,10 +272,15 @@ describe('GET /api/v1/charts/drawdown (end to end)', () => {
       dateRange: 'max',
       userId: FIXTURE_USER_ID
     });
+
+    const peak = 100 * (1 + 1);
+    const marchDrawdown = (100 * (1 + 0.6) - peak) / peak;
+    const aprilDrawdown = (100 * (1 + 0.8) - peak) / peak;
+
     expect(response.body.data).toEqual({
       endDate: '2026-04-01',
       granularity: 'daily',
-      maxDrawdown: (3200 - 4000) / 4000,
+      maxDrawdown: marchDrawdown,
       maxDrawdownDate: '2026-03-02',
       startDate: '2026-01-05',
       points: [
@@ -271,12 +288,12 @@ describe('GET /api/v1/charts/drawdown (end to end)', () => {
         { date: '2026-02-02', drawdown: 0, isNewPeak: true },
         {
           date: '2026-03-02',
-          drawdown: (3200 - 4000) / 4000,
+          drawdown: marchDrawdown,
           isNewPeak: false
         },
         {
           date: '2026-04-01',
-          drawdown: (3600 - 4000) / 4000,
+          drawdown: aprilDrawdown,
           isNewPeak: false
         }
       ]
@@ -289,23 +306,26 @@ describe('GET /api/v1/charts/drawdown (end to end)', () => {
       .query({ endDate: '2026-04-01', startDate: '2026-03-02' })
       .expect(200);
 
+    const peak = 100 * (1 + 1);
+    const marchDrawdown = (100 * (1 + 0.6) - peak) / peak;
+    const aprilDrawdown = (100 * (1 + 0.8) - peak) / peak;
+
     expect(response.body.data.startDate).toBe('2026-03-02');
     expect(response.body.data.points).toEqual([
       {
         date: '2026-03-02',
-        drawdown: (3200 - 4000) / 4000,
+        drawdown: marchDrawdown,
         isNewPeak: false
       },
       {
         date: '2026-04-01',
-        drawdown: (3600 - 4000) / 4000,
+        drawdown: aprilDrawdown,
         isNewPeak: false
       }
     ]);
-    expect(response.body.data.maxDrawdown).toBe((3200 - 4000) / 4000);
+    expect(response.body.data.maxDrawdown).toBe(marchDrawdown);
     expect(response.body.data.maxDrawdownDate).toBe('2026-03-02');
   });
-
   it('returns 400 CHARTS_INVALID_QUERY for an inverted custom range', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/charts/drawdown')

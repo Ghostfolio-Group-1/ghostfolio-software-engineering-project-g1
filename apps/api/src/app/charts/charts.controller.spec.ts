@@ -15,9 +15,24 @@ import {
 import { drawdownResponseSchema } from './contracts/drawdown.schema';
 
 const history = [
-  { date: '2026-03-01', netWorth: 1000, totalInvestment: 900 },
-  { date: '2026-03-02', netWorth: 1100, totalInvestment: 900 },
-  { date: '2026-03-03', netWorth: 1050, totalInvestment: 950 }
+  {
+    date: '2026-03-01',
+    netWorth: 1000,
+    totalInvestment: 900,
+    netPerformanceInPercentageWithCurrencyEffect: 0
+  },
+  {
+    date: '2026-03-02',
+    netWorth: 1100,
+    totalInvestment: 900,
+    netPerformanceInPercentageWithCurrencyEffect: 0.1
+  },
+  {
+    date: '2026-03-03',
+    netWorth: 1050,
+    totalInvestment: 950,
+    netPerformanceInPercentageWithCurrencyEffect: 0.05
+  }
 ];
 
 describe('ChartsController contract: GET /charts/series', () => {
@@ -205,10 +220,14 @@ describe('ChartsController contract: GET /charts/drawdown', () => {
       dateRange: 'max',
       userId: 'user-1'
     });
+    const peak = 100 * (1 + 0.1);
+    const trough = 100 * (1 + 0.05);
+    const expectedDrawdown = (trough - peak) / peak;
+
     expect(response.data).toEqual({
       endDate: '2026-03-03',
       granularity: 'daily',
-      maxDrawdown: (1050 - 1100) / 1100,
+      maxDrawdown: expectedDrawdown,
       maxDrawdownDate: '2026-03-03',
       startDate: '2026-03-01',
       points: [
@@ -216,7 +235,7 @@ describe('ChartsController contract: GET /charts/drawdown', () => {
         { date: '2026-03-02', drawdown: 0, isNewPeak: true },
         {
           date: '2026-03-03',
-          drawdown: (1050 - 1100) / 1100,
+          drawdown: expectedDrawdown,
           isNewPeak: false
         }
       ]
