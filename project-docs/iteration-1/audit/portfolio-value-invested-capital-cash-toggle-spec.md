@@ -1,8 +1,11 @@
 # Design Doc: Portfolio Value / Invested Capital / Cash Toggle - Data Spec
 
-**Status:** Draft (Iteration 1)
+**Status:** Implemented (Iteration 2) as `GET /api/v1/charts/series`
 **Author:** _fill in_
-**Scope:** Docs only, no code changes yet. This defines the data model and API contract for a chart series toggle that a future iteration will implement.
+**Scope:** Original Iteration 1 design. As-built route/shape supersede the
+`/portfolio/performance?kind=` proposal — see
+`apps/api/src/app/charts/README.md` and CD-3 in
+`project-docs/iteration-2/charts-decision-record.md`.
 
 ## 1. Summary
 

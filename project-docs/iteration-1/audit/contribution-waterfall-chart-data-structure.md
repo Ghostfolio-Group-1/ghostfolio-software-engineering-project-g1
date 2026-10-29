@@ -1,8 +1,10 @@
 # Design Doc: Contribution / Waterfall Chart - Data Structure
 
-**Status:** Draft (Iteration 1)
+**Status:** Draft (Iteration 1) — not implemented in Iteration 2 backend
 **Author:** _fill in_
-**Scope:** Docs only, no code changes yet. Defines the data structure a future iteration will implement.
+**Scope:** Design only. Planned route if implemented:
+`GET /api/v1/charts/waterfall`. See CD-5 in
+`project-docs/iteration-2/charts-decision-record.md`.
 
 ## 1. Summary
 

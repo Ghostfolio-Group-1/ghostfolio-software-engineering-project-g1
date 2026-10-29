@@ -1,8 +1,10 @@
 # Design Doc: Zoom / Pan / Selectable Time Range - Data Spec
 
-**Status:** Draft (Iteration 1)
+**Status:** Implemented (Iteration 2) — shared range contract on charts endpoints
 **Author:** _fill in_
-**Scope:** Docs only, no code changes yet. This defines the data model and API contract that a future iteration will implement.
+**Scope:** Original Iteration 1 design. As-built range rules:
+`apps/api/src/app/charts/README.md` and
+`project-docs/iteration-2/charts-decision-record.md` (CD-2).
 
 ## 1. Summary
 
