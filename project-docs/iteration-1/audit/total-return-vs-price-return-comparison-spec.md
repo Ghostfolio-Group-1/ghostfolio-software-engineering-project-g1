@@ -1,8 +1,10 @@
 # Design Doc: Total Return vs Price Return Comparison - Data Spec
 
-**Status:** Draft (Iteration 1)
+**Status:** Draft (Iteration 1) — not implemented in Iteration 2 backend
 **Author:** _fill in_
-**Scope:** Docs only, no code changes yet. This defines the data model and API contract for a chart comparison feature that a future iteration will implement.
+**Scope:** Design only. Planned route if implemented:
+`GET /api/v1/charts/return-comparison`. See CD-5 in
+`project-docs/iteration-2/charts-decision-record.md`.
 
 ## 1. Summary
 

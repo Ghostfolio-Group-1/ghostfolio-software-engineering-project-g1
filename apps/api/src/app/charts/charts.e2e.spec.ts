@@ -26,6 +26,7 @@ import {
   chartSeriesResponseSchema,
   chartsErrorResponseSchema
 } from './contracts/chart-series.schema';
+import { drawdownResponseSchema } from './contracts/drawdown.schema';
 
 // performanceHistoryFixture, first activity 2026-01-05:
 //   date        netWorth  totalInvestment
@@ -384,6 +385,153 @@ describe('GET /api/v1/charts/benchmark-comparison (end to end)', () => {
         endDate: '2026-04-01',
         startDate: '2026-01-05'
       })
+      .set(E2E_NO_SCOPES)
+      .expect(403);
+
+    expect(getPerformance).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/v1/charts/drawdown (end to end)', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(drawdownResponseSchema);
+  const validateError = ajv.compile(chartsErrorResponseSchema);
+  const getPerformance = jest.fn();
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [ChartsController],
+          providers: [
+            ChartsApi,
+            { provide: ImpersonationService, useValue: {} },
+            { provide: MarketDataService, useValue: { getRange: jest.fn() } },
+            { provide: PortfolioService, useValue: { getPerformance } },
+            {
+              provide: SymbolProfileService,
+              useValue: { getSymbolProfiles: jest.fn() }
+            }
+          ]
+        }),
+        { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    getPerformance.mockReset();
+    getPerformance.mockResolvedValue({
+      chart: [
+        {
+          date: '2026-01-05',
+          netPerformanceInPercentageWithCurrencyEffect: 0
+        },
+        {
+          date: '2026-02-02',
+          netPerformanceInPercentageWithCurrencyEffect: 1
+        },
+        {
+          date: '2026-03-02',
+          netPerformanceInPercentageWithCurrencyEffect: 0.6
+        },
+        {
+          date: '2026-04-01',
+          netPerformanceInPercentageWithCurrencyEffect: 0.8
+        }
+      ],
+      dateOfFirstActivity: new Date(2026, 0, 5)
+    });
+  });
+
+  it('returns drawdown from the running peak in the contract shape', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/drawdown')
+      .query({ endDate: '2026-04-01', startDate: '2026-01-05' })
+      .expect(200);
+
+    validateResponse(response.body);
+
+    expect(validateResponse.errors ?? []).toEqual([]);
+    expect(getPerformance).toHaveBeenCalledWith({
+      dateRange: 'max',
+      userId: FIXTURE_USER_ID
+    });
+
+    const peak = 100 * (1 + 1);
+    const marchDrawdown = (100 * (1 + 0.6) - peak) / peak;
+    const aprilDrawdown = (100 * (1 + 0.8) - peak) / peak;
+
+    expect(response.body.data).toEqual({
+      endDate: '2026-04-01',
+      granularity: 'daily',
+      maxDrawdown: marchDrawdown,
+      maxDrawdownDate: '2026-03-02',
+      startDate: '2026-01-05',
+      points: [
+        { date: '2026-01-05', drawdown: 0, isNewPeak: true },
+        { date: '2026-02-02', drawdown: 0, isNewPeak: true },
+        {
+          date: '2026-03-02',
+          drawdown: marchDrawdown,
+          isNewPeak: false
+        },
+        {
+          date: '2026-04-01',
+          drawdown: aprilDrawdown,
+          isNewPeak: false
+        }
+      ]
+    });
+  });
+
+  it('keeps the peak from history before the selected range', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/drawdown')
+      .query({ endDate: '2026-04-01', startDate: '2026-03-02' })
+      .expect(200);
+
+    const peak = 100 * (1 + 1);
+    const marchDrawdown = (100 * (1 + 0.6) - peak) / peak;
+    const aprilDrawdown = (100 * (1 + 0.8) - peak) / peak;
+
+    expect(response.body.data.startDate).toBe('2026-03-02');
+    expect(response.body.data.points).toEqual([
+      {
+        date: '2026-03-02',
+        drawdown: marchDrawdown,
+        isNewPeak: false
+      },
+      {
+        date: '2026-04-01',
+        drawdown: aprilDrawdown,
+        isNewPeak: false
+      }
+    ]);
+    expect(response.body.data.maxDrawdown).toBe(marchDrawdown);
+    expect(response.body.data.maxDrawdownDate).toBe('2026-03-02');
+  });
+
+  it('returns 400 CHARTS_INVALID_QUERY for an inverted custom range', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/drawdown')
+      .query({ endDate: '2026-01-05', startDate: '2026-04-01' })
+      .expect(400);
+
+    expect(validateError(response.body)).toBe(true);
+    expect(response.body.error.code).toBe('CHARTS_INVALID_QUERY');
+  });
+
+  it('returns 403 when the user lacks the portfolio:read scope', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/charts/drawdown')
+      .query({ endDate: '2026-04-01', startDate: '2026-01-05' })
       .set(E2E_NO_SCOPES)
       .expect(403);
 

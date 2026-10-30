@@ -1,8 +1,10 @@
 # Design Doc: Benchmark Comparison - Data Model
 
-**Status:** Draft (Iteration 1)
+**Status:** Draft (Iteration 1) — not implemented in Iteration 2 backend
 **Author:** _fill in_
-**Scope:** Docs only, no code changes yet. Defines the data model a future iteration will implement.
+**Scope:** Design only. Planned route if implemented:
+`GET /api/v1/charts/benchmark-comparison`. See CD-5 in
+`project-docs/iteration-2/charts-decision-record.md`.
 
 ## 1. Summary
 
