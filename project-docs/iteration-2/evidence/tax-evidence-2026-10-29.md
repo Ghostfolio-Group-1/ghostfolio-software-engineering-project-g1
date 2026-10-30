@@ -113,7 +113,15 @@ Across the tax implementation, tests cover examples such as:
 
 ### Oct 29 Sprint Review Rehearsal
 
-Before the Oct 29 Sprint Review, the complete tax test suite was rerun from the current Iteration 2 main baseline using:
+Before the Oct 29 Sprint Review, the complete tax-folder test suite was rerun against application-source baseline commit:
+
+```text
+344f74e4c9145f8ab7ef2dd731fb3088e388f620
+```
+
+This was the current `main` commit when the Oct 29 evidence branch was created and is the merge commit for PR #166.
+
+The test command was:
 
 ```powershell
 npx jest --config apps/api/jest.config.ts apps/api/src/app/tax --runInBand
@@ -128,7 +136,6 @@ Snapshots:   0 total
 Time:        15.939 s
 ```
 
-All tax test suites passed during the live rehearsal. This provides current evidence for the Sprint Review demonstration.
 This folder-scoped run includes:
 
 ```text
@@ -183,9 +190,6 @@ The skipped test belonged to an upstream Ghostfolio placeholder test and was not
 
 The API build also completed successfully.
 
-## CI Evidence
-
-For the integration-pass-2 freeze commit, GitHub CI recorded successful results for:
 The Oct 29 tax-folder rerun and Integration Pass #2 therefore represent two different verification points:
 
 ```text

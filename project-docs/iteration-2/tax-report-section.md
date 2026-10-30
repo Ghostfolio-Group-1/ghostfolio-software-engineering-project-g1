@@ -341,14 +341,12 @@ Snapshots:   0 total
 Time:        15.939 s
 ```
 
-The final Iteration 2 backend integration pass also recorded:
+The final Iteration 2 backend integration pass also recorded the full API suite and cross-feature E2E run:
 
 ```text
 E2E suites: 4 / 4 passed
 E2E tests: 47 / 47 passed
 
-API suites: 93 passed, 1 skipped
-API tests: 641 passed, 1 skipped
 Full API suite:
 93 suites passed
 1 suite skipped
