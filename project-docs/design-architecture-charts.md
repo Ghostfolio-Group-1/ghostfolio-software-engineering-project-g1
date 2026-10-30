@@ -2,9 +2,10 @@
 
 > **Iteration 2 note:** As-built HTTP routes and behavior live in
 > `apps/api/src/app/charts/README.md` and
-> `project-docs/iteration-2/charts-decision-record.md`. Section 4 below keeps
-> the original design table with updated `/api/v1/charts/...` paths; only
-> `series` and `drawdown` are implemented so far.
+> `project-docs/iteration-2/charts-decision-record.md`. Cross-module
+> boundaries: `project-docs/iteration-2/architecture-as-built.md`. Section 4
+> below keeps the original design table with updated `/api/v1/charts/...`
+> paths; only `series` is on `main` today (`drawdown` planned in #167).
 
 ## 1. Overview
 
@@ -63,13 +64,13 @@ The one exception worth calling out is drawdown's peak tracking (see the drawdow
 
 Rather than one large endpoint with a mode flag for every chart type, each chart type gets its own endpoint:
 
-| Chart                           | Endpoint                                  | Response shape                                                     | Iteration 2 status |
-| ------------------------------- | ----------------------------------------- | ------------------------------------------------------------------ | ------------------ |
-| Value / invested capital / cash | `GET /api/v1/charts/series`               | `ChartSeriesResponse` (single value per point, tagged with `kind`) | Implemented        |
-| Total return vs. price return   | `GET /api/v1/charts/return-comparison`    | `ReturnComparisonResponse` (two indexed values per point)          | Spec only          |
-| Benchmark comparison            | `GET /api/v1/charts/benchmark-comparison` | `BenchmarkComparisonResponse` (two indexed values per point)       | Spec only          |
-| Drawdown                        | `GET /api/v1/charts/drawdown`             | `DrawdownResponse` (percentage plus max-drawdown summary)          | Implemented        |
-| Waterfall                       | `GET /api/v1/charts/waterfall`            | `WaterfallResponse` (discrete segments, not a time series)         | Spec only          |
+| Chart                           | Endpoint                                  | Response shape                                                     | Iteration 2 status    |
+| ------------------------------- | ----------------------------------------- | ------------------------------------------------------------------ | --------------------- |
+| Value / invested capital / cash | `GET /api/v1/charts/series`               | `ChartSeriesResponse` (single value per point, tagged with `kind`) | Implemented           |
+| Total return vs. price return   | `GET /api/v1/charts/return-comparison`    | `ReturnComparisonResponse` (two indexed values per point)          | Spec only             |
+| Benchmark comparison            | `GET /api/v1/charts/benchmark-comparison` | `BenchmarkComparisonResponse` (two indexed values per point)       | Spec only (#160 open) |
+| Drawdown                        | `GET /api/v1/charts/drawdown`             | `DrawdownResponse` (percentage plus max-drawdown summary)          | Planned (#167)        |
+| Waterfall                       | `GET /api/v1/charts/waterfall`            | `WaterfallResponse` (discrete segments, not a time series)         | Spec only             |
 
 This split exists because the response shapes are genuinely different (absolute values vs. indexed pairs vs. discrete segments), and folding them into one endpoint with a mode param would just move that branching into every client instead of removing it. The shared piece is the range/date query params and validation, not the endpoint itself.
 

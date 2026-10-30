@@ -8,9 +8,13 @@ under `/api/v1/charts/`. Range validation, granularity, and response envelopes
 are shared across chart endpoints. Calculation helpers live in
 `libs/common` so unit tests do not need the Nest controller.
 
-This README is the as-built HTTP contract. Iteration 1 design docs under
-`project-docs/iteration-1/audit/` remain useful for intent, but where they
-disagree with this file (especially `/portfolio/...` paths), this README wins.
+This README is the as-built HTTP contract for what is on `main` today.
+Iteration 1 design docs under `project-docs/iteration-1/audit/` remain useful
+for intent, but where they disagree with this file (especially
+`/portfolio/...` paths), this README wins.
+
+Cross-module as-built boundaries:
+`project-docs/iteration-2/architecture-as-built.md`.
 
 ## Main Responsibilities
 
@@ -19,13 +23,13 @@ The charts backend currently supports:
 - shared time-range presets and custom `startDate` / `endDate` windows;
 - server-side granularity (`daily` up to 2 years, `weekly` beyond);
 - portfolio value / invested capital / cash series via `GET /charts/series`;
-- investment drawdown via `GET /charts/drawdown`;
 - shared `{ data, meta, error }` envelopes and `CHARTS_*` error codes.
 
-Not implemented in this module yet:
+Not implemented on `main` yet:
 
+- investment drawdown (`GET /charts/drawdown`) — planned in PR #167;
 - total-return vs price-return comparison;
-- benchmark comparison;
+- benchmark comparison (open PR #160);
 - contribution / waterfall;
 - Iteration 3 React chart UI.
 
@@ -38,7 +42,6 @@ apps/api/src/app/charts/
   contracts/             AJV schemas used by controller/e2e tests
 libs/common/src/lib/
   chart-series.ts        series kind → points
-  drawdown.ts            performance-index drawdown
   calculation-helper/    TimeRangeSelection → concrete dates
 ```
 
@@ -79,10 +82,9 @@ not an error.
 
 ```text
 GET /api/v1/charts/series
-GET /api/v1/charts/drawdown
 ```
 
-Both require `portfolioRead` scope and use the shared API envelope:
+Requires `portfolioRead` scope and uses the shared API envelope:
 
 ```text
 data: <chart response>
@@ -100,17 +102,15 @@ error:
 meta: {}
 ```
 
-Load/build failures return HTTP `500` with endpoint-specific codes:
+Load/build failures return HTTP `500` with:
 
 ```text
 CHARTS_SERIES_FAILED
-CHARTS_DRAWDOWN_FAILED
 ```
 
-Contract schemas:
+Contract schema:
 
 - [`contracts/chart-series.schema.ts`](./contracts/chart-series.schema.ts)
-- [`contracts/drawdown.schema.ts`](./contracts/drawdown.schema.ts)
 
 ### `GET /api/v1/charts/series`
 
@@ -151,9 +151,15 @@ interpolated between those dates.
 Weekly thinning keeps the last observed point of each Monday-start week and
 relabels its date to that Monday.
 
-### `GET /api/v1/charts/drawdown`
+## Planned: `GET /api/v1/charts/drawdown` (PR #167)
 
-No extra params beyond the shared range contract.
+Not on `main` until #167 merges. When it lands, the intended contract is:
+
+```text
+GET /api/v1/charts/drawdown
+```
+
+Error code on load/build failure: `CHARTS_DRAWDOWN_FAILED`.
 
 Response shape:
 
@@ -168,7 +174,7 @@ interface DrawdownResponse {
 }
 ```
 
-Calculation (as-built):
+Planned calculation (matches #167's final code):
 
 1. Index each history row as
    `100 × (1 + netPerformanceInPercentageWithCurrencyEffect)`.
@@ -182,14 +188,15 @@ Calculation (as-built):
    week, date relabelled to Monday); the max-drawdown summary still uses the
    daily trough date.
 
-`isNewPeak` is true when the point's index equals the running peak.
+Until #167 merges, treat drawdown as planned — not implemented — in this README
+and in `project-docs/iteration-2/charts-decision-record.md` (CD-1 / CD-4).
 
 ## Known Limitations
 
 ### Unimplemented chart types
 
-Return comparison, benchmark comparison, and waterfall remain Iteration 1
-specs only. They are not exposed by this controller.
+Drawdown (#167), return comparison, benchmark comparison (#160), and waterfall
+remain unimplemented on `main`. They are not exposed by this controller today.
 
 ### Series path vs Iteration 1 toggle spec
 
@@ -197,17 +204,11 @@ Iteration 1 proposed extending `GET /portfolio/performance` with `kind`.
 As-built, series lives at `GET /api/v1/charts/series` so charts stay behind the
 feature boundary from `project-docs/api-conventions.md`.
 
-### Drawdown basis vs Iteration 1 drawdown spec
-
-Iteration 1 defined drawdown on portfolio value / `netWorth`. As-built drawdown
-uses the performance index above so investment drawdown is not distorted by
-cash flows.
-
 ### Weekly point dates
 
 Weekly points use the Monday week-start label, which may not be a date that
-existed in the daily history. Summary fields that must stay on real data dates
-(drawdown max) are computed before thinning.
+existed in the daily history. When drawdown lands, summary fields that must
+stay on real data dates (max drawdown) are computed before thinning.
 
 ### No separate charts data store
 
@@ -217,7 +218,7 @@ schema migration.
 ## Testing
 
 ```text
-npx jest --config libs/common/jest.config.ts libs/common/src/lib/chart-series.spec.ts libs/common/src/lib/drawdown.spec.ts
+npx jest --config libs/common/jest.config.ts libs/common/src/lib/chart-series.spec.ts
 npx jest --config apps/api/jest.config.ts apps/api/src/app/charts --runInBand
 ```
 
@@ -241,4 +242,5 @@ git diff --check
 | Benchmark comparison                   | `project-docs/iteration-1/audit/benchmark-comparison-data-model.md`                   |
 | Drawdown                               | `project-docs/iteration-1/audit/drawdown-chart-calculation-spec.md`                   |
 | Overall architecture                   | `project-docs/design-architecture-charts.md`                                          |
-| As-built decisions                     | `project-docs/iteration-2/charts-decision-record.md`                                  |
+| Cross-module as-built                  | `project-docs/iteration-2/architecture-as-built.md`                                   |
+| Charts as-built decisions              | `project-docs/iteration-2/charts-decision-record.md`                                  |

@@ -3,7 +3,7 @@
 **Owner:** Arthur (charts)
 **Iteration:** 2 — Backend Development
 **Date:** October 29, 2026
-**Status:** Final Iteration 2 backend reconciliation for implemented charts routes
+**Status:** Final Iteration 2 backend reconciliation for charts routes on `main`
 **Scope:** Documentation of implemented charts behavior; no new calculation features
 
 Iteration 1 left chart designs under `project-docs/iteration-1/audit/` with
@@ -12,6 +12,8 @@ the gap between those specs and the backend that shipped under
 `/api/v1/charts/`.
 
 For the live HTTP contract, see `apps/api/src/app/charts/README.md`.
+For cross-module boundaries, see
+`project-docs/iteration-2/architecture-as-built.md`.
 
 ## CD-1 — Feature Boundary Routes
 
@@ -25,10 +27,15 @@ live under `/api/v1/charts/...`?
 New chart responses live under `/api/v1/charts/`, matching
 `project-docs/api-conventions.md`.
 
-As-built:
+On `main` today:
 
 ```text
 GET /api/v1/charts/series
+```
+
+Planned (PR #167, not merged):
+
+```text
 GET /api/v1/charts/drawdown
 ```
 
@@ -62,7 +69,8 @@ Clients never send granularity.
 ### Consequences
 
 - One validation path in `ChartsApi`; empty windows return empty `points`.
-- Drawdown max summary must not rely on weekly-thinned points alone (CD-4).
+- When drawdown lands (CD-4), max summary must not rely on weekly-thinned
+  points alone.
 
 ## CD-3 — Series Kinds on a Dedicated Endpoint
 
@@ -98,7 +106,10 @@ date index as step / running series.
 Should drawdown track `netWorth` (Iteration 1 draft), and when should
 `maxDrawdown` be measured relative to weekly thinning?
 
-### Decision
+### Decision — Planned (PR #167)
+
+Drawdown is **not on `main`** until #167 merges. The planned rules, matching
+#167's final code, are:
 
 1. **Index:** drawdown uses
    `100 × (1 + netPerformanceInPercentageWithCurrencyEffect)`.
@@ -109,12 +120,15 @@ Should drawdown track `netWorth` (Iteration 1 draft), and when should
    points **before** weekly thinning, then weekly points may still be returned
    for long ranges.
 
+After #167 merges, flip this decision (and the README / status table) from
+**Planned** to **Implemented**.
+
 ### Consequences
 
-- Matches investment drawdown intent better than portfolio-value drawdown.
-- Mid-week troughs remain visible in the summary even when `points` are weekly.
+- Docs must not claim `CHARTS_DRAWDOWN_FAILED` or `GET /charts/drawdown` as
+  live until #167 is on `main`.
 - Iteration 1 drawdown formula text that says "portfolio value" is superseded
-  for the implemented endpoint.
+  by the planned performance-index basis once the endpoint ships.
 
 ## CD-5 — Deferred Chart Types
 
@@ -124,36 +138,41 @@ Which Iteration 1 chart types remain unimplemented at this reconciliation?
 
 ### Decision
 
-Still design-only (not exposed by `ChartsController`):
+Still design-only (not exposed by `ChartsController` on `main`):
 
 ```text
+drawdown              (planned in #167)
 return-comparison
-benchmark-comparison
+benchmark-comparison  (open PR #160)
 waterfall
 ```
 
-No README or decision here should describe them as built.
+If #160 merges, move `benchmark-comparison` out of this list and update the
+README "Not implemented" section plus the design-architecture status table.
+
+No README or decision here should describe deferred types as built.
 
 ### Consequences
 
-- Later PRs can add routes without rewriting series/drawdown contracts.
-- Iteration 1 specs for those three remain the design source until implemented.
+- Later PRs can add routes without rewriting the series contract.
+- Iteration 1 specs for deferred types remain the design source until
+  implemented.
 
 ## Final Iteration 2 Status
 
-| Decision | Final as-built status | Notes                                                             |
-| -------- | --------------------- | ----------------------------------------------------------------- |
-| CD-1     | Implemented           | Routes under `/api/v1/charts/`                                    |
-| CD-2     | Implemented           | Shared range + ≤2y daily / else weekly                            |
-| CD-3     | Implemented           | `GET /charts/series` with three kinds                             |
-| CD-4     | Implemented           | Performance-index drawdown; max from daily before weekly thinning |
-| CD-5     | Deferred              | Return comparison, benchmark, waterfall not in this controller    |
+| Decision | Final as-built status | Notes                                                                 |
+| -------- | --------------------- | --------------------------------------------------------------------- |
+| CD-1     | Partial               | `GET /charts/series` on `main`; `GET /charts/drawdown` planned (#167) |
+| CD-2     | Implemented           | Shared range + ≤2y daily / else weekly                                |
+| CD-3     | Implemented           | `GET /charts/series` with three kinds                                 |
+| CD-4     | Planned (#167)        | Performance-index drawdown; max from daily before weekly thinning     |
+| CD-5     | Deferred              | Drawdown (#167), return comparison, benchmark (#160), waterfall       |
 
 ## Testing Gate
 
-Charts calculation and HTTP coverage used during Iteration 2:
+Charts calculation and HTTP coverage used during Iteration 2 on `main`:
 
 ```text
-libs/common chart-series + drawdown unit tests
-apps/api charts controller + e2e contract tests
+libs/common chart-series unit tests
+apps/api charts controller + e2e contract tests (series)
 ```

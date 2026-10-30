@@ -1,9 +1,10 @@
 # Design Doc: Drawdown Chart - Calculation Spec
 
-**Status:** Implemented (Iteration 2) as `GET /api/v1/charts/drawdown`
+**Status:** Planned (Iteration 2) — `GET /api/v1/charts/drawdown` in PR #167
 **Author:** _fill in_
-**Scope:** Original Iteration 1 design. As-built differences (performance-index
-basis, max drawdown before weekly thinning, `/charts/drawdown` path) are in
+**Scope:** Original Iteration 1 design. Not on `main` until #167 merges.
+Planned as-built differences (performance-index basis, max drawdown before
+weekly thinning, `/charts/drawdown` path) are documented in
 `apps/api/src/app/charts/README.md` and CD-4 in
 `project-docs/iteration-2/charts-decision-record.md`.
 
