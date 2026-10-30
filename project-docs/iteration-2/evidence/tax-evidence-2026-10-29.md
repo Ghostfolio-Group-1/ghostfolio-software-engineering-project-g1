@@ -129,10 +129,29 @@ Time:        15.939 s
 ```
 
 All tax test suites passed during the live rehearsal. This provides current evidence for the Sprint Review demonstration.
+This folder-scoped run includes:
+
+```text
+apps/api/src/app/tax/tax.e2e.spec.ts
+```
+
+The `tax.e2e.spec.ts` file contains 20 end-to-end tests. Therefore, the 218-test total is not a unit-test-only figure; it includes the tax E2E coverage contained inside the tax folder.
+
+All 16 tax-folder suites and all 218 tests passed during the Oct 29 Sprint Review rehearsal.
+
+The Integration Pass #2 described below is a separate cross-feature integration run. It contains four E2E suites covering charts, risk, tax, and dashboard, with 47 E2E tests in total. The 47-test integration result should therefore not be added to the 218 tax-folder total as though the two results represented non-overlapping test categories.
 
 ## Integration Pass #2
 
 The final backend integration pass was recorded on October 28 before the feature/code freeze.
+
+Integration Pass #2 was run against:
+
+```text
+25bea2186
+```
+
+which was `origin/main` at the time that integration pass was executed.
 
 Results:
 
@@ -167,6 +186,21 @@ The API build also completed successfully.
 ## CI Evidence
 
 For the integration-pass-2 freeze commit, GitHub CI recorded successful results for:
+The Oct 29 tax-folder rerun and Integration Pass #2 therefore represent two different verification points:
+
+```text
+Oct 28 Integration Pass #2
+Baseline: 25bea2186
+Scope: cross-feature integration + full API suite
+
+Oct 29 Tax Sprint Review Rehearsal
+Baseline: 344f74e4c9145f8ab7ef2dd731fb3088e388f620
+Scope: apps/api/src/app/tax
+```
+
+## CI Evidence
+
+For the Integration Pass #2 freeze commit, GitHub CI recorded successful results for:
 
 ```text
 Build
@@ -345,6 +379,8 @@ To be completed after the Oct 29 Sprint Review.
 **Feedback received:** Pending Sprint Review.
 
 **Follow-up actions:** Pending Sprint Review.
+
+These fields intentionally remain pending in this pre-Sprint-Review evidence draft. They should be completed only from direct evidence recorded during or after the Oct 29 Sprint Review.
 
 ## Evidence References
 

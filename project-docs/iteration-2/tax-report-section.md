@@ -349,6 +349,12 @@ E2E tests: 47 / 47 passed
 
 API suites: 93 passed, 1 skipped
 API tests: 641 passed, 1 skipped
+Full API suite:
+93 suites passed
+1 suite skipped
+
+641 tests passed
+1 test skipped
 ```
 
 The skipped API test is an existing upstream Ghostfolio placeholder and was not recorded as an Iteration 2 feature failure.
