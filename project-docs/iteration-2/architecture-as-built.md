@@ -19,14 +19,15 @@ Dependency direction: Dashboard → Risk / Tax / Charts → Portfolio / Prisma. 
 
 All routes are under `/api/v1` (URI versioning, global prefix `api`) and require login plus the `portfolio:read` scope (`@RequiresScope`), which applies the JWT, permission, impersonation and scope guards.
 
-| Method | Route               | Controller          | Notes                                                     |
-| ------ | ------------------- | ------------------- | --------------------------------------------------------- |
-| GET    | /risk/concentration | RiskController      | `limit` query (1–20)                                      |
-| POST   | /risk/what-if       | RiskController      | What-if scenario for a holding                            |
-| GET    | /tax/realized-gains | TaxController       | FIFO realized gains; decimal amounts as strings           |
-| GET    | /tax/lots           | TaxController       | Open FIFO tax lots                                        |
-| GET    | /charts/series      | ChartsController    | `range` preset or `startDate`/`endDate`, optional `kind`  |
-| GET    | /dashboard/overview | DashboardController | Risk, tax and charts sections, each available/unavailable |
+| Method | Route               | Controller          | Notes                                                                                           |
+| ------ | ------------------- | ------------------- | ----------------------------------------------------------------------------------------------- |
+| GET    | /risk/concentration | RiskController      | `limit` query (1–20)                                                                            |
+| POST   | /risk/what-if       | RiskController      | What-if scenario for a holding                                                                  |
+| GET    | /tax/realized-gains | TaxController       | FIFO realized gains; decimal amounts as strings                                                 |
+| GET    | /tax/lots           | TaxController       | Open FIFO tax lots                                                                              |
+| GET    | /charts/series      | ChartsController    | `range` preset or `startDate`/`endDate`, optional `kind`                                        |
+| GET    | /charts/drawdown    | ChartsController    | Drawdown from the running peak of the performance index; merged Oct 30, after the freeze (#167) |
+| GET    | /dashboard/overview | DashboardController | Risk, tax and charts sections, each available/unavailable                                       |
 
 ## Shared conventions
 
@@ -48,6 +49,7 @@ All routes are under `/api/v1` (URI versioning, global prefix `api`) and require
 | TAX_SCOPE_HAS_EXCLUDED_INVESTMENT_HISTORY     | 4xx              | Tax scope depends on excluded (non tax-relevant) activity |
 | CHARTS_INVALID_QUERY                          | 400              | Invalid range, dates or kind                              |
 | CHARTS_SERIES_FAILED                          | 500              | History could not be loaded                               |
+| CHARTS_DRAWDOWN_FAILED                        | 500              | Drawdown could not be loaded                              |
 | DASHBOARD_RISK_UNAVAILABLE / _TAX_ / _CHARTS_ | 200 (in section) | One section failed; the rest still render                 |
 | DASHBOARD_OVERVIEW_FAILED                     | 500              | Unexpected failure outside the sections                   |
 
