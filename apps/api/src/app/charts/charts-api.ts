@@ -3,12 +3,14 @@ import {
   resolveTimeRange
 } from '@ghostfolio/common/calculation-helper';
 import { toChartSeriesResponse } from '@ghostfolio/common/chart-series';
+import { toDrawdownResponse } from '@ghostfolio/common/drawdown';
 import { DATE_FORMAT } from '@ghostfolio/common/helper';
 import {
   CHART_SERIES_KINDS,
   ChartSeriesKind,
   ChartSeriesResponse
 } from '@ghostfolio/common/interfaces/chart-series-response.interface';
+import { DrawdownResponse } from '@ghostfolio/common/interfaces/drawdown-response.interface';
 import { HistoricalDataItem } from '@ghostfolio/common/interfaces/historical-data-item.interface';
 import {
   TIME_RANGE_PRESETS,
@@ -24,6 +26,15 @@ export interface ChartSeriesRequest {
   endDate?: string;
   history?: HistoricalDataItem[];
   kind?: ChartSeriesKind;
+  now?: Date;
+  range?: string;
+  startDate?: string;
+}
+
+export interface DrawdownRequest {
+  earliestActivityDate?: string;
+  endDate?: string;
+  history?: HistoricalDataItem[];
   now?: Date;
   range?: string;
   startDate?: string;
@@ -65,6 +76,44 @@ export class ChartsApi {
       endDate: window.endDate,
       history: request.history ?? [],
       kind,
+      startDate: window.startDate
+    });
+  }
+
+  public getDrawdown(request: DrawdownRequest = {}): DrawdownResponse {
+    const now = request.now instanceof Date ? request.now : new Date();
+    const selection = this.readSelection(request);
+
+    if (
+      selection.mode === 'custom' &&
+      request.earliestActivityDate &&
+      selection.endDate < request.earliestActivityDate
+    ) {
+      return toDrawdownResponse({
+        endDate: selection.endDate,
+        history: [],
+        startDate: selection.startDate
+      });
+    }
+
+    const window = this.resolveWindow({
+      earliestActivityDate: request.earliestActivityDate,
+      now,
+      selection
+    });
+
+    if (window.empty) {
+      return toDrawdownResponse({
+        endDate: window.endDate,
+        history: [],
+        startDate: window.startDate
+      });
+    }
+
+    // Pass full history so peak tracking is not reset at window.startDate.
+    return toDrawdownResponse({
+      endDate: window.endDate,
+      history: request.history ?? [],
       startDate: window.startDate
     });
   }
