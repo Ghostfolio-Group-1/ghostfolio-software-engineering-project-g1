@@ -12,11 +12,11 @@
 
 Iteration 2 moved the Ghostfolio extension from design specifications into a working backend increment.
 
-By the latest Oct 30 repository refresh, the team had merged **67 pull requests** into `main` during the Iteration 2 period represented in this report:
+By the latest Oct 31 repository refresh, the team had merged **68 pull requests** into `main` during the Iteration 2 period represented in this report:
 
 - Raniya: 22
 - Tharun: 20
-- Sesha: 15
+- Sesha: 16
 - Arthur / `Error404IsFound`: 10
 
 The Risk and Tax backends delivered their primary planned Iteration 2 functionality. Charts delivered the shared time-range and chart-series pipeline before the feature freeze, while the drawdown endpoint merged on Oct 30 after the freeze through [PR #167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167). Charts as-built documentation then merged through [PR #170](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/170). Benchmark comparison and return comparison remain unmerged at this report snapshot.
@@ -150,10 +150,11 @@ _Owner: Raniya (tables); each member verifies their own rows._
 | 2026-10-30 | Arthur | Charts drawdown endpoint                                | [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167) | [#176](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/176) |
 | 2026-10-30 | Arthur | Charts Iteration 2 as-built documentation               | [#170](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/170) | [#177](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/177) |
 | 2026-10-30 | Raniya | Assemble Iteration 2 report                             | [#175](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/175) | [#174](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/174) |
+| 2026-10-31 | Sesha  | Fill Section 4 GitHub collaboration audit               | [#179](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/179) | [#178](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/178) |
 
-**Current total in this report snapshot:** 67 merged PRs — Raniya 22, Tharun 20, Sesha 15, Arthur 10.
+**Current total in this report snapshot:** 68 merged PRs — Raniya 22, Tharun 20, Sesha 16, Arthur 10.
 
-A final Oct 31 refresh may change these counts.
+This is the final refresh; #179 merged Oct 31 at 21:15 UTC and is reflected throughout this report.
 
 ### 2.2 Deviations from Plan
 
@@ -233,11 +234,11 @@ All numbers below are pulled directly from the GitHub REST/GraphQL API, refreshe
 | ---------------------------- | --------------------: | -------------------------------------------------------- |
 | Raniya (`Raniyafs`)          |                    22 | 17 (10 / 6 / 1)                                          |
 | Tharun (`TharunSwaminathan`) |                    20 | 33 (17 / 12 / 4)                                         |
-| Sesha (`sesha456`)           |                    15 | 30 (25 / 4 / 1)                                          |
+| Sesha (`sesha456`)           |                    16 | 30 (25 / 4 / 1)                                          |
 | Arthur (`Error404IsFound`)   |                    10 | 31 (19 / 7 / 5)                                          |
-| **Total**                    |                **67** | **111**                                                  |
+| **Total**                    |                **68** | **111**                                                  |
 
-12 PRs are open as of Oct 31, including this section's own PR ([#179](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/179)); the rest are all authored by `Error404IsFound`: charts PRs ([#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160), [#105](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/105), [#70](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/70), [#69](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/69), [#50](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/50)) and the duplicate tax-test PRs from section 2.2 ([#153](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/153), [#151](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/151), [#142](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/142), [#127](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/127), [#123](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/123)) — plus Raniya's architecture-as-built doc ([#162](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/162), still `CHANGES_REQUESTED`).
+This section's own PR ([#179](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/179)) merged Oct 31 at 21:15 UTC, approved by Tharun after three review rounds. 11 PRs remain open, all authored by `Error404IsFound`: charts PRs ([#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160), [#105](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/105), [#70](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/70), [#69](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/69), [#50](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/50)) and the duplicate tax-test PRs from section 2.2 ([#153](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/153), [#151](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/151), [#142](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/142), [#127](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/127), [#123](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/123)) — plus Raniya's architecture-as-built doc ([#162](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/162), still `CHANGES_REQUESTED`).
 
 **Caveat:** `Error404IsFound` is a shared GitHub login used for Arthur's commits, with author emails split across a personal Gmail address and the login's own noreply address. There is no way to independently confirm from git/GitHub alone that every commit, PR, and review under that login was performed by Arthur personally rather than another teammate using the same account — flagged in [gaps.md](../records/gaps.md) item 3 and carried into section 8 as a process fix (one GitHub account per person) for Iteration 3.
 
@@ -247,9 +248,9 @@ All numbers below are pulled directly from the GitHub REST/GraphQL API, refreshe
 | --------- | -----------------------: | -----: | -----: |
 | Raniya    |                       28 |     19 |      9 |
 | Tharun    |                       23 |     20 |      3 |
-| Sesha     |                       24 |     20 |      4 |
+| Sesha     |                       24 |     21 |      3 |
 | Arthur    |                        3 |      2 |      1 |
-| **Total** |                   **78** | **61** | **17** |
+| **Total** |                   **78** | **62** | **16** |
 
 ### 4.3 Branch Protection and CI
 
@@ -261,7 +262,7 @@ All numbers below are pulled directly from the GitHub REST/GraphQL API, refreshe
 
 No commit history on `main` since Oct 2 falls outside a PR merge commit for a merged PR in the table above — consistent with the ruleset's bypass setting, there is no evidence of a direct push to `main` this iteration.
 
-The required-checks rule did not exist for the whole iteration: it was added in [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87), merged Oct 8 at 21:47 UTC. The 14 PRs merged before that — #44, #48, #49, #51, #59, #61, #71, #72, #74, #75, #76, #78, #80, #83 — did not require Lint/Unit tests/Build to pass. One of them is the near-miss worth noting: #72 updated a shared type without updating all call sites, which broke the `main` build for about 18.5 hours after merge, caught only because the checks were not yet mandatory (see section 2.2). For the 53 PRs merged from #87 onward, a passing Lint/Unit tests/Build run is implied by the merge itself, since the ruleset blocks merging otherwise.
+The required-checks rule did not exist for the whole iteration: it was added in [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87), merged Oct 8 at 21:47 UTC. The 14 PRs merged before that — #44, #48, #49, #51, #59, #61, #71, #72, #74, #75, #76, #78, #80, #83 — did not require Lint/Unit tests/Build to pass. One of them is the near-miss worth noting: #72 updated a shared type without updating all call sites, which broke the `main` build for about 18.5 hours after merge, caught only because the checks were not yet mandatory (see section 2.2). For the 54 PRs merged from #87 onward (including this section's own PR, #179), a passing Lint/Unit tests/Build run is implied by the merge itself, since the ruleset blocks merging otherwise.
 
 CI evidence: [integration pass #1](../evidence/integration-pass-1-2026-10-26.md), [integration pass #2](../evidence/integration-pass-2-2026-10-28.md) (both green on all three required checks plus `extract_locales`).
 
