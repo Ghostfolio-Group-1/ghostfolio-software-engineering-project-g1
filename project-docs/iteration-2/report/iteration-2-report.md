@@ -4,186 +4,596 @@
 **Sprint window:** Fri Oct 2 – Sun Nov 1, 2026
 **Repository:** https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1
 
-> Rule for every section: each claim links to a merged PR, a closed issue, a CI run, or a file in `project-docs/iteration-2/evidence/`. A claim without a link is "not verified". PR data in sections 1 and 2 was pulled from the GitHub API on Oct 30, 2026 (PRs merged into `main` between Oct 2 and Oct 30, 6:30 PM CT).
+> Rule for every section: each implementation claim must be supported by a merged PR, closed issue, CI/test record, or file under `project-docs/iteration-2/evidence/`. Open/unmerged work is identified separately rather than reported as completed. Repository data below was refreshed on Oct 30 after PR #175 merged. A final Oct 31 repository refresh is still required before submission.
 
 ---
 
-## Executive summary
+## Executive Summary
 
-Iteration 2 moved the extension from design to working backend. Between Oct 2 and Oct 30 the team merged **65 pull requests** into `main` (Raniya 21, Tharun 20, Sesha 15, Arthur 9). The risk and tax backends were delivered as planned and exposed over HTTP; the charts backend delivered its shared time-range contract and the `GET /api/v1/charts/series` endpoint by the freeze; the drawdown endpoint was reviewed and merged after the freeze on Oct 30 ([#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167)), and the benchmark and return-comparison endpoints remain open. A unified dashboard endpoint (`GET /api/v1/dashboard/overview`) now aggregates risk, tax and charts, and keeps rendering when one section fails.
+Iteration 2 moved the Ghostfolio extension from design specifications into a working backend increment.
 
-Quality was enforced through branch protection with three required CI checks (Lint and format, Unit tests, Build — [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87)), contract tests against JSON schemas, shared fixtures ([#116](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/116)) and end-to-end HTTP tests for every feature endpoint ([#122](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/122), [#129](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/129), [#135](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/135), [#146](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/146)). The final integration pass before the freeze ran on `main` at `25bea2186`: 4 end-to-end suites (47 tests) and 93 unit suites (641 tests) passed, the build succeeded, and all required CI checks were green ([integration pass #2](../evidence/integration-pass-2-2026-10-28.md)). The main gaps are 13 merged PRs without a linked issue (8 of them charts), 12 charts PRs still open at the freeze, and a missing catch-all error envelope on the risk endpoints. These are carried into Iteration 3 (section 8).
+By the latest Oct 30 repository refresh, the team had merged **67 pull requests** into `main` during the Iteration 2 period represented in this report:
 
-## 1. Project backlog
+- Raniya: 22
+- Tharun: 20
+- Sesha: 15
+- Arthur / `Error404IsFound`: 10
 
-_Owner: Raniya (table); each member checks their own row_
+The Risk and Tax backends delivered their primary planned Iteration 2 functionality. Charts delivered the shared time-range and chart-series pipeline before the feature freeze, while the drawdown endpoint merged on Oct 30 after the freeze through [PR #167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167). Charts as-built documentation then merged through [PR #170](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/170). Benchmark comparison and return comparison remain unmerged at this report snapshot.
 
-| Feature                             | Owner  | Planned (Iteration 2)                                                                                                                                                                        | Status at freeze (Oct 28)                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Portfolio risk                      | Sesha  | Concentration rules, exposure calculators, volatility, cash / target-deviation rules, health score, thresholds, what-if, risk API                                                            | Delivered: `GET /risk/concentration`, `POST /risk/what-if`. Gap: no catch-all `RISK_*` error envelope                                                                                                                                                                                                                                                                                                                                                                                       | [#51](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/51), [#71](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/71), [#77](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/77), [#88](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/88), [#91](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/91), [#95](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/95), [#102](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/102), [#108](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/108), [#113](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/113), [#119](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/119), [#125](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/125), [#138](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/138), [#144](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/144)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Tax metrics                         | Tharun | Withholding tax, FIFO lots and realized gains, average cost, method switch, tax lots, tax-relevant flag, dividends, yearly summary, CSV / PDF export                                         | Delivered: `GET /tax/realized-gains`, `GET /tax/lots`, yearly summary, CSV and PDF export                                                                                                                                                                                                                                                                                                                                                                                                   | [#72](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/72), [#80](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/80), [#92](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/92), [#98](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/98), [#104](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/104), [#109](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/109), [#117](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/117), [#120](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/120), [#126](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/126), [#132](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/132), [#139](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/139), [#147](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/147), [#86](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/86), [#148](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/148), [#152](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/152), [#159](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/159), [#164](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/164), [#169](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/169)                                                                                                                                                                                                                                                                                                    |
-| Performance charts                  | Arthur | Time-range resolver, value / invested capital / cash series, return comparison, benchmark comparison, drawdown                                                                               | Partly delivered: time-range resolver and `GET /charts/series`; `GET /charts/drawdown` merged Oct 30, after the freeze. Return comparison ([#105](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/105)), benchmark ([#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160)) and charts docs ([#170](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/170)) still open | [#76](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/76), [#83](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/83), [#90](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/90), [#101](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/101), [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Unified dashboard, architecture, QA | Raniya | Module skeletons, API conventions, CI, data-layer wiring, React component library, fixtures and integration tests, dashboard aggregation and endpoint, integration passes, architecture docs | Delivered: `GET /dashboard/overview`, CI with required checks, e2e tests for all endpoints, two integration passes. As-built architecture doc in review ([#162](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/162))                                                                                                                                                                                                                                 | [#49](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/49), [#61](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/61), [#74](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/74), [#75](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/75), [#82](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/82), [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87), [#94](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/94), [#99](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/99), [#107](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/107), [#111](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/111), [#116](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/116), [#122](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/122), [#129](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/129), [#135](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/135), [#136](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/136), [#141](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/141), [#146](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/146), [#150](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/150), [#157](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/157), [#166](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/166), [#172](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/172) |
+The unified dashboard endpoint, `GET /api/v1/dashboard/overview`, aggregates Risk, Tax and Charts and can mark an individual source unavailable without failing the entire overview.
 
-## 2. Sprint backlog
+Quality controls improved substantially during Iteration 2. Branch protection requires the three CI checks introduced through [PR #87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87):
 
-_Owner: Raniya (tables); each member checks their own rows_
+- Lint and format
+- Unit tests
+- Build
 
-### 2.1 Daily tasks (merged PRs)
+Shared integration fixtures were introduced through [PR #116](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/116), and end-to-end HTTP coverage was added across the feature endpoints.
 
-| Merged     | Member | Task (PR title)                                                                          | PR                                                                                                | Issue                                                                                               |
-| ---------- | ------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 2026-10-02 | Sesha  | docs: risk issue plan update for sprint planning day                                     | [#44](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/44)   | —                                                                                                   |
-| 2026-10-03 | Raniya | Add PR template, CODEOWNERS, and daily PR fallback workflow                              | [#49](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/49)   | —                                                                                                   |
-| 2026-10-03 | Tharun | [Tax][Iteration 2] Close DR-1–3 and add Scrum notes                                      | [#48](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/48)   | [#45](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/45)   |
-| 2026-10-05 | Sesha  | [Risk] Single-stock concentration rule                                                   | [#51](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/51)   | [#30](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/30)   |
-| 2026-10-05 | Raniya | Add empty risk, tax, and charts API module skeletons                                     | [#61](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/61)   | [#60](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/60)   |
-| 2026-10-06 | Tharun | Tharun/2026 10 05 52 tax decisions                                                       | [#59](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/59)   | [#52](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/52)   |
-| 2026-10-06 | Sesha  | [Risk] Sector + country concentration rules                                              | [#71](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/71)   | [#31](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/31)   |
-| 2026-10-06 | Raniya | Add shared API convention types to common library                                        | [#74](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/74)   | [#73](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/73)   |
-| 2026-10-07 | Tharun | [Tax][Oct 6] Add nullable withholdingTax to Order and DTOs                               | [#72](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/72)   | [#46](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/46)   |
-| 2026-10-07 | Raniya | Scaffold React component library with layout shell and design tokens                     | [#75](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/75)   | —                                                                                                   |
-| 2026-10-07 | Tharun | feat(tax): validate withholding tax persistence                                          | [#80](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/80)   | [#79](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/79)   |
-| 2026-10-07 | Arthur | Add a shared time-range resolver for chart presets and custom dates.                     | [#76](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/76)   | —                                                                                                   |
-| 2026-10-07 | Sesha  | fix(export): include withholdingTax in export.service.ts activity map                    | [#78](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/78)   | —                                                                                                   |
-| 2026-10-08 | Arthur | map performance history to ChartSeriesResponse                                           | [#83](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/83)   | —                                                                                                   |
-| 2026-10-08 | Raniya | Split CI into lint, unit test, and build jobs; run on main                               | [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87)   | [#85](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/85)   |
-| 2026-10-09 | Sesha  | [Risk] Currency + asset-class exposure calculators                                       | [#77](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/77)   | [#32](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/32)   |
-| 2026-10-09 | Raniya | Add Card, Button, and theme to React library; retract 151/152 test claim                 | [#82](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/82)   | [#81](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/81)   |
-| 2026-10-09 | Sesha  | [Risk] ExposureService: combine concentration + exposure into RiskSummary                | [#88](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/88)   | [#33](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/33)   |
-| 2026-10-09 | Sesha  | [Risk] Volatility input model: returns series + standard-deviation function              | [#91](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/91)   | [#34](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/34)   |
-| 2026-10-09 | Tharun | feat(tax): add FIFO ordering and BUY-derived tax lots                                    | [#92](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/92)   | [#47](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/47)   |
-| 2026-10-09 | Raniya | Wire RiskApi to the shared data layer; JSON-schema contract tests                        | [#94](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/94)   | [#93](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/93)   |
-| 2026-10-10 | Arthur | Added edge cases                                                                         | [#90](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/90)   | —                                                                                                   |
-| 2026-10-13 | Tharun | feat(tax): consume FIFO lots for partial sells                                           | [#98](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/98)   | [#96](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/96)   |
-| 2026-10-13 | Raniya | Wire TaxApi to the shared data layer with FIFO activity contract test                    | [#99](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/99)   | [#97](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/97)   |
-| 2026-10-13 | Arthur | feat(charts): sample invested capital and cash on portfolio value dates                  | [#101](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/101) | —                                                                                                   |
-| 2026-10-13 | Sesha  | [Risk] CashAllocationRule.evaluate() with scoring bands                                  | [#102](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/102) | [#36](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/36)   |
-| 2026-10-14 | Tharun | feat(tax): calculate FIFO realized gains                                                 | [#104](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/104) | [#103](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/103) |
-| 2026-10-14 | Raniya | Wire ChartsApi to the shared data layer; add React chart-wrapper skel                    | [#107](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/107) | [#106](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/106) |
-| 2026-10-14 | Raniya | Add React dashboard-card component with loading, error and empty stat                    | [#111](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/111) | —                                                                                                   |
-| 2026-10-15 | Tharun | fix(tax): handle FIFO edge cases                                                         | [#109](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/109) | [#100](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/100) |
-| 2026-10-15 | Arthur | feat(tax): report FIFO lot cost basis from remaining shares                              | [#112](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/112) | —                                                                                                   |
-| 2026-10-16 | Tharun | feat(tax): add FIFO realized-gains API                                                   | [#117](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/117) | [#114](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/114) |
-| 2026-10-16 | Arthur | feat(tax): list open FIFO lots by remaining shares                                       | [#118](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/118) | —                                                                                                   |
-| 2026-10-16 | Sesha  | [Risk] WarningThreshold model with defaults and validation                               | [#119](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/119) | [#39](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/39)   |
-| 2026-10-16 | Sesha  | [Risk] VolatilityRule.evaluate(settings) against band thresholds                         | [#95](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/95)   | [#35](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/35)   |
-| 2026-10-16 | Sesha  | [Risk] TargetDeviationRule + TargetAllocation input (no-op with no target set)           | [#108](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/108) | [#37](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/37)   |
-| 2026-10-16 | Sesha  | [Risk] HealthScoreCalculator.calculate(results, weights)                                 | [#113](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/113) | [#38](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/38)   |
-| 2026-10-17 | Raniya | Add shared seed fixtures for risk, tax and charts integration tests (                    | [#116](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/116) | [#115](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/115) |
-| 2026-10-17 | Tharun | feat(tax): implement average-cost running pool                                           | [#120](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/120) | [#53](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/53)   |
-| 2026-10-19 | Raniya | Add integration test scaffold (supertest) and first end-to-end test on the risk endpoint | [#122](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/122) | [#121](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/121) |
-| 2026-10-19 | Tharun | feat(tax): calculate average-cost realized gains                                         | [#126](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/126) | [#124](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/124) |
-| 2026-10-19 | Raniya | Add end-to-end tests for the FIFO realized-gains endpoint using share                    | [#129](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/129) | [#128](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/128) |
-| 2026-10-21 | Raniya | Add end-to-end tests for the charts series endpoint using shared fixt                    | [#135](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/135) | [#133](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/133) |
-| 2026-10-21 | Sesha  | [Risk] Threshold engine: rule results to warnings with severity                          | [#125](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/125) | [#40](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/40)   |
-| 2026-10-21 | Raniya | Add DashboardOverview.getOverview() skeleton loading risk, tax and ch                    | [#136](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/136) | [#134](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/134) |
-| 2026-10-21 | Arthur | test(tax): keep open FIFO lots separate by account                                       | [#137](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/137) | —                                                                                                   |
-| 2026-10-21 | Tharun | [Tax] Add shared FIFO and average-cost calculator switch                                 | [#132](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/132) | [#131](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/131) |
-| 2026-10-21 | Raniya | Aggregate dashboard sections and mark failing sections unavailable (#                    | [#141](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/141) | [#140](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/140) |
-| 2026-10-22 | Sesha  | [Risk] What-if: shocked-copy health score diffing engine                                 | [#138](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/138) | [#42](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/42)   |
-| 2026-10-22 | Tharun | [Tax] Add derived tax-lot tracker and view endpoint                                      | [#139](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/139) | [#54](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/54)   |
-| 2026-10-22 | Raniya | Add dashboard overview endpoint, integration tests and charts error e                    | [#146](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/146) | [#145](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/145) |
-| 2026-10-22 | Arthur | test(tax): omit closed lots from the open FIFO list                                      | [#143](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/143) | —                                                                                                   |
-| 2026-10-22 | Sesha  | [Risk] Volatility cache refresh job (covariance matrix, Redis, TTL)                      | [#144](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/144) | [#43](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/43)   |
-| 2026-10-23 | Tharun | [Tax][Oct 22] Add tax-relevant activity flag and filtering                               | [#147](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/147) | [#55](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/55)   |
-| 2026-10-23 | Tharun | feat(tax): derive dividend record from activities                                        | [#86](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/86)   | [#84](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/84)   |
-| 2026-10-23 | Raniya | Add dashboard aggregation unit tests with mocked APIs and coverage re                    | [#150](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/150) | [#149](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/149) |
-| 2026-10-24 | Tharun | [Tax][Oct 23] Add yearly tax summary                                                     | [#148](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/148) | [#56](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/56)   |
-| 2026-10-27 | Raniya | Record full integration pass #1 results across all backends and dashboard                | [#157](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/157) | [#156](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/156) |
-| 2026-10-27 | Tharun | [Tax][Oct 26] Add deterministic CSV tax export                                           | [#152](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/152) | [#57](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/57)   |
-| 2026-10-28 | Tharun | [Tax][Oct 27] Add deterministic PDF tax export                                           | [#159](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/159) | [#58](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/58)   |
-| 2026-10-28 | Tharun | [Tax][Oct 28] Finalize Iteration 2 tax documentation                                     | [#164](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/164) | [#163](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/163) |
-| 2026-10-29 | Raniya | Record full integration pass #2 results before code freeze                               | [#166](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/166) | [#165](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/165) |
-| 2026-10-30 | Tharun | [Tax][Oct 29] Add tax demo evidence and report drafts                                    | [#169](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/169) | [#168](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/168) |
-| 2026-10-30 | Raniya | Add Iteration 2 report skeleton with section owners and evidence link                    | [#172](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/172) | [#171](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/171) |
-| 2026-10-30 | Arthur | feat(charts): add drawdown endpoint                                                      | [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167) | [#176](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/176) |
+The final integration pass before the Oct 28 feature freeze ran on application baseline `25bea2186` and recorded:
 
-**Totals:** 65 merged PRs — Raniya 21, Tharun 20, Sesha 15, Arthur 9. 52 of 65 link an issue.
+```text
+E2E suites: 4 / 4 passed
+E2E tests: 47 / 47 passed
 
-### 2.2 Deviations from plan
+Full API suite:
+93 suites passed
+1 suite skipped
 
-| Deviation                                                                                                         | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Impact                                                                             | Carried to Iteration 3                                                                                                            |
-| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 13 merged PRs have no linked issue: all 8 charts PRs, 3 of Raniya's, 2 of Sesha's                                 | Table 2.1 (Issue column "—")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Work is harder to trace to the backlog                                             | Every PR must close an issue                                                                                                      |
-| Charts features not merged by the freeze: return comparison, benchmark comparison, drawdown                       | [#105](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/105), [#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160), [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167)                                                                                                                                                                                                                                                                                                                   | Only the series endpoint shipped by the freeze; drawdown merged after it on Oct 30 | Return comparison and benchmark                                                                                                   |
-| Duplicate / overlapping charts-owner test PRs left open                                                           | [#127](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/127), [#142](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/142), [#151](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/151), [#153](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/153) vs merged [#137](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/137), [#143](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/143) | Review time spent on duplicates                                                    | Close or rebase before new work                                                                                                   |
-| Benchmark PR branch had an unrelated branch merged into it (22 commits, incl. tax code and shared tooling)        | [#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Could not be approved as-is                                                        | Rebuild with only benchmark commits                                                                                               |
-| Incomplete call-site update broke the `main` build for about 18.5 hours                                           | [#72](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/72)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Blocked merges while broken                                                        | Required checks now on every PR ([#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87)) |
-| Several Raniya PRs opened after the 5:00 PM deadline (Oct 20, Oct 26, Oct 27); the daily fallback auto-opened one | [#135](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/135), [#136](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/136), [#157](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/157)                                                                                                                                                                                                                                                                                                                   | Late reviews and merges                                                            | Start daily task earlier                                                                                                          |
-| Risk endpoints have no catch-all error envelope (unexpected errors return a raw 500)                              | [architecture as built](../architecture-as-built.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Inconsistent with tax / charts / dashboard                                         | Yes                                                                                                                               |
+641 tests passed
+1 test skipped
 
-### 2.3 Evidence matrix
+API build:
+passed
+```
 
-| Claim                                                           | Evidence                                                                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CI enforces lint, unit tests and build on every PR              | [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87)                                                                                                                                                                                                                                                                                                            |
-| Shared fixtures used by risk, tax and charts tests              | [#116](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/116)                                                                                                                                                                                                                                                                                                          |
-| Every feature endpoint has an end-to-end HTTP test              | [#122](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/122), [#129](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/129), [#135](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/135), [#146](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/146) |
-| Dashboard aggregation fully unit-tested (100% coverage)         | [dashboard-coverage-2026-10-23.md](../evidence/dashboard-coverage-2026-10-23.md), [#150](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/150)                                                                                                                                                                                                                        |
-| Integration pass #1 green (Oct 26)                              | [integration-pass-1-2026-10-26.md](../evidence/integration-pass-1-2026-10-26.md), [#157](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/157)                                                                                                                                                                                                                        |
-| Integration pass #2 green before freeze, with CI links (Oct 28) | [integration-pass-2-2026-10-28.md](../evidence/integration-pass-2-2026-10-28.md), [#166](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/166)                                                                                                                                                                                                                        |
-| Tax demo evidence                                               | [tax-evidence-2026-10-29.md](../evidence/tax-evidence-2026-10-29.md), [#169](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/169)                                                                                                                                                                                                                                    |
-| Architecture documented as built                                | [architecture-as-built.md](../architecture-as-built.md), [#162](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/162)                                                                                                                                                                                                                                                 |
+Evidence: [Integration Pass #2](../evidence/integration-pass-2-2026-10-28.md).
 
-## 3. Summary of Scrum meetings
+The primary remaining gaps are:
+
+- benchmark comparison and return-comparison Charts work;
+- Risk catch-all error-envelope consistency;
+- React dashboard/frontend work for Iteration 3;
+- stale/open GitHub issue and PR cleanup;
+- incomplete detailed Scrum attendance evidence;
+- final architecture documentation PR #162, which remains open;
+- final Oct 31 report, issue and repository reconciliation.
+
+---
+
+## 1. Project Backlog
+
+_Owner: Raniya (table); each member verifies their own feature row._
+
+| Feature                               | Owner  | Planned for Iteration 2                                                                                                                                                                         | Status at latest Oct 30 refresh                                                                                                                                                                                                    | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Portfolio Risk                        | Sesha  | Concentration rules, exposure calculators, volatility, cash/target-deviation rules, health score, warning thresholds, what-if analysis, risk API                                                | Major planned backend functionality delivered. Known gap: no catch-all `RISK_*` error envelope for unexpected failures.                                                                                                            | [#51](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/51), [#71](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/71), [#77](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/77), [#88](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/88), [#91](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/91), [#95](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/95), [#102](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/102), [#108](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/108), [#113](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/113), [#119](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/119), [#125](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/125), [#138](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/138), [#144](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/144)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Tax Metrics                           | Tharun | Withholding tax, dividends, FIFO lots and gains, average cost, method switch, tax lots, tax-relevant filtering, yearly summary, CSV/PDF export                                                  | Planned Iteration 2 backend roadmap delivered.                                                                                                                                                                                     | [#72](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/72), [#80](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/80), [#86](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/86), [#92](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/92), [#98](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/98), [#104](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/104), [#109](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/109), [#117](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/117), [#120](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/120), [#126](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/126), [#132](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/132), [#139](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/139), [#147](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/147), [#148](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/148), [#152](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/152), [#159](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/159), [#164](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/164), [#169](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/169)                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Performance Charts                    | Arthur | Time-range resolver, value/invested/cash series, return comparison, benchmark comparison, drawdown                                                                                              | Time-range resolver and `GET /charts/series` delivered before freeze. `GET /charts/drawdown` merged Oct 30 after freeze. Charts as-built documentation also merged Oct 30. Return comparison and benchmark comparison remain open. | [#76](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/76), [#83](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/83), [#90](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/90), [#101](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/101), [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167), [#170](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/170)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Unified Dashboard / Architecture / QA | Raniya | API/module scaffolding, API conventions, CI, data-layer wiring, React component library, fixtures, integration tests, dashboard aggregation and endpoint, integration passes, architecture docs | Dashboard endpoint, CI, shared integration fixtures and two integration passes delivered. Standalone as-built architecture documentation remains under review in PR #162.                                                          | [#49](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/49), [#61](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/61), [#74](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/74), [#75](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/75), [#82](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/82), [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87), [#94](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/94), [#99](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/99), [#107](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/107), [#111](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/111), [#116](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/116), [#122](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/122), [#129](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/129), [#135](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/135), [#136](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/136), [#141](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/141), [#146](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/146), [#150](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/150), [#157](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/157), [#166](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/166), [#172](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/172), [#175](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/175) |
+
+---
+
+## 2. Sprint Backlog
+
+_Owner: Raniya (tables); each member verifies their own rows._
+
+### 2.1 Daily Tasks / Merged PRs
+
+| Merged     | Member | Task                                                    | PR                                                                                                | Issue                                                                                               |
+| ---------- | ------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 2026-10-02 | Sesha  | Risk issue-plan update for sprint-planning day          | [#44](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/44)   | —                                                                                                   |
+| 2026-10-03 | Raniya | PR template, CODEOWNERS and daily PR fallback workflow  | [#49](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/49)   | —                                                                                                   |
+| 2026-10-03 | Tharun | Close Tax DR-1–3 and add Scrum notes                    | [#48](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/48)   | [#45](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/45)   |
+| 2026-10-05 | Sesha  | Single-stock concentration rule                         | [#51](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/51)   | [#30](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/30)   |
+| 2026-10-05 | Raniya | Empty Risk, Tax and Charts API module skeletons         | [#61](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/61)   | [#60](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/60)   |
+| 2026-10-06 | Tharun | Close Tax DR-4–6 and file remaining backlog             | [#59](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/59)   | [#52](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/52)   |
+| 2026-10-06 | Sesha  | Sector and country concentration rules                  | [#71](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/71)   | [#31](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/31)   |
+| 2026-10-06 | Raniya | Shared API convention types                             | [#74](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/74)   | [#73](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/73)   |
+| 2026-10-07 | Tharun | Nullable `withholdingTax` in Order and DTOs             | [#72](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/72)   | [#46](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/46)   |
+| 2026-10-07 | Raniya | React component library scaffold                        | [#75](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/75)   | —                                                                                                   |
+| 2026-10-07 | Tharun | Validate withholding-tax persistence                    | [#80](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/80)   | [#79](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/79)   |
+| 2026-10-07 | Arthur | Shared chart time-range resolver                        | [#76](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/76)   | —                                                                                                   |
+| 2026-10-07 | Sesha  | Export hotfix for `withholdingTax` mapping              | [#78](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/78)   | —                                                                                                   |
+| 2026-10-08 | Arthur | Map performance history to `ChartSeriesResponse`        | [#83](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/83)   | —                                                                                                   |
+| 2026-10-08 | Raniya | Split CI into lint, unit-test and build jobs            | [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87)   | [#85](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/85)   |
+| 2026-10-09 | Sesha  | Currency and asset-class exposure calculators           | [#77](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/77)   | [#32](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/32)   |
+| 2026-10-09 | Raniya | React Card/Button/theme and test-claim correction       | [#82](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/82)   | [#81](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/81)   |
+| 2026-10-09 | Sesha  | `ExposureService` RiskSummary aggregation               | [#88](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/88)   | [#33](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/33)   |
+| 2026-10-09 | Sesha  | Volatility input model                                  | [#91](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/91)   | [#34](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/34)   |
+| 2026-10-09 | Tharun | FIFO ordering and BUY-derived TaxLots                   | [#92](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/92)   | [#47](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/47)   |
+| 2026-10-09 | Raniya | Risk API shared data-layer wiring and schema tests      | [#94](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/94)   | [#93](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/93)   |
+| 2026-10-10 | Arthur | Charts edge cases                                       | [#90](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/90)   | —                                                                                                   |
+| 2026-10-13 | Tharun | FIFO partial-sell lot consumption                       | [#98](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/98)   | [#96](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/96)   |
+| 2026-10-13 | Raniya | Tax API shared data-layer wiring                        | [#99](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/99)   | [#97](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/97)   |
+| 2026-10-13 | Arthur | Invested-capital and cash sampling                      | [#101](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/101) | —                                                                                                   |
+| 2026-10-13 | Sesha  | Cash-allocation rule                                    | [#102](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/102) | [#36](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/36)   |
+| 2026-10-14 | Tharun | FIFO realized gains                                     | [#104](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/104) | [#103](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/103) |
+| 2026-10-14 | Raniya | Charts API shared data layer and chart-wrapper scaffold | [#107](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/107) | [#106](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/106) |
+| 2026-10-14 | Raniya | React dashboard-card component                          | [#111](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/111) | —                                                                                                   |
+| 2026-10-15 | Tharun | FIFO edge cases                                         | [#109](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/109) | [#100](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/100) |
+| 2026-10-15 | Arthur | FIFO remaining-share cost-basis test/support            | [#112](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/112) | —                                                                                                   |
+| 2026-10-16 | Tharun | FIFO realized-gains API                                 | [#117](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/117) | [#114](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/114) |
+| 2026-10-16 | Arthur | Open FIFO lots by remaining shares                      | [#118](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/118) | —                                                                                                   |
+| 2026-10-16 | Sesha  | WarningThreshold model                                  | [#119](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/119) | [#39](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/39)   |
+| 2026-10-16 | Sesha  | Volatility rule                                         | [#95](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/95)   | [#35](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/35)   |
+| 2026-10-16 | Sesha  | Target-deviation rule                                   | [#108](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/108) | [#37](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/37)   |
+| 2026-10-16 | Sesha  | HealthScore calculator                                  | [#113](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/113) | [#38](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/38)   |
+| 2026-10-17 | Raniya | Shared integration fixtures                             | [#116](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/116) | [#115](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/115) |
+| 2026-10-17 | Tharun | Average-cost running pool                               | [#120](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/120) | [#53](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/53)   |
+| 2026-10-19 | Raniya | E2E scaffold and first Risk endpoint E2E                | [#122](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/122) | [#121](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/121) |
+| 2026-10-19 | Tharun | Average-cost realized gains                             | [#126](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/126) | [#124](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/124) |
+| 2026-10-19 | Raniya | Tax realized-gains E2E                                  | [#129](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/129) | [#128](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/128) |
+| 2026-10-21 | Raniya | Charts-series E2E                                       | [#135](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/135) | [#133](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/133) |
+| 2026-10-21 | Sesha  | Risk threshold/severity engine                          | [#125](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/125) | [#40](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/40)   |
+| 2026-10-21 | Raniya | DashboardOverview skeleton                              | [#136](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/136) | [#134](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/134) |
+| 2026-10-21 | Arthur | FIFO account-isolation test                             | [#137](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/137) | —                                                                                                   |
+| 2026-10-21 | Tharun | FIFO / average-cost method switch                       | [#132](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/132) | [#131](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/131) |
+| 2026-10-21 | Raniya | Dashboard partial-failure aggregation                   | [#141](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/141) | [#140](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/140) |
+| 2026-10-22 | Sesha  | What-if health-score diffing engine                     | [#138](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/138) | [#42](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/42)   |
+| 2026-10-22 | Tharun | Derived tax-lot tracker and endpoint                    | [#139](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/139) | [#54](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/54)   |
+| 2026-10-22 | Raniya | Dashboard overview endpoint and E2E                     | [#146](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/146) | [#145](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/145) |
+| 2026-10-22 | Arthur | Omit closed lots from open FIFO list                    | [#143](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/143) | —                                                                                                   |
+| 2026-10-22 | Sesha  | Volatility/covariance cache                             | [#144](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/144) | [#43](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/43)   |
+| 2026-10-23 | Tharun | Tax-relevant activity flag/filtering                    | [#147](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/147) | [#55](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/55)   |
+| 2026-10-23 | Tharun | DividendRecord derivation                               | [#86](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/86)   | [#84](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/84)   |
+| 2026-10-23 | Raniya | Dashboard aggregation unit tests/coverage               | [#150](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/150) | [#149](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/149) |
+| 2026-10-24 | Tharun | Yearly Tax summary                                      | [#148](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/148) | [#56](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/56)   |
+| 2026-10-27 | Raniya | Integration Pass #1 evidence                            | [#157](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/157) | [#156](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/156) |
+| 2026-10-27 | Tharun | Deterministic CSV Tax export                            | [#152](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/152) | [#57](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/57)   |
+| 2026-10-28 | Tharun | Deterministic PDF Tax export                            | [#159](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/159) | [#58](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/58)   |
+| 2026-10-28 | Tharun | Final Tax documentation                                 | [#164](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/164) | [#163](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/163) |
+| 2026-10-29 | Raniya | Integration Pass #2 evidence                            | [#166](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/166) | [#165](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/165) |
+| 2026-10-30 | Tharun | Tax demo evidence and report drafts                     | [#169](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/169) | [#168](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/168) |
+| 2026-10-30 | Raniya | Iteration 2 report skeleton                             | [#172](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/172) | [#171](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/171) |
+| 2026-10-30 | Arthur | Charts drawdown endpoint                                | [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167) | [#176](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/176) |
+| 2026-10-30 | Arthur | Charts Iteration 2 as-built documentation               | [#170](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/170) | [#177](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/177) |
+| 2026-10-30 | Raniya | Assemble Iteration 2 report                             | [#175](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/175) | [#174](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/174) |
+
+**Current total in this report snapshot:** 67 merged PRs — Raniya 22, Tharun 20, Sesha 15, Arthur 10.
+
+A final Oct 31 refresh may change these counts.
+
+### 2.2 Deviations from Plan
+
+| Deviation                                                                                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                   | Impact                                                             | Iteration 3 / final action                                             |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Multiple merged PRs lacked a linked GitHub issue, with Charts contributing most of the issue-linking gaps | Table 2.1                                                                                                                                                                                                                                                                                                                                                                                                  | Reduced traceability between sprint backlog and implementation     | Every Iteration 3 PR should link/close an issue                        |
+| Charts return comparison and benchmark comparison were not merged by the Oct 28 freeze                    | [#105](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/105), [#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160)                                                                                                                                                                                                       | Planned Charts scope remained incomplete at freeze                 | Carry remaining work into Iteration 3 after cleanup/rebase             |
+| Charts drawdown was not merged by freeze but merged Oct 30                                                | [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167)                                                                                                                                                                                                                                                                                                          | Feature became available after the planned feature-freeze deadline | Record as late/post-freeze completion rather than freeze-complete work |
+| Duplicate/overlapping Charts-owned Tax test PRs remained open                                             | [#127](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/127), [#142](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/142), [#151](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/151), [#153](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/153) | Review time and as-built-state ambiguity                           | Close, rebase or replace before starting new related work              |
+| Benchmark branch contains unrelated work and cannot be treated as a clean feature PR                      | [#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160)                                                                                                                                                                                                                                                                                                          | Harder to review safely                                            | Rebuild/rebase with only benchmark-specific changes                    |
+| Shared `withholdingTax` contract change broke `main` because one construction path was missed             | [#72](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/72), fixed by [#78](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/78)                                                                                                                                                                                                  | Production build failure until hotfix                              | Required CI/build checks now protect merges                            |
+| Some daily PRs opened later than the intended daily-review window                                         | GitHub timestamps / sprint audit                                                                                                                                                                                                                                                                                                                                                                           | Reviews and merges moved later than planned                        | Start tasks earlier and raise delayed work at Scrum                    |
+| Risk endpoints lack a catch-all feature-prefixed error envelope                                           | Architecture review / PR #162                                                                                                                                                                                                                                                                                                                                                                              | Error behavior is not fully consistent with Tax/Charts/Dashboard   | Carry into Iteration 3                                                 |
+| Detailed Scrum notes were not maintained for every planned meeting                                        | `scrum-meetings-summary.md`, GitHub audit                                                                                                                                                                                                                                                                                                                                                                  | Attendance/discussion evidence weaker than implementation evidence | Arthur maintains structured Iteration 3 Scrum notes                    |
+| Completed work and issue status were not always synchronized                                              | Example: Tax Issue #53 vs merged PR #120                                                                                                                                                                                                                                                                                                                                                                   | Report and backlog status can disagree                             | Close/reconcile issues after implementation merge                      |
+
+### 2.3 Evidence Matrix
+
+| Claim                                                  | Evidence                                                                                                                                                                            |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI enforces lint, unit tests and build                 | [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87)                                                                                     |
+| Shared fixtures are used across integration tests      | [#116](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/116)                                                                                   |
+| Risk endpoint has E2E coverage                         | [#122](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/122)                                                                                   |
+| Tax realized-gains endpoint has E2E coverage           | [#129](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/129)                                                                                   |
+| Charts series endpoint has E2E coverage                | [#135](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/135)                                                                                   |
+| Dashboard overview has E2E coverage                    | [#146](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/146)                                                                                   |
+| Dashboard aggregation has recorded coverage evidence   | [dashboard-coverage-2026-10-23.md](../evidence/dashboard-coverage-2026-10-23.md), [#150](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/150) |
+| Integration Pass #1 green                              | [integration-pass-1-2026-10-26.md](../evidence/integration-pass-1-2026-10-26.md), [#157](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/157) |
+| Integration Pass #2 green                              | [integration-pass-2-2026-10-28.md](../evidence/integration-pass-2-2026-10-28.md), [#166](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/166) |
+| Tax final/demo evidence                                | [tax-evidence-2026-10-29.md](../evidence/tax-evidence-2026-10-29.md), [#169](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/169)             |
+| Charts drawdown merged after freeze                    | [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167)                                                                                   |
+| Charts Iteration 2 as-built documentation merged       | [#170](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/170)                                                                                   |
+| Standalone cross-module as-built architecture document | **Pending:** [#162](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/162) remains open                                                         |
+| Retrospective GitHub audit                             | [github-audit-2026-10-30.md](../evidence/github-audit-2026-10-30.md)                                                                                                                |
+| Retrospective summary                                  | [retrospective-summary.md](../retrospective-summary.md)                                                                                                                             |
+
+---
+
+## 3. Summary of Scrum Meetings
 
 _Owner: Tharun_
 
-See [scrum-meetings-summary.md](../scrum-meetings-summary.md) and the daily [scrum-notes.md](../scrum-notes.md).
+See:
 
-## 4. GitHub collaboration and version control
+- [scrum-meetings-summary.md](../scrum-meetings-summary.md)
+- [scrum-notes.md](../scrum-notes.md)
 
-_Owner: Sesha · Pending — to be added before the Oct 31 review call_
+Iteration 2 used regular weekday Scrum checkpoints, with several academic-schedule adjustments.
 
-Data available for this section (GitHub API, Oct 30): merged PRs per member — Raniya 21, Tharun 20, Sesha 15, Arthur 9; open PRs at the freeze — 13 (12 charts-owner, 1 architecture doc).
+Known schedule changes were:
 
-## 5. Retrospective
+| Date           | Status                                                                            |
+| -------------- | --------------------------------------------------------------------------------- |
+| Oct 2          | Regular Scrum meeting cancelled because Sesha, Tharun and Arthur had examinations |
+| Oct 8          | Shortened due to Sesha academic commitment                                        |
+| Oct 13         | Shortened due to Tharun academic commitment                                       |
+| Oct 16         | Shortened due to Raniya academic commitment                                       |
+| Oct 22         | Shortened due to Arthur academic commitment                                       |
+| Other weekdays | Normal team Scrum schedule                                                        |
+| Nov 1          | No normal Scrum meeting; Sunday/submission day and Tharun + Arthur examinations   |
 
-_Owner: Tharun · Pending — from the Oct 30 retrospective_
+Where detailed meeting notes are unavailable, development state is reconstructed from GitHub issues, PRs, reviews, commits, CI and merges.
 
-## 6. Software architecture (as built)
-
-_Owner: Raniya_
-
-Full description: [architecture-as-built.md](../architecture-as-built.md) · Plan: [target-architecture.md](../../target-architecture.md) · Tax decisions: [tax-decision-record.md](../tax-decision-record.md)
-
-All feature code lives in the NestJS API under `apps/api/src/app/<feature>/`. Each feature is one Nest module with one controller; other modules use a feature only through its exported services. The dependency direction is Dashboard → Risk / Tax / Charts → Portfolio / Prisma, and no feature module imports another except Dashboard.
-
-| Module          | Routes (`/api/v1`, all require `portfolio:read`)                               | Exports                    |
-| --------------- | ------------------------------------------------------------------------------ | -------------------------- |
-| RiskModule      | `GET /risk/concentration`, `POST /risk/what-if`                                | ExposureService            |
-| TaxModule       | `GET /tax/realized-gains`, `GET /tax/lots`                                     | TaxDataService, TaxService |
-| ChartsModule    | `GET /charts/series`, `GET /charts/drawdown` (merged Oct 30, after the freeze) | ChartsApi                  |
-| DashboardModule | `GET /dashboard/overview`                                                      | DashboardOverview          |
-
-Shared conventions: every response uses the `{ data, error, meta }` envelope from `@ghostfolio/common/api-conventions`; error codes are prefixed by feature (`RISK_`, `TAX_`, `CHARTS_`, `DASHBOARD_`) with generic client messages and server-side logging; risk and charts return numbers while tax returns decimal amounts as strings; drafts are excluded by tag; each endpoint has a JSON schema under `<feature>/contracts/`, validated in unit and end-to-end tests. The dashboard loads its three sections in parallel and marks a failing section `unavailable` instead of failing the response.
-
-Known gaps at the freeze: risk has no catch-all `RISK_*` envelope; the dashboard calls `ExposureService` directly (no single `RiskService` entry point yet); the overview has no React page yet; the charts benchmark and return-comparison endpoints are not on `main`.
-
-## 7. Increment tests / QA
-
-_Owner: Arthur; CI links supplied by Raniya · Pending — test table from Arthur_
-
-- Integration pass #1 (Oct 26): 4 e2e suites / 47 tests, 91 unit suites / 611 tests, build green — [evidence](../evidence/integration-pass-1-2026-10-26.md)
-- Integration pass #2 (Oct 28, final before freeze): 4 e2e suites / 47 tests, 93 unit suites / 641 tests, build green; required CI checks green on `main` at `25bea2186` — [evidence with CI links](../evidence/integration-pass-2-2026-10-28.md)
-- Dashboard coverage: 100% statements, branches, functions and lines — [evidence](../evidence/dashboard-coverage-2026-10-23.md)
-- Tax: [tax-report-section.md](../tax-report-section.md), [tax-evidence-2026-10-29.md](../evidence/tax-evidence-2026-10-29.md)
-
-## 8. User stories for the next sprint (Iteration 3) and Scrum schedule
-
-_Owner: Arthur (Scrum Master, Iteration 3) · Pending_
-
-Carry-overs already known: catch-all `RISK_*` error envelope on risk endpoints; React dashboard page on `/dashboard/overview`; charts benchmark and return-comparison endpoints ([#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160), [#105](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/105)) and charts docs ([#170](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/170)); close or rebase the open duplicate tax-test PRs ([#127](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/127), [#142](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/142), [#151](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/151), [#153](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/153)); every PR closes an issue.
-
-## 9. Evaluation of teammates
-
-_Owner: whole team (individually) · Pending_
-
-## Conclusion
-
-Iteration 2 delivered working, tested backends for risk and tax, the core charts series contract, and a dashboard endpoint that ties them together, with CI and two green integration passes as evidence. The work that did not land — the benchmark and return-comparison chart endpoints, the risk error envelope, the React dashboard page — is identified with links and carried into Iteration 3, together with the process fixes that this iteration exposed: one issue per PR, reviews within the day, and no unrelated work on feature branches.
+GitHub evidence is not used to infer exact attendance or exact spoken discussion.
 
 ---
 
-**Submission gate (Sat Oct 31, 8:00 PM):** main green · every PR merged and reviewed · all issues updated · every claim linked · PDF exported. Submitted Nov 1 morning (Raniya submits, Tharun confirms receipt).
+## 4. GitHub Collaboration and Version Control
+
+_Owner: Sesha · Final owner content still required before the Oct 31 report-review call._
+
+The current report can already verify the following repository facts:
+
+```text
+Merged PRs in current Oct 30 report snapshot:
+67
+
+Raniya: 22
+Tharun: 20
+Sesha: 15
+Arthur / Error404IsFound: 10
+```
+
+The final Section 4 should include Sesha's GitHub audit findings covering:
+
+- PRs opened/merged per member;
+- review counts and review turnaround;
+- requested-change reviews;
+- direct-push findings;
+- issue linkage;
+- stale/open PRs;
+- issue-state inconsistencies;
+- CI history;
+- late/unmerged work;
+- any Oct 31 changes.
+
+The final section must use GitHub evidence rather than self-reported contribution totals.
+
+---
+
+## 5. Summary of Retrospective Meeting
+
+_Owner: Tharun_
+
+**Date:** October 30, 2026
+**Scheduled time:** 3:30–4:30 PM CT
+**Scrum Master / facilitator:** Tharun Swaminathan
+**Related issue:** #173
+
+Full evidence:
+
+- [Retrospective summary](../retrospective-summary.md)
+- [GitHub audit](../evidence/github-audit-2026-10-30.md)
+- [Scrum meeting summary](../scrum-meetings-summary.md)
+
+### 5.1 Review of Iteration 1 Retrospective Actions
+
+The Iteration 2 plan carried five actions forward from the previous retrospective.
+
+| Previous retrospective action                                       | Iteration 2 assessment                    | Evidence-based conclusion                                                                                                          |
+| ------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Retroactively review PR #28 and PR #29 and address findings         | **Partially done**                        | Written reviews were completed on Oct 2, but complete evidence that every cleanup item was subsequently merged was not established |
+| File Tax, Charts and Dashboard backlogs as GitHub issues            | **Partially done**                        | Tax and Dashboard adopted issue-linked work; Charts did not use issue-first tracking consistently                                  |
+| Require one independent approval and branch protection              | **Done at repository-control level**      | `Protect Main` requires a PR, one approval, Lint/format, Unit tests and Build                                                      |
+| Resolve shared-account identity                                     | **Not done**                              | Arthur's work continued under `Error404IsFound`                                                                                    |
+| Compile the retrospective from GitHub state rather than self-report | **Completed for Iteration 2 preparation** | The Oct 30 audit under #173 was reconstructed from GitHub state                                                                    |
+
+### 5.2 What Went Well
+
+The retrospective preparation and GitHub audit identified the following strengths:
+
+- GitHub traceability improved substantially compared with Iteration 1.
+- Workload was reasonably distributed across the team.
+- PR turnaround was generally fast.
+- The reviewer rotation was actively used.
+- Reviews were meaningful and often resulted in corrective commits.
+- Core Tax backend work was completed through withholding, FIFO, average cost, tax lots, filtering, yearly summary and CSV/PDF export.
+- Risk delivered the majority of its planned backend rule, health-score, what-if and volatility/covariance scope.
+- Dashboard aggregation and HTTP integration were completed.
+- Cross-feature integration was verified before freeze.
+- Integration Pass #2 finished with 47/47 E2E tests and 641 passing full-API tests, with one known upstream skip.
+- Known limitations were documented rather than hidden.
+
+### 5.3 What Needs Improvement
+
+The main improvement themes were:
+
+- stale/open PRs remained late in the sprint;
+- completed work and issue status were not always synchronized;
+- several PRs were larger than ideal for efficient review;
+- feature/iteration labels were inconsistent or missing;
+- the shared `Error404IsFound` identity reduced contribution traceability;
+- detailed Scrum notes were not maintained for every later meeting;
+- the progress report became stale while implementation advanced rapidly;
+- some documentation referenced work that had not yet merged;
+- the `withholdingTax` shared-contract change exposed insufficient full-build validation before CI protection was strengthened.
+
+### 5.4 Iteration 3 Actions
+
+The audit produced the following process actions for Iteration 3.
+
+| Action                                                                                     | Owner                             | Target                                   |
+| ------------------------------------------------------------------------------------------ | --------------------------------- | ---------------------------------------- |
+| Review stale/open PRs and merge, update or close each one                                  | Arthur with each feature owner    | First Iteration 3 review / Nov 6         |
+| Require approval and green required CI before merge                                        | Arthur                            | Entire Iteration 3                       |
+| Add a feature/iteration label to each new PR where labels are available                    | Each PR author; Arthur monitors   | Starting Nov 2                           |
+| Keep PRs smaller and tied to a single issue/coherent task                                  | All feature owners                | Entire Iteration 3                       |
+| Reconcile issue state after implementation merges and comment genuine carry-over work      | Each feature owner; Arthur checks | Starting Nov 2                           |
+| Maintain structured Scrum notes with attendance, issue, blocker, merged PR and next action | Arthur                            | First weekly review Nov 6 and continuing |
+
+The sprint plan requires three to five final actions. The final report-review meeting should retain only the actions the team formally agrees to carry forward.
+
+### 5.5 Scrum Master Handover
+
+The planned Scrum Master rotation is:
+
+```text
+Iteration 1: Sesha Siva Sankar
+Iteration 2: Tharun Swaminathan
+Iteration 3: Arthur Elly Lim
+```
+
+Arthur Elly Lim is therefore the planned Iteration 3 Scrum Master.
+
+### 5.6 Retrospective Board
+
+A retrospective-board visual is stored at:
+
+```text
+project-docs/iteration-2/retro-board.png
+```
+
+![Recreated Iteration 2 retrospective board](../retro-board.png)
+
+**Evidence note:** this image is a recreated visual summary based on the retrospective preparation notes, GitHub audit and recorded action items. It is **not an original photograph captured during the meeting** and must not be described as one.
+
+If an original meeting-board photo/screenshot becomes available, it should replace this reconstructed visual.
+
+### 5.7 Attendance Evidence Limitation
+
+The repository evidence available for this report does not contain an independently preserved full-team attendance record for the retrospective.
+
+The report therefore does not infer attendance from GitHub activity or from the recreated board.
+
+If direct meeting attendance evidence is available from Teams, calendar, chat or meeting notes, it should be added before final PDF export.
+
+---
+
+## 6. Software Architecture — As Built
+
+_Owner: Raniya_
+
+The standalone cross-module as-built architecture document is still under review in [PR #162](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/162) at the current Oct 30 snapshot.
+
+The report therefore summarizes the architecture that is verifiable from merged implementation without claiming that PR #162 is already on `main`.
+
+All feature code lives in the NestJS API under:
+
+```text
+apps/api/src/app/<feature>/
+```
+
+Each feature is represented by a separate Nest module/controller/service boundary.
+
+The main dependency direction is:
+
+```text
+Dashboard
+   ↓
+Risk / Tax / Charts
+   ↓
+Portfolio / Prisma / shared infrastructure
+```
+
+### Current Routes
+
+| Module          | Routes under `/api/v1`                          | Main exported service          |
+| --------------- | ----------------------------------------------- | ------------------------------ |
+| RiskModule      | `GET /risk/concentration`, `POST /risk/what-if` | `ExposureService`              |
+| TaxModule       | `GET /tax/realized-gains`, `GET /tax/lots`      | `TaxDataService`, `TaxService` |
+| ChartsModule    | `GET /charts/series`, `GET /charts/drawdown`    | `ChartsApi`                    |
+| DashboardModule | `GET /dashboard/overview`                       | `DashboardOverview`            |
+
+The drawdown route was merged after the feature freeze through PR #167.
+
+Shared API conventions include:
+
+- common `{ data, error, meta }` response envelopes;
+- feature-prefixed error codes;
+- generic client-facing error messages with internal server logging;
+- numeric Risk/Charts values;
+- decimal-string Tax values;
+- draft filtering;
+- JSON schema contracts;
+- unit and E2E contract validation.
+
+The dashboard loads Risk, Tax and Charts sources and can mark a failing section `unavailable` rather than failing the entire dashboard response.
+
+### Known Architecture Gaps
+
+- Risk does not yet have a catch-all `RISK_*` unexpected-error envelope.
+- Dashboard currently calls `ExposureService` rather than a single high-level `RiskService`.
+- The unified dashboard has no final React page yet.
+- Charts benchmark and return-comparison endpoints remain unmerged.
+- PR #162 containing the dedicated as-built architecture document remains open.
+
+The complete software/deployment architecture remains part of the Iteration 3 requirement.
+
+---
+
+## 7. Increment Tests / Quality Assurance
+
+_Owner: Arthur; CI/integration evidence supplied by Raniya. Final test table still required from Arthur._
+
+Verified evidence already available:
+
+| Test / verification            | Type                                 | Result                                                                                                       | Date      | Evidence                                                                                          |
+| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------- |
+| Integration Pass #1            | Cross-feature E2E + full API + build | 4 E2E suites / 47 E2E tests passed; 91 full API suites / 611 tests passed; build green                       | Oct 26    | [Evidence](../evidence/integration-pass-1-2026-10-26.md)                                          |
+| Integration Pass #2            | Cross-feature E2E + full API + build | 4 E2E suites / 47 E2E tests passed; 93 full API suites / 641 tests passed; 1 suite/test skipped; build green | Oct 28    | [Evidence](../evidence/integration-pass-2-2026-10-28.md)                                          |
+| Dashboard aggregation coverage | Unit                                 | 100% recorded statements, branches, functions and lines for the covered Dashboard files                      | Oct 23    | [Evidence](../evidence/dashboard-coverage-2026-10-23.md)                                          |
+| Final Tax validation           | Tax unit/integration/E2E folder      | 16/16 suites passed; 218/218 tests passed                                                                    | Oct 28/29 | [Tax evidence](../evidence/tax-evidence-2026-10-29.md)                                            |
+| Charts drawdown                | Unit + E2E                           | Merged with numeric unit/E2E coverage                                                                        | Oct 30    | [#167](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/167) |
+
+### Important QA Incidents
+
+The final test section should also retain failures that produced process lessons rather than reporting only successes.
+
+#### Shared-contract build regression
+
+PR #72 added `withholdingTax` but missed one existing export mapping.
+
+Result:
+
+- production TypeScript build failure on `main`;
+- fixed through PR #78;
+- later CI changes made Build a required check.
+
+#### Local PDF dependency state
+
+During integration validation, local PDF tests initially failed because the updated dependency tree had not been installed locally.
+
+Running `npm install` restored the local environment.
+
+CI was not affected.
+
+#### Parallel-test timeout observation
+
+Some CSV/export validation produced timeout-only E2E failures under parallel execution.
+
+The affected suites and complete API suite passed when rerun serially.
+
+This was treated as execution/concurrency behavior rather than a Tax calculation failure.
+
+### Remaining Canvas Requirement
+
+Arthur's final Section 7 table must still include:
+
+- unit/integration test name or run;
+- success/failure;
+- who performed it;
+- date;
+- relevant evidence.
+
+---
+
+## 8. User Stories for Iteration 3 and Scrum Schedule
+
+_Owner: Arthur, Iteration 3 Scrum Master · Final section still required._
+
+### Known Carry-Over Work
+
+At the current Oct 30 snapshot:
+
+- Risk catch-all `RISK_*` error-envelope consistency;
+- React unified dashboard page;
+- Charts benchmark comparison — [PR #160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160);
+- Charts return comparison — [PR #105](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/105);
+- cleanup/rebase/closure of overlapping open Tax/FIFO test PRs such as #127, #142, #151 and #153;
+- issue-state reconciliation;
+- remaining frontend React work.
+
+PR #170 is **not** a carry-over item anymore; it merged on Oct 30.
+
+### Planned Feature Ownership for Iteration 3
+
+Based on the Iteration 3 sprint plan:
+
+| Owner  | Primary Iteration 3 area                                                                 |
+| ------ | ---------------------------------------------------------------------------------------- |
+| Sesha  | Risk frontend/dashboard experience and refinement                                        |
+| Tharun | Tax-lot/withholding React screens, capital-gains/yearly-summary views, CSV/PDF export UI |
+| Arthur | Performance-chart frontend and remaining chart work                                      |
+| Raniya | Unified Dashboard, architecture, integration and QA                                      |
+
+Arthur must finalize:
+
+- selected Iteration 3 user stories;
+- balanced task allocation;
+- updated GitHub issues;
+- information-flow diagrams;
+- major methods/components;
+- upcoming Scrum meeting schedule;
+- confirmation of Arthur as Iteration 3 Scrum Master.
+
+---
+
+## 9. Evaluation of Teammates
+
+_Owner: whole team individually · Pending._
+
+Each team member must complete the teammate evaluation using evidence from:
+
+- PR contribution;
+- review activity;
+- issue/task ownership;
+- CI/testing participation;
+- Scrum/process participation;
+- delivery against assigned work.
+
+The evaluation should not automatically assign identical scores without evidence.
+
+---
+
+## Conclusion
+
+Iteration 2 delivered a substantial working backend increment for the Ghostfolio extension.
+
+Tax completed its planned backend roadmap, including withholding/dividend analytics, FIFO, average cost, tax lots, filtering, yearly summaries and CSV/PDF exports.
+
+Risk completed its major scoring, what-if and volatility/covariance functionality.
+
+Charts delivered its core series pipeline before freeze and subsequently merged the drawdown endpoint on Oct 30.
+
+Dashboard integration successfully combined Risk, Tax and Charts through one overview endpoint with partial-failure behavior.
+
+The final integration pass demonstrated:
+
+```text
+47 / 47 E2E tests passed
+641 full API tests passed
+1 known upstream test skipped
+API build passed
+```
+
+The main areas requiring follow-up are:
+
+- remaining Charts benchmark/return comparison work;
+- Risk unexpected-error envelope consistency;
+- Iteration 3 React frontend implementation;
+- stale/open PR cleanup;
+- stale issue-state cleanup;
+- improved Scrum meeting evidence;
+- final as-built architecture documentation;
+- final Oct 31 repository/report reconciliation.
+
+The sprint also produced clear process lessons: link every task to an issue, keep PRs small, require meaningful review and green CI, reconcile issue state immediately after merge, and keep documentation synchronized with repository state throughout the sprint rather than only at the end.
+
+---
+
+## Submission Gate — Oct 31 / Nov 1
+
+Before final PDF submission:
+
+- [ ] Sesha completes Section 4 GitHub collaboration.
+- [x] Tharun completes Section 5 retrospective content.
+- [ ] Arthur completes Section 7 final test table.
+- [ ] Arthur completes Section 8 Iteration 3 stories and Scrum schedule.
+- [ ] Every team member completes Section 9 evaluation.
+- [ ] Final Oct 31 GitHub audit/refresh completed.
+- [ ] Completed issues closed/reconciled.
+- [ ] Open carry-over issues contain current-status and remaining-work comments.
+- [ ] PR #162 final state reconciled.
+- [ ] All remaining report claims checked against GitHub.
+- [ ] Original retrospective attendance evidence added if available.
+- [ ] Retrospective visual accurately labeled as recreated unless an original board image replaces it.
+- [ ] Final architecture/table values checked.
+- [ ] Final test table includes runner, date and result.
+- [ ] Final report uses **Arial 12 pt** as required by Canvas.
+- [ ] Final PDF screenshots, tables, captions and links reviewed.
+- [ ] Main branch green.
+- [ ] Final PDF exported and reviewed end-to-end.
+- [ ] Raniya submits on Nov 1 and submission receipt is confirmed.
