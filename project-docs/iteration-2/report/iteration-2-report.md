@@ -4,7 +4,7 @@
 **Sprint window:** Fri Oct 2 – Sun Nov 1, 2026
 **Repository:** https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1
 
-> Rule for every section: each implementation claim must be supported by a merged PR, closed issue, CI/test record, or file under `project-docs/iteration-2/evidence/`. Open/unmerged work is identified separately rather than reported as completed. Repository data below reflects the final Oct 31, 22:51 UTC issue/PR cleanup pass (9 issues closed, 10 PRs closed as superseded/stale, 1 reviewed and approved); it is the final refresh before submission.
+> Rule for every section: each implementation claim must be supported by a merged PR, closed issue, CI/test record, or file under `project-docs/iteration-2/evidence/`. Open/unmerged work is identified separately rather than reported as completed. Repository data below reflects the final Oct 31 issue/PR cleanup pass: 9 issues closed, 7 stale/superseded PRs closed, and PR #162 merged after final review; it is the final refresh before submission.
 
 ---
 
