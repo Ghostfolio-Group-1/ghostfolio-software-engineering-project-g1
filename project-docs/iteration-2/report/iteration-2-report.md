@@ -223,34 +223,47 @@ GitHub evidence is not used to infer exact attendance or exact spoken discussion
 
 ## 4. GitHub Collaboration and Version Control
 
-_Owner: Sesha · Final owner content still required before the Oct 31 report-review call._
+_Owner: Sesha_
 
-The current report can already verify the following repository facts:
+All numbers below are pulled directly from the GitHub REST/GraphQL API, refreshed Oct 31, 2026, against the full Oct 2 – Oct 30 (end of day, `main` at `db119cdff1`) Iteration 2 window; issue counts are all-time on this repo. A day-by-day log for Oct 2–8 (commits, branch names, PR open/merge timestamps) is kept in [github-audit.csv](../records/github-audit.csv) and its gap notes in [gaps.md](../records/gaps.md); that log was not continued past Oct 8, so the aggregate tables below are the source of truth for the full iteration.
 
-```text
-Merged PRs in current Oct 30 report snapshot:
-67
+### 4.1 Pull Requests and Reviews per Member
 
-Raniya: 22
-Tharun: 20
-Sesha: 15
-Arthur / Error404IsFound: 10
-```
+| Member                       | Merged PRs (Oct 2–30) | Reviews given (approved / changes requested / commented) |
+| ---------------------------- | --------------------: | -------------------------------------------------------- |
+| Raniya (`Raniyafs`)          |                    22 | 17 (10 / 6 / 1)                                          |
+| Tharun (`TharunSwaminathan`) |                    20 | 33 (17 / 12 / 4)                                         |
+| Sesha (`sesha456`)           |                    15 | 30 (25 / 4 / 1)                                          |
+| Arthur (`Error404IsFound`)   |                    10 | 31 (19 / 7 / 5)                                          |
+| **Total**                    |                **67** | **111**                                                  |
 
-The final Section 4 should include Sesha's GitHub audit findings covering:
+12 PRs are open as of Oct 31, including this section's own PR ([#179](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/179)); the rest are all authored by `Error404IsFound`: charts PRs ([#160](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/160), [#105](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/105), [#70](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/70), [#69](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/69), [#50](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/50)) and the duplicate tax-test PRs from section 2.2 ([#153](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/153), [#151](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/151), [#142](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/142), [#127](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/127), [#123](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/123)) — plus Raniya's architecture-as-built doc ([#162](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/162), still `CHANGES_REQUESTED`).
 
-- PRs opened/merged per member;
-- review counts and review turnaround;
-- requested-change reviews;
-- direct-push findings;
-- issue linkage;
-- stale/open PRs;
-- issue-state inconsistencies;
-- CI history;
-- late/unmerged work;
-- any Oct 31 changes.
+**Caveat:** `Error404IsFound` is a shared GitHub login used for Arthur's commits, with author emails split across a personal Gmail address and the login's own noreply address. There is no way to independently confirm from git/GitHub alone that every commit, PR, and review under that login was performed by Arthur personally rather than another teammate using the same account — flagged in [gaps.md](../records/gaps.md) item 3 and carried into section 8 as a process fix (one GitHub account per person) for Iteration 3.
 
-The final section must use GitHub evidence rather than self-reported contribution totals.
+### 4.2 Issues
+
+| Member    | Issues opened (all-time) | Closed |   Open |
+| --------- | -----------------------: | -----: | -----: |
+| Raniya    |                       28 |     19 |      9 |
+| Tharun    |                       23 |     20 |      3 |
+| Sesha     |                       24 |     20 |      4 |
+| Arthur    |                        3 |      2 |      1 |
+| **Total** |                   **78** | **61** | **17** |
+
+### 4.3 Branch Protection and CI
+
+`main` is covered by an active ruleset ("Protect Main", `current_user_can_bypass: never` — no one, including admins, can bypass it):
+
+- Blocks branch deletion and non-fast-forward (force) pushes.
+- Requires a pull request with at least 1 approving review before merge (`merge`, `squash`, and `rebase` are all allowed merge methods).
+- Requires 3 status checks to pass before merge: **Lint and format**, **Unit tests**, **Build**.
+
+No commit history on `main` since Oct 2 falls outside a PR merge commit for a merged PR in the table above — consistent with the ruleset's bypass setting, there is no evidence of a direct push to `main` this iteration.
+
+The required-checks rule did not exist for the whole iteration: it was added in [#87](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/87), merged Oct 8 at 21:47 UTC. The 14 PRs merged before that — #44, #48, #49, #51, #59, #61, #71, #72, #74, #75, #76, #78, #80, #83 — did not require Lint/Unit tests/Build to pass. One of them is the near-miss worth noting: #72 updated a shared type without updating all call sites, which broke the `main` build for about 18.5 hours after merge, caught only because the checks were not yet mandatory (see section 2.2). For the 53 PRs merged from #87 onward, a passing Lint/Unit tests/Build run is implied by the merge itself, since the ruleset blocks merging otherwise.
+
+CI evidence: [integration pass #1](../evidence/integration-pass-1-2026-10-26.md), [integration pass #2](../evidence/integration-pass-2-2026-10-28.md) (both green on all three required checks plus `extract_locales`).
 
 ---
 
@@ -578,7 +591,7 @@ The sprint also produced clear process lessons: link every task to an issue, kee
 
 Before final PDF submission:
 
-- [ ] Sesha completes Section 4 GitHub collaboration.
+- [x] Sesha completes Section 4 GitHub collaboration.
 - [x] Tharun completes Section 5 retrospective content.
 - [ ] Arthur completes Section 7 final test table.
 - [ ] Arthur completes Section 8 Iteration 3 stories and Scrum schedule.
