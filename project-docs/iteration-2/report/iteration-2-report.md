@@ -547,7 +547,7 @@ Arthur must finalize:
 
 ## 9. Evaluation of Teammates
 
-_Owner: whole team individually · Pending._
+_Owner: whole team. Each member submits their own evaluation individually, outside this report._
 
 Each team member must complete the teammate evaluation using evidence from:
 
