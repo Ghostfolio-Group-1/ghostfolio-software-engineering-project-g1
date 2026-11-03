@@ -134,6 +134,43 @@ describe('RiskEvaluationService', () => {
     expect(evaluation.skippedRuleKeys).toContain('PortfolioVolatility');
   });
 
+  it('reports an empty portfolio (no holdings, no cash) as NO_DATA rather than a passing 0%', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 0,
+      holdings: []
+    });
+
+    expect(evaluation.holdingsValue).toBe(0);
+    expect(evaluation.portfolioValue).toBe(0);
+
+    const cash = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'CashAllocation'
+    );
+    const singleStock = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'SingleStockConcentration'
+    );
+
+    expect(cash.actual).toBeNull();
+    expect(singleStock.actual).toBeNull();
+
+    // Every rule that depends on holdings/cash data is NO_DATA (isActive:
+    // false), not a free "0% is fine" pass - the health score must not look
+    // valid for a portfolio that has nothing in it.
+    const dataDependentResults = evaluation.ruleResults.filter(
+      (result) => result.key !== 'PortfolioVolatility'
+    );
+    expect(dataDependentResults.every((result) => !result.isActive)).toBe(true);
+
+    const healthScore = new HealthScoreCalculatorService().calculateHealthScore(
+      evaluation.ruleResults
+    );
+
+    expect(healthScore.score).toBeNull();
+    expect(healthScore.unavailableReason).toBe('NO_ACTIVE_RULES');
+    expect(healthScore.categories).toEqual([]);
+  });
+
   it('does not let a NO_DATA PortfolioVolatility inflate the health score', () => {
     const evaluation = service.evaluate({
       baseCurrency: 'USD',

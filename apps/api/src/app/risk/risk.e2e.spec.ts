@@ -1,5 +1,6 @@
 import { AccountService } from '@ghostfolio/api/app/account/account.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
+import { ConfigurationService } from '@ghostfolio/api/services/configuration/configuration.service';
 import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import {
   E2E_NO_LOGIN,
@@ -22,6 +23,7 @@ import {
   riskConcentrationResponseSchema,
   riskErrorResponseSchema
 } from './contracts/risk-concentration.schema';
+import { riskScoreResponseSchema } from './contracts/risk-score.schema';
 import { ExposureCalculatorService } from './exposure-calculator.service';
 import { ExposureService } from './exposure.service';
 import { HealthScoreCalculatorService } from './health-score-calculator.service';
@@ -68,6 +70,10 @@ describe('GET /api/v1/risk/concentration (end to end)', () => {
                   .fn()
                   .mockResolvedValue({ balanceInBaseCurrency: 0 })
               }
+            },
+            {
+              provide: ConfigurationService,
+              useValue: { get: jest.fn().mockReturnValue(false) }
             },
             { provide: PortfolioService, useValue: { getHoldings } },
             {
@@ -174,6 +180,110 @@ describe('GET /api/v1/risk/concentration (end to end)', () => {
   });
 });
 
+describe('GET /api/v1/risk/score (end to end)', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(riskScoreResponseSchema);
+  const getHoldings = jest.fn().mockResolvedValue(holdingsFixture);
+  const getCashDetails = jest
+    .fn()
+    .mockResolvedValue({ balanceInBaseCurrency: 0 });
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [RiskController],
+          providers: [
+            ExposureCalculatorService,
+            ExposureService,
+            {
+              provide: ExchangeRateDataService,
+              useValue: {
+                toCurrency: (value: number, from: string, to: string) => {
+                  return from === 'EUR' && to === 'USD'
+                    ? value * EUR_TO_USD
+                    : value;
+                }
+              }
+            },
+            { provide: AccountService, useValue: { getCashDetails } },
+            {
+              provide: ConfigurationService,
+              useValue: { get: jest.fn().mockReturnValue(false) }
+            },
+            { provide: PortfolioService, useValue: { getHoldings } },
+            {
+              provide: VolatilityCacheService,
+              useValue: {
+                getPortfolioVolatility: jest.fn().mockResolvedValue({
+                  annualizedVolatility: null,
+                  historyDays: 0
+                })
+              }
+            },
+            HealthScoreCalculatorService,
+            RiskEvaluationService,
+            ThresholdEngineService,
+            WhatIfService
+          ]
+        }),
+        { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    getHoldings.mockClear();
+    getCashDetails.mockClear();
+  });
+
+  it('returns the risk score of the fixture portfolio in the contract shape', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/risk/score')
+      .expect(200);
+
+    validateResponse(response.body);
+
+    expect(validateResponse.errors ?? []).toEqual([]);
+    expect(getHoldings).toHaveBeenCalledWith({
+      dateRange: 'max',
+      userId: FIXTURE_USER_ID
+    });
+    expect(getCashDetails).toHaveBeenCalledWith({
+      userId: FIXTURE_USER_ID,
+      currency: FIXTURE_BASE_CURRENCY
+    });
+    expect(
+      typeof response.body.data.score === 'number' ||
+        response.body.data.score === null
+    ).toBe(true);
+  });
+
+  it('returns 403 when the user lacks the portfolio:read scope', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/risk/score')
+      .set(E2E_NO_SCOPES)
+      .expect(403);
+
+    expect(getHoldings).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when the request is not logged in', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/risk/score')
+      .set(E2E_NO_LOGIN)
+      .expect(401);
+
+    expect(getHoldings).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /api/v1/risk/what-if (end to end)', () => {
   // AAPL 3 x 180 = 540, MSFT 5 x 320 = 1600, SAP 4 x 130 EUR x 1.1 = 572.
   // Holdings total 2712; cash 1000, so portfolio total 3712.
@@ -203,6 +313,10 @@ describe('POST /api/v1/risk/what-if (end to end)', () => {
               }
             },
             { provide: AccountService, useValue: { getCashDetails } },
+            {
+              provide: ConfigurationService,
+              useValue: { get: jest.fn().mockReturnValue(false) }
+            },
             { provide: PortfolioService, useValue: { getHoldings } },
             {
               provide: VolatilityCacheService,

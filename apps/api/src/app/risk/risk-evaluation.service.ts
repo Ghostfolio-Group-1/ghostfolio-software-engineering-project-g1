@@ -215,7 +215,11 @@ export class RiskEvaluationService {
 
     const thresholdInput: ThresholdEngineInput = {
       ruleKey,
-      actual: worst?.percentage ?? 0,
+      // null (not 0) when there are no buckets at all (no holdings) - a
+      // portfolio with nothing in it has no concentration to measure, and
+      // reporting 0% would look like a passing "perfectly diversified"
+      // result rather than the absence of data it actually is.
+      actual: worst?.percentage ?? null,
       subject: { type: subjectType, value: worst?.key ?? 'n/a' }
     };
 
@@ -235,7 +239,10 @@ export class RiskEvaluationService {
     cashBalance: number,
     portfolioValue: number
   ): RiskRuleEvaluation {
-    const actual = portfolioValue > 0 ? cashBalance / portfolioValue : 0;
+    // null (not 0) for an empty portfolio (no holdings, no cash) - a 0%
+    // cash ratio is a real, passable ratio for a non-empty portfolio, but
+    // 0/0 has no ratio to report at all.
+    const actual = portfolioValue > 0 ? cashBalance / portfolioValue : null;
     const thresholdInput: ThresholdEngineInput = {
       actual,
       ruleKey: 'CashAllocation',
@@ -297,7 +304,9 @@ export class RiskEvaluationService {
       targetAllocation.groupBy ?? 'assetClass'
     );
     const thresholdInput: ThresholdEngineInput = {
-      actual: worst ? Math.abs(worst.deviation) : 0,
+      // null (not 0) when there are no buckets at all (no holdings) - see
+      // evaluateConcentration's comment above for the same reasoning.
+      actual: worst ? Math.abs(worst.deviation) : null,
       ruleKey: 'TargetAllocationDeviation',
       subject: { type: subjectType, value: worst?.key ?? 'n/a' }
     };
