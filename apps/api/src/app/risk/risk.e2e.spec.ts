@@ -1,5 +1,6 @@
 import { AccountService } from '@ghostfolio/api/app/account/account.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
+import { ConfigurationService } from '@ghostfolio/api/services/configuration/configuration.service';
 import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import {
   E2E_NO_LOGIN,
@@ -69,6 +70,10 @@ describe('GET /api/v1/risk/concentration (end to end)', () => {
                   .fn()
                   .mockResolvedValue({ balanceInBaseCurrency: 0 })
               }
+            },
+            {
+              provide: ConfigurationService,
+              useValue: { get: jest.fn().mockReturnValue(false) }
             },
             { provide: PortfolioService, useValue: { getHoldings } },
             {
@@ -204,6 +209,10 @@ describe('GET /api/v1/risk/score (end to end)', () => {
               }
             },
             { provide: AccountService, useValue: { getCashDetails } },
+            {
+              provide: ConfigurationService,
+              useValue: { get: jest.fn().mockReturnValue(false) }
+            },
             { provide: PortfolioService, useValue: { getHoldings } },
             {
               provide: VolatilityCacheService,
@@ -304,6 +313,10 @@ describe('POST /api/v1/risk/what-if (end to end)', () => {
               }
             },
             { provide: AccountService, useValue: { getCashDetails } },
+            {
+              provide: ConfigurationService,
+              useValue: { get: jest.fn().mockReturnValue(false) }
+            },
             { provide: PortfolioService, useValue: { getHoldings } },
             {
               provide: VolatilityCacheService,

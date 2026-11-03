@@ -2,13 +2,19 @@ import { AccountService } from '@ghostfolio/api/app/account/account.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
 import { Impersonation } from '@ghostfolio/api/decorators/impersonation.decorator';
 import { RequiresScope } from '@ghostfolio/api/decorators/requires-scope.decorator';
+import { ConfigurationService } from '@ghostfolio/api/services/configuration/configuration.service';
 import {
   ApiResponse,
   createErrorResponse,
   createSuccessResponse
 } from '@ghostfolio/common/api-conventions';
-import { scopes } from '@ghostfolio/common/scopes';
-import type { ImpersonationContext } from '@ghostfolio/common/types';
+import { SubscriptionType } from '@ghostfolio/common/enums';
+import { isRestrictedView } from '@ghostfolio/common/permissions';
+import { hasScope, scopes } from '@ghostfolio/common/scopes';
+import type {
+  ImpersonationContext,
+  RequestWithUser
+} from '@ghostfolio/common/types';
 
 import {
   BadRequestException,
@@ -18,10 +24,12 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Inject,
   NotFoundException,
   Post,
   Query
 } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
 
 import { RunWhatIfDto } from './dtos/run-what-if.dto';
 import { ExposureService } from './exposure.service';
@@ -43,14 +51,29 @@ import { WhatIfService } from './what-if.service';
 export class RiskController {
   public constructor(
     private readonly accountService: AccountService,
+    private readonly configurationService: ConfigurationService,
     private readonly exposureService: ExposureService,
     private readonly healthScoreCalculatorService: HealthScoreCalculatorService,
     private readonly portfolioService: PortfolioService,
+    @Inject(REQUEST) private readonly request: RequestWithUser,
     private readonly riskEvaluationService: RiskEvaluationService,
     private readonly thresholdEngineService: ThresholdEngineService,
     private readonly volatilityCacheService: VolatilityCacheService,
     private readonly whatIfService: WhatIfService
   ) {}
+
+  // Mirrors PortfolioController#getReport's X-Ray rule-hiding (Section 4 of
+  // docs/sesha-notes/10-risk-api-contract.md: "today's X-Ray report hides
+  // the individual rules for these users, I'm proposing the risk API does
+  // the same"), reusing the same three gates rather than inventing new ones.
+  private shouldHideRules(impersonationScopes: string[]): boolean {
+    return (
+      !hasScope(impersonationScopes, scopes.portfolioReadValues) ||
+      isRestrictedView(this.request.user) ||
+      (this.configurationService.get('ENABLE_FEATURE_SUBSCRIPTION') &&
+        this.request.user.subscription?.type === SubscriptionType.Basic)
+    );
+  }
 
   @Get('concentration')
   @RequiresScope(scopes.portfolioRead)
@@ -88,7 +111,8 @@ export class RiskController {
   @Get('score')
   @RequiresScope(scopes.portfolioRead)
   public async getScore(
-    @Impersonation() { userId, userSettings }: ImpersonationContext
+    @Impersonation()
+    { scopes: impersonationScopes, userId, userSettings }: ImpersonationContext
   ): Promise<ApiResponse<RiskScoreResponse>> {
     const [holdings, cashDetails] = await Promise.all([
       this.portfolioService.getHoldings({ userId, dateRange: 'max' }),
@@ -112,13 +136,19 @@ export class RiskController {
       evaluation.ruleResults
     );
 
-    return createSuccessResponse(
-      toRiskScoreResponse({
-        evaluation,
-        healthScore,
-        thresholdEngineService: this.thresholdEngineService
-      })
-    );
+    const response = toRiskScoreResponse({
+      evaluation,
+      healthScore,
+      thresholdEngineService: this.thresholdEngineService
+    });
+
+    if (this.shouldHideRules(impersonationScopes)) {
+      for (const category of response.categories) {
+        category.rules = null;
+      }
+    }
+
+    return createSuccessResponse(response);
   }
 
   @Post('what-if')
