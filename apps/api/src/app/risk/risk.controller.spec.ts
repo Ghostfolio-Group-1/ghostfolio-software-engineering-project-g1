@@ -16,9 +16,13 @@ import {
   riskConcentrationResponseSchema,
   riskErrorResponseSchema
 } from './contracts/risk-concentration.schema';
+import { riskScoreResponseSchema } from './contracts/risk-score.schema';
 import { ExposureCalculatorService } from './exposure-calculator.service';
 import { ExposureService } from './exposure.service';
+import { HealthScoreCalculatorService } from './health-score-calculator.service';
+import { RiskEvaluationService } from './risk-evaluation.service';
 import { RiskController } from './risk.controller';
+import { ThresholdEngineService } from './threshold-engine.service';
 import { VolatilityCacheService } from './volatility-cache.service';
 import { WhatIfService } from './what-if.service';
 
@@ -43,6 +47,9 @@ describe('RiskController contract: GET /risk/concentration', () => {
       providers: [
         ExposureCalculatorService,
         ExposureService,
+        HealthScoreCalculatorService,
+        RiskEvaluationService,
+        ThresholdEngineService,
         { provide: AccountService, useValue: { getCashDetails: jest.fn() } },
         { provide: ExchangeRateDataService, useValue: {} },
         { provide: ImpersonationService, useValue: {} },
@@ -161,6 +168,9 @@ describe('RiskController contract: GET /risk/concentration', () => {
         providers: [
           ExposureCalculatorService,
           ExposureService,
+          HealthScoreCalculatorService,
+          RiskEvaluationService,
+          ThresholdEngineService,
           { provide: AccountService, useValue: { getCashDetails } },
           { provide: ExchangeRateDataService, useValue: {} },
           { provide: ImpersonationService, useValue: {} },
@@ -219,6 +229,9 @@ describe('RiskController contract: GET /risk/concentration', () => {
         providers: [
           ExposureCalculatorService,
           ExposureService,
+          HealthScoreCalculatorService,
+          RiskEvaluationService,
+          ThresholdEngineService,
           {
             provide: AccountService,
             useValue: {
@@ -268,6 +281,9 @@ describe('RiskController contract: GET /risk/concentration', () => {
         providers: [
           ExposureCalculatorService,
           ExposureService,
+          HealthScoreCalculatorService,
+          RiskEvaluationService,
+          ThresholdEngineService,
           {
             provide: AccountService,
             useValue: {
@@ -324,5 +340,111 @@ describe('RiskController contract: GET /risk/concentration', () => {
     };
 
     expect(validateResponse(broken)).toBe(false);
+  });
+
+  describe('GET /risk/score', () => {
+    const validateScoreResponse = ajv.compile(riskScoreResponseSchema);
+
+    async function createScoreController({
+      getCashDetails = jest
+        .fn()
+        .mockResolvedValue({ balanceInBaseCurrency: 0 }),
+      getPortfolioVolatility = jest
+        .fn()
+        .mockResolvedValue({ annualizedVolatility: null, historyDays: 0 })
+    } = {}) {
+      const moduleRef = await Test.createTestingModule({
+        controllers: [RiskController],
+        providers: [
+          ExposureCalculatorService,
+          ExposureService,
+          HealthScoreCalculatorService,
+          RiskEvaluationService,
+          ThresholdEngineService,
+          { provide: AccountService, useValue: { getCashDetails } },
+          {
+            provide: ExchangeRateDataService,
+            useValue: { toCurrency: (value: number) => value }
+          },
+          { provide: ImpersonationService, useValue: {} },
+          { provide: PortfolioService, useValue: { getHoldings } },
+          {
+            provide: VolatilityCacheService,
+            useValue: { getPortfolioVolatility }
+          },
+          { provide: WhatIfService, useValue: { calculateWhatIf: jest.fn() } }
+        ]
+      }).compile();
+
+      return moduleRef.get(RiskController);
+    }
+
+    it('is routed at /risk/score', () => {
+      expect(
+        Reflect.getMetadata('path', RiskController.prototype.getScore)
+      ).toBe('score');
+    });
+
+    it('matches the contract schema', async () => {
+      jest
+        .spyOn(ExposureService.prototype, 'getRiskSummary')
+        .mockReturnValue(riskSummaryFixture);
+      const scoreController = await createScoreController();
+
+      const response = await scoreController.getScore(context);
+
+      validateScoreResponse(response);
+
+      expect(validateScoreResponse.errors ?? []).toEqual([]);
+    });
+
+    // Reproduces the SingleStockConcentration worked example from
+    // docs/sesha-notes/10-risk-api-contract.md, Section 6.2: the fixture
+    // portfolio's AAPL holding is 33.3% of the total, above the 25% red
+    // limit, so the rule (and its concentration category) must come back RED.
+    it('flags SingleStockConcentration as RED for a concentrated portfolio', async () => {
+      getHoldings.mockResolvedValue(holdingsFixture);
+      jest
+        .spyOn(ExposureService.prototype, 'getRiskSummary')
+        .mockReturnValue(riskSummaryFixture);
+      const scoreController = await createScoreController();
+
+      const { data } = await scoreController.getScore(context);
+
+      const concentration = data.categories.find(
+        (category) => category.key === 'concentration'
+      );
+      const singleStock = concentration?.rules?.find(
+        (rule) => rule.key === 'SingleStockConcentration'
+      );
+
+      expect(singleStock?.severity).toBe('RED');
+      expect(singleStock?.actual).toBe(0.333);
+      expect(singleStock?.passed).toBe(false);
+      expect(concentration?.severity).toBe('RED');
+    });
+
+    it('excludes the volatility category when no volatility data is available', async () => {
+      // VolatilityCacheService resolves to a null annualizedVolatility by
+      // default here, so PortfolioVolatility is the only rule in its
+      // category and ends up NO_DATA -> the whole category is excluded,
+      // never shown as a fake green or a fake fail.
+      getHoldings.mockResolvedValue([]);
+      jest.spyOn(ExposureService.prototype, 'getRiskSummary').mockReturnValue({
+        concentration: { country: [], currency: [], sector: [], stock: [] },
+        exposure: { assetClass: [], currency: [] },
+        totalValue: 0
+      });
+      const scoreController = await createScoreController();
+
+      const { data } = await scoreController.getScore(context);
+
+      expect(data.excluded).toEqual([
+        { key: 'volatility', reason: 'NO_ACTIVE_RULES' }
+      ]);
+      expect(
+        data.categories.some((category) => category.key === 'volatility')
+      ).toBe(false);
+    });
   });
 });

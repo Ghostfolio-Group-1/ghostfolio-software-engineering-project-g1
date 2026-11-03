@@ -25,12 +25,17 @@ import {
 
 import { RunWhatIfDto } from './dtos/run-what-if.dto';
 import { ExposureService } from './exposure.service';
+import { HealthScoreCalculatorService } from './health-score-calculator.service';
 import { RiskConcentrationResponse } from './interfaces/risk-concentration-response.interface';
+import { RiskScoreResponse } from './interfaces/risk-score-response.interface';
 import { WhatIfResult } from './interfaces/what-if.interface';
 import {
   parseConcentrationLimit,
   toRiskConcentrationResponse
 } from './risk-concentration.mapper';
+import { RiskEvaluationService } from './risk-evaluation.service';
+import { toRiskScoreResponse } from './risk-score.mapper';
+import { ThresholdEngineService } from './threshold-engine.service';
 import { VolatilityCacheService } from './volatility-cache.service';
 import { WhatIfService } from './what-if.service';
 
@@ -39,7 +44,10 @@ export class RiskController {
   public constructor(
     private readonly accountService: AccountService,
     private readonly exposureService: ExposureService,
+    private readonly healthScoreCalculatorService: HealthScoreCalculatorService,
     private readonly portfolioService: PortfolioService,
+    private readonly riskEvaluationService: RiskEvaluationService,
+    private readonly thresholdEngineService: ThresholdEngineService,
     private readonly volatilityCacheService: VolatilityCacheService,
     private readonly whatIfService: WhatIfService
   ) {}
@@ -74,6 +82,42 @@ export class RiskController {
 
     return createSuccessResponse(
       toRiskConcentrationResponse({ holdings, limit, summary })
+    );
+  }
+
+  @Get('score')
+  @RequiresScope(scopes.portfolioRead)
+  public async getScore(
+    @Impersonation() { userId, userSettings }: ImpersonationContext
+  ): Promise<ApiResponse<RiskScoreResponse>> {
+    const [holdings, cashDetails] = await Promise.all([
+      this.portfolioService.getHoldings({ userId, dateRange: 'max' }),
+      this.accountService.getCashDetails({
+        userId,
+        currency: userSettings.baseCurrency
+      })
+    ]);
+    const volatility = await this.volatilityCacheService.getPortfolioVolatility(
+      { baseCurrency: userSettings.baseCurrency, holdings }
+    );
+
+    const evaluation = this.riskEvaluationService.evaluate({
+      holdings,
+      baseCurrency: userSettings.baseCurrency,
+      cashBalance: cashDetails.balanceInBaseCurrency,
+      targetAllocation: userSettings.targetAllocation,
+      volatility
+    });
+    const healthScore = this.healthScoreCalculatorService.calculateHealthScore(
+      evaluation.ruleResults
+    );
+
+    return createSuccessResponse(
+      toRiskScoreResponse({
+        evaluation,
+        healthScore,
+        thresholdEngineService: this.thresholdEngineService
+      })
     );
   }
 
