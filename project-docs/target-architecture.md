@@ -55,3 +55,5 @@ Cross-cutting concerns (guards, interceptors, filters) continue to wrap every mo
 - **Sep 22–23 (Dashboard spec):** will use the API-only access boundary defined here — the dashboard's data model will be built from whatever fields risk/tax/charts choose to expose through their controllers, not their internal service logic.
 
 > As built at the end of Iteration 2: see [architecture-as-built.md](iteration-2/architecture-as-built.md).
+
+> Iteration 3 architecture (3-tier / SOA with React entry points): see [architecture-3-tier-soa.md](iteration-3/architecture-3-tier-soa.md).
