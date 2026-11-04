@@ -32,6 +32,9 @@ const SEVERITY_LABEL: Record<RiskSeverity, string> = {
   YELLOW: 'Yellow'
 };
 
+// Shows the severity word visibly next to the dot, not only in the
+// aria-label - the Risk wireframe requires severity to be understandable
+// without relying on color alone (Tharun's review on PR #211).
 function SeverityDot({
   label,
   severity
@@ -39,9 +42,8 @@ function SeverityDot({
   label?: string;
   severity: RiskSeverity;
 }) {
-  const accessibleLabel = label
-    ? `${label}: ${SEVERITY_LABEL[severity]}`
-    : SEVERITY_LABEL[severity];
+  const severityWord = SEVERITY_LABEL[severity];
+  const accessibleLabel = label ? `${label}: ${severityWord}` : severityWord;
 
   return (
     <span
@@ -66,7 +68,22 @@ function SeverityDot({
         }}
       />
       {label ? <span>{label}</span> : null}
+      <span aria-hidden="true">{severityWord}</span>
     </span>
+  );
+}
+
+// The only unavailableReason the API sends today (NO_ACTIVE_RULES, e.g. an
+// empty portfolio) - anything else falls back to a generic message rather
+// than showing an internal code to the user.
+const UNAVAILABLE_REASON_MESSAGE: Record<string, string> = {
+  NO_ACTIVE_RULES: 'No risk score yet - add some holdings to get a risk score.'
+};
+
+function unavailableReasonMessage(unavailableReason: string): string {
+  return (
+    UNAVAILABLE_REASON_MESSAGE[unavailableReason] ??
+    'Your risk score is not available right now.'
   );
 }
 
@@ -89,6 +106,7 @@ export interface RiskDashboardSummary {
   score: number | null;
   severity: RiskSeverity;
   topConcentration?: RiskDashboardTopConcentration | null;
+  unavailableReason?: string | null;
 }
 
 export interface RiskDashboardCardProps {
@@ -151,6 +169,18 @@ function RiskDashboardCardBody({
         ) : null}
         <SeverityDot label="Overall" severity={data.severity} />
       </div>
+
+      {data.score === null && data.unavailableReason ? (
+        <p
+          data-testid="risk-score-unavailable-reason"
+          style={{
+            color: theme.color.textMuted,
+            margin: `${px(designTokens.spacing.sm)} 0 0`
+          }}
+        >
+          {unavailableReasonMessage(data.unavailableReason)}
+        </p>
+      ) : null}
 
       {data.topConcentration ? (
         <div style={{ margin: `${px(designTokens.spacing.sm)} 0 0` }}>

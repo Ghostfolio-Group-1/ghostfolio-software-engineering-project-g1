@@ -77,6 +77,66 @@ describe('RiskDashboardCard', () => {
     expect(html).toContain('aria-label="Overall: Yellow"');
   });
 
+  // Severity must be understandable without relying on color alone - the
+  // word, not just the dot/aria-label, has to be visible (Tharun's review
+  // on PR #211).
+  it('shows the severity word visibly, not only in the aria-label', () => {
+    const html = renderToStaticMarkup(
+      <RiskDashboardCard data={summary} status="ready" />
+    );
+
+    // Visible text sibling of the (aria-hidden) dot, once per severity used
+    // above: Overall (Yellow), top concentration (Red), and the four
+    // category rows (Red, Green, Green, Yellow).
+    expect(html.split('>Yellow<').length - 1).toBeGreaterThanOrEqual(2);
+    expect(html.split('>Red<').length - 1).toBeGreaterThanOrEqual(2);
+    expect(html.split('>Green<').length - 1).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows a message instead of a dash when the score is unavailable', () => {
+    const html = renderToStaticMarkup(
+      <RiskDashboardCard
+        data={{
+          categories: [],
+          grade: null,
+          score: null,
+          severity: 'NO_DATA',
+          unavailableReason: 'NO_ACTIVE_RULES'
+        }}
+        status="ready"
+      />
+    );
+
+    expect(html).toContain('data-testid="risk-score-unavailable-reason"');
+    expect(html).toContain('add some holdings to get a risk score');
+    expect(html).toContain('>—<'); // the score value itself is still a dash
+  });
+
+  it('falls back to a generic message for an unrecognized unavailableReason', () => {
+    const html = renderToStaticMarkup(
+      <RiskDashboardCard
+        data={{
+          categories: [],
+          grade: null,
+          score: null,
+          severity: 'NO_DATA',
+          unavailableReason: 'SOME_FUTURE_REASON'
+        }}
+        status="ready"
+      />
+    );
+
+    expect(html).toContain('not available right now');
+  });
+
+  it('shows no unavailable-reason message when the score is present', () => {
+    const html = renderToStaticMarkup(
+      <RiskDashboardCard data={summary} status="ready" />
+    );
+
+    expect(html).not.toContain('risk-score-unavailable-reason');
+  });
+
   it('renders the top concentration from GET /risk/concentration with its severity', () => {
     const html = renderToStaticMarkup(
       <RiskDashboardCard data={summary} status="ready" />
