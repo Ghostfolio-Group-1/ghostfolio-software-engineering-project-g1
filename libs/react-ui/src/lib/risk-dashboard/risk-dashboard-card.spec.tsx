@@ -108,7 +108,7 @@ describe('RiskDashboardCard', () => {
     );
 
     expect(html).toContain('data-testid="risk-score-unavailable-reason"');
-    expect(html).toContain('add some holdings to get a risk score');
+    expect(html).toContain('no active risk rules');
     expect(html).toContain('>—<'); // the score value itself is still a dash
   });
 

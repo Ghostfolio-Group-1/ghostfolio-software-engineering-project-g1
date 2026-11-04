@@ -73,11 +73,12 @@ function SeverityDot({
   );
 }
 
-// The only unavailableReason the API sends today (NO_ACTIVE_RULES, e.g. an
-// empty portfolio) - anything else falls back to a generic message rather
-// than showing an internal code to the user.
+// The only unavailableReason the API sends today (NO_ACTIVE_RULES) can mean
+// an empty portfolio or every risk rule disabled - anything else falls back
+// to a generic message rather than showing an internal code to the user.
 const UNAVAILABLE_REASON_MESSAGE: Record<string, string> = {
-  NO_ACTIVE_RULES: 'No risk score yet - add some holdings to get a risk score.'
+  NO_ACTIVE_RULES:
+    'No risk score is available because there are no active risk rules.'
 };
 
 function unavailableReasonMessage(unavailableReason: string): string {
