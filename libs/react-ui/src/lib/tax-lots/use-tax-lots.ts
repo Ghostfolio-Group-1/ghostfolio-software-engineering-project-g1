@@ -1,6 +1,6 @@
 import type { ApiResponse } from '@ghostfolio/common/api-conventions';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Mirrors GET /api/v1/tax/lots. Kept in the Tax React feature rather than
 // importing server-side types from apps/api.
@@ -36,20 +36,33 @@ export interface TaxLotsData {
 export type TaxLotsStatus = 'empty' | 'error' | 'loading' | 'ready';
 export type TaxLotsFetch = typeof fetch;
 
+/** Carries the HTTP status and backend error code without exposing server text to users. */
+export class TaxLotsApiError extends Error {
+  public constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string
+  ) {
+    super(message);
+    this.name = 'TaxLotsApiError';
+  }
+}
+
 export interface TaxLotsState {
   data: TaxLotsData | null;
+  diagnostics: TaxLotsDiagnostic[];
   error: Error | null;
+  isComplete: boolean | null;
   status: TaxLotsStatus;
 }
 
-const defaultRequest: TaxLotsFetch = (input, init) => fetch(input, init);
-
 /**
- * Retrieve a Tax API response without converting or calculating any amounts.
- * Callers may inject their authenticated fetch implementation.
+ * The request MUST come from the host's authenticated HTTP adapter.
+ * Native fetch does not pass through Ghostfolio's Angular AuthInterceptor.
+ * Neither the access token nor the impersonation identity is read here.
  */
 export async function fetchTaxLots(
-  request: TaxLotsFetch = defaultRequest,
+  request: TaxLotsFetch,
   signal?: AbortSignal
 ): Promise<TaxLotsData> {
   const response = await request('/api/v1/tax/lots', {
@@ -64,13 +77,20 @@ export async function fetchTaxLots(
   try {
     body = (await response.json()) as ApiResponse<TaxLotsData>;
   } catch {
-    throw new Error(`Tax lots request failed (HTTP ${response.status})`);
+    throw new TaxLotsApiError(
+      response.status,
+      'TAX_INVALID_RESPONSE',
+      'Could not read the tax-lots response'
+    );
   }
 
   if (!response.ok || body?.error) {
-    throw new Error(
-      body?.error?.message ??
-        `Tax lots request failed (HTTP ${response.status})`
+    throw new TaxLotsApiError(
+      response.status,
+      body?.error?.code ?? 'TAX_REQUEST_FAILED',
+      response.status === 401
+        ? 'Please sign in to view tax lots'
+        : 'Unable to load tax lots'
     );
   }
 
@@ -78,10 +98,12 @@ export async function fetchTaxLots(
     throw new Error('Invalid tax-lots API response');
   }
 
-  // Reject an unexpected changed API contract rather than silently converting
-  // precise backend decimal strings to JavaScript floating-point numbers.
+  // Reject changed API contracts instead of silently coercing precise
+  // decimal strings into JavaScript floating-point values.
   for (const lot of body.data.lots) {
     if (
+      !lot ||
+      typeof lot !== 'object' ||
       typeof lot.originalQuantity !== 'string' ||
       typeof lot.consumedQuantity !== 'string' ||
       typeof lot.remainingQuantity !== 'string'
@@ -94,31 +116,49 @@ export async function fetchTaxLots(
 }
 
 /**
- * Tax-owned React hook. The caller supplies an authenticated fetch function
- * when required by the host UI. No FIFO or cost-basis logic lives here.
+ * Tax-owned hook. Supply the host's authenticated fetch adapter.
+ * Changing an inline request callback alone does not refetch; call reload()
+ * when authentication/impersonation changes and fresh data is required.
  */
-export function useTaxLots(request: TaxLotsFetch = defaultRequest) {
+export function useTaxLots(request: TaxLotsFetch) {
   const [state, setState] = useState<TaxLotsState>({
     data: null,
+    diagnostics: [],
     error: null,
+    isComplete: null,
     status: 'loading'
   });
   const [revision, setRevision] = useState(0);
+  const requestRef = useRef(request);
   const reload = useCallback(() => setRevision((value) => value + 1), []);
+
+  useEffect(() => {
+    requestRef.current = request;
+  }, [request]);
 
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
 
-    setState({ data: null, error: null, status: 'loading' });
+    setState({
+      data: null,
+      diagnostics: [],
+      error: null,
+      isComplete: null,
+      status: 'loading'
+    });
 
-    fetchTaxLots(request, controller.signal)
+    fetchTaxLots(requestRef.current, controller.signal)
       .then((data) => {
         if (active) {
+          const isComplete = data.isComplete !== false;
           setState({
             data,
+            diagnostics: data.diagnostics ?? [],
             error: null,
-            status: data.lots.length === 0 ? 'empty' : 'ready'
+            isComplete,
+            // Incomplete history must not be presented as a normal empty set.
+            status: isComplete && data.lots.length === 0 ? 'empty' : 'ready'
           });
         }
       })
@@ -126,7 +166,9 @@ export function useTaxLots(request: TaxLotsFetch = defaultRequest) {
         if (active) {
           setState({
             data: null,
+            diagnostics: [],
             error: error instanceof Error ? error : new Error(String(error)),
+            isComplete: null,
             status: 'error'
           });
         }
@@ -136,7 +178,7 @@ export function useTaxLots(request: TaxLotsFetch = defaultRequest) {
       active = false;
       controller.abort();
     };
-  }, [request, revision]);
+  }, [revision]);
 
   return { ...state, reload };
 }
