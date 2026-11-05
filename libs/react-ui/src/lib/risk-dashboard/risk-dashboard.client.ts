@@ -1,3 +1,5 @@
+import type { AuthenticatedFetch } from '../data/api-request';
+import { requestApi } from '../data/api-request';
 import type {
   RiskDashboardSummary,
   RiskDashboardTopConcentration,
@@ -6,19 +8,10 @@ import type {
 
 // Wiring for the Risk dashboard card (Thu Nov 5): pulls real data from
 // GET /risk/score and GET /risk/concentration and maps the API's
-// { data, error, meta } envelope onto RiskDashboardSummary. The HTTP call
-// itself is injected as `fetchJson` so tests can mock the HTTP layer
-// (per this repo's convention - see risk.controller.spec.ts mocking
-// PortfolioService etc.) without needing a DOM/fetch polyfill, since
-// libs/react-ui's jest environment is 'node'.
-export interface RiskApiEnvelope<T> {
-  data: T | null;
-  error: { code: string; message: string } | null;
-  meta: unknown;
-}
-
-export type FetchJson = (url: string) => Promise<RiskApiEnvelope<unknown>>;
-
+// { data, error, meta } envelope onto RiskDashboardSummary, reusing the
+// shared requestApi/AuthenticatedFetch adapter (libs/react-ui/src/lib/data,
+// from #207/#208) rather than a risk-only HTTP helper, so error handling
+// (401/403/invalid-body/missing-data) matches every other feature's client.
 interface RiskScoreApiCategory {
   key: string;
   name: string;
@@ -44,22 +37,13 @@ interface RiskConcentrationApiResponse {
   stock: { buckets: RiskConcentrationApiBucket[] };
 }
 
-export class RiskApiError extends Error {}
-
-async function get<T>(fetchJson: FetchJson, url: string): Promise<T> {
-  const response = await fetchJson(url);
-
-  if (response.error) {
-    throw new RiskApiError(response.error.message);
-  }
-
-  return response.data as T;
-}
-
 export async function fetchRiskScore(
-  fetchJson: FetchJson
+  request: AuthenticatedFetch
 ): Promise<Omit<RiskDashboardSummary, 'topConcentration'>> {
-  const data = await get<RiskScoreApiResponse>(fetchJson, '/api/v1/risk/score');
+  const data = await requestApi<RiskScoreApiResponse>(
+    request,
+    '/api/v1/risk/score'
+  );
 
   return {
     categories: data.categories.map((category) => ({
@@ -75,11 +59,17 @@ export async function fetchRiskScore(
   };
 }
 
+// Only the stock group's top bucket - not necessarily the highest-risk
+// concentration overall, since country/currency/sector buckets from the
+// same response aren't compared here. Every bucket's severity is 'NO_DATA'
+// today (risk-concentration.mapper.ts#toGroup: "Severity and thresholds
+// come from the threshold engine", not yet built), so this value is
+// display-only until that lands - it isn't used to flag risk by itself.
 export async function fetchTopConcentration(
-  fetchJson: FetchJson
+  request: AuthenticatedFetch
 ): Promise<RiskDashboardTopConcentration | null> {
-  const data = await get<RiskConcentrationApiResponse>(
-    fetchJson,
+  const data = await requestApi<RiskConcentrationApiResponse>(
+    request,
     '/api/v1/risk/concentration'
   );
   const [top] = data.stock.buckets;
@@ -93,11 +83,11 @@ export async function fetchTopConcentration(
 // load - the card has one status (loading/error/empty/ready), not two
 // independent ones, which matches how RiskDashboardCard is written today.
 export async function loadRiskDashboardSummary(
-  fetchJson: FetchJson
+  request: AuthenticatedFetch
 ): Promise<RiskDashboardSummary> {
   const [score, topConcentration] = await Promise.all([
-    fetchRiskScore(fetchJson),
-    fetchTopConcentration(fetchJson)
+    fetchRiskScore(request),
+    fetchTopConcentration(request)
   ]);
 
   return { ...score, topConcentration };

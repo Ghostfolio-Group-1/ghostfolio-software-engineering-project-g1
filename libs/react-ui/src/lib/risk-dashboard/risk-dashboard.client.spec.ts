@@ -1,22 +1,38 @@
+import { ApiRequestError } from '../data/api-request';
+import type { AuthenticatedFetch } from '../data/api-request';
 import {
   fetchRiskScore,
   fetchTopConcentration,
-  loadRiskDashboardSummary,
-  RiskApiError
+  loadRiskDashboardSummary
 } from './risk-dashboard.client';
 
-function okResponse(data: unknown) {
+function mockFetch(body: unknown, status = 200) {
+  const response = {
+    json: jest.fn().mockResolvedValue(body),
+    ok: status >= 200 && status < 300,
+    status
+  } as unknown as Response;
+
+  return jest.fn().mockResolvedValue(response) as unknown as AuthenticatedFetch;
+}
+
+function okEnvelope(data: unknown) {
   return { data, error: null, meta: {} };
 }
 
-function errorResponse(code: string, message: string) {
-  return { data: null, error: { code, message }, meta: {} };
+async function rejection(promise: Promise<unknown>) {
+  return promise.then(
+    () => {
+      throw new Error('Expected the request to be rejected');
+    },
+    (error: ApiRequestError) => error
+  );
 }
 
 describe('fetchRiskScore', () => {
   it('maps the GET /risk/score envelope onto the dashboard card shape', async () => {
-    const fetchJson = jest.fn().mockResolvedValue(
-      okResponse({
+    const request = mockFetch(
+      okEnvelope({
         activeWeight: 100,
         calculatedAt: '2026-09-26T09:14:00Z',
         categories: [
@@ -35,9 +51,12 @@ describe('fetchRiskScore', () => {
       })
     );
 
-    const result = await fetchRiskScore(fetchJson);
+    const result = await fetchRiskScore(request);
 
-    expect(fetchJson).toHaveBeenCalledWith('/api/v1/risk/score');
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/risk/score',
+      expect.objectContaining({ method: 'GET' })
+    );
     expect(result).toEqual({
       categories: [
         {
@@ -54,20 +73,36 @@ describe('fetchRiskScore', () => {
     });
   });
 
-  it('throws a RiskApiError carrying the API error message', async () => {
-    const fetchJson = jest
-      .fn()
-      .mockResolvedValue(errorResponse('RISK_CALC_FAILED', 'boom'));
+  it('throws an ApiRequestError from an error envelope', async () => {
+    const request = mockFetch({
+      data: null,
+      error: { code: 'RISK_CALC_FAILED', message: 'boom' },
+      meta: {}
+    });
 
-    await expect(fetchRiskScore(fetchJson)).rejects.toThrow(RiskApiError);
-    await expect(fetchRiskScore(fetchJson)).rejects.toThrow('boom');
+    const error = await rejection(fetchRiskScore(request));
+
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error.code).toBe('RISK_CALC_FAILED');
+  });
+
+  it('throws an ApiRequestError when the response has no data', async () => {
+    const request = mockFetch(okEnvelope(null));
+
+    const error = await rejection(fetchRiskScore(request));
+
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error.code).toBe('INVALID_RESPONSE');
   });
 });
 
 describe('fetchTopConcentration', () => {
-  it('returns the largest stock bucket from GET /risk/concentration', async () => {
-    const fetchJson = jest.fn().mockResolvedValue(
-      okResponse({
+  // risk-concentration.mapper.ts#toGroup hardcodes every bucket's severity
+  // to NO_DATA until the threshold engine lands - this reflects that actual
+  // current behavior, not an arbitrary RED/GREEN fixture.
+  it('returns the largest stock bucket from GET /risk/concentration, severity NO_DATA today', async () => {
+    const request = mockFetch(
+      okEnvelope({
         country: { buckets: [], thresholds: null },
         currency: { buckets: [], thresholds: null },
         sector: { buckets: [], thresholds: null },
@@ -76,7 +111,7 @@ describe('fetchTopConcentration', () => {
             {
               name: 'Apple Inc.',
               percentage: 0.333,
-              severity: 'RED',
+              severity: 'NO_DATA',
               value: 'AAPL'
             }
           ],
@@ -85,19 +120,22 @@ describe('fetchTopConcentration', () => {
       })
     );
 
-    const result = await fetchTopConcentration(fetchJson);
+    const result = await fetchTopConcentration(request);
 
-    expect(fetchJson).toHaveBeenCalledWith('/api/v1/risk/concentration');
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/risk/concentration',
+      expect.objectContaining({ method: 'GET' })
+    );
     expect(result).toEqual({
       name: 'Apple Inc.',
       percentage: 0.333,
-      severity: 'RED'
+      severity: 'NO_DATA'
     });
   });
 
   it('returns null when there are no stock buckets', async () => {
-    const fetchJson = jest.fn().mockResolvedValue(
-      okResponse({
+    const request = mockFetch(
+      okEnvelope({
         country: { buckets: [], thresholds: null },
         currency: { buckets: [], thresholds: null },
         sector: { buckets: [], thresholds: null },
@@ -105,64 +143,71 @@ describe('fetchTopConcentration', () => {
       })
     );
 
-    expect(await fetchTopConcentration(fetchJson)).toBeNull();
+    expect(await fetchTopConcentration(request)).toBeNull();
   });
 });
 
 describe('loadRiskDashboardSummary', () => {
   it('combines score and concentration into one summary', async () => {
-    const fetchJson = jest.fn().mockImplementation((url: string) => {
-      if (url === '/api/v1/risk/score') {
-        return Promise.resolve(
-          okResponse({
-            categories: [],
-            grade: 'A',
-            score: 100,
-            severity: 'GREEN'
-          })
-        );
-      }
-
-      return Promise.resolve(
-        okResponse({
-          country: { buckets: [], thresholds: null },
-          currency: { buckets: [], thresholds: null },
-          sector: { buckets: [], thresholds: null },
-          stock: {
-            buckets: [
-              {
-                name: 'Apple Inc.',
-                percentage: 0.1,
-                severity: 'GREEN',
-                value: 'AAPL'
+    const request = jest.fn().mockImplementation((url: string) => {
+      const body =
+        url === '/api/v1/risk/score'
+          ? okEnvelope({
+              categories: [],
+              grade: 'A',
+              score: 100,
+              severity: 'GREEN',
+              unavailableReason: null
+            })
+          : okEnvelope({
+              country: { buckets: [], thresholds: null },
+              currency: { buckets: [], thresholds: null },
+              sector: { buckets: [], thresholds: null },
+              stock: {
+                buckets: [
+                  {
+                    name: 'Apple Inc.',
+                    percentage: 0.1,
+                    severity: 'NO_DATA',
+                    value: 'AAPL'
+                  }
+                ],
+                thresholds: null
               }
-            ],
-            thresholds: null
-          }
-        })
-      );
-    });
+            });
 
-    const result = await loadRiskDashboardSummary(fetchJson);
+      return Promise.resolve({
+        json: jest.fn().mockResolvedValue(body),
+        ok: true,
+        status: 200
+      } as unknown as Response);
+    }) as unknown as AuthenticatedFetch;
+
+    const result = await loadRiskDashboardSummary(request);
 
     expect(result).toEqual({
       categories: [],
       grade: 'A',
       score: 100,
       severity: 'GREEN',
+      unavailableReason: null,
       topConcentration: {
         name: 'Apple Inc.',
         percentage: 0.1,
-        severity: 'GREEN'
+        severity: 'NO_DATA'
       }
     });
   });
 
   it('propagates an error from either call', async () => {
-    const fetchJson = jest
-      .fn()
-      .mockResolvedValue(errorResponse('RISK_CALC_FAILED', 'down'));
+    const request = mockFetch({
+      data: null,
+      error: { code: 'RISK_CALC_FAILED', message: 'down' },
+      meta: {}
+    });
 
-    await expect(loadRiskDashboardSummary(fetchJson)).rejects.toThrow('down');
+    const error = await rejection(loadRiskDashboardSummary(request));
+
+    expect(error).toBeInstanceOf(ApiRequestError);
   });
 });
