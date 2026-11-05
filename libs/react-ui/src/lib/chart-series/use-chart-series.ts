@@ -1,6 +1,7 @@
-import type { ApiResponse } from '@ghostfolio/common/api-conventions';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { useCallback, useEffect, useState } from 'react';
+import { ApiRequestError, requestApi } from '../data/api-request';
+import type { AuthenticatedFetch } from '../data/api-request';
 
 // Mirrors ChartSeriesResponse from @ghostfolio/common. Kept local so the
 // React library does not depend on Nest/API packages at runtime.
@@ -27,7 +28,7 @@ export interface ChartSeriesData {
 }
 
 export type ChartSeriesStatus = 'empty' | 'error' | 'loading' | 'ready';
-export type ChartSeriesFetch = typeof fetch;
+export type ChartSeriesFetch = AuthenticatedFetch;
 
 export type ChartSeriesRangeQuery =
   | { kind?: ChartSeriesKind; range: string }
@@ -42,8 +43,6 @@ export interface ChartSeriesState {
   error: Error | null;
   status: ChartSeriesStatus;
 }
-
-const defaultRequest: ChartSeriesFetch = (input, init) => fetch(input, init);
 
 function buildSeriesUrl(query: ChartSeriesRangeQuery): string {
   const params = new URLSearchParams();
@@ -86,50 +85,61 @@ function isChartSeriesData(value: unknown): value is ChartSeriesData {
 }
 
 /**
- * Retrieve a Charts series response. Callers may inject their authenticated
- * fetch implementation. No chart rendering or aggregation lives here.
+ * Safe UI copy for chart-series failures. Branch on status/code — never show
+ * raw backend error text.
  */
-export async function fetchChartSeries(
-  query: ChartSeriesRangeQuery,
-  request: ChartSeriesFetch = defaultRequest,
-  signal?: AbortSignal
-): Promise<ChartSeriesData> {
-  const response = await request(buildSeriesUrl(query), {
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
-    method: 'GET',
-    signal
-  });
+export function chartSeriesErrorMessage(error: Error | null): string {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 401) {
+      return 'Please sign in to view charts';
+    }
 
-  let body: ApiResponse<ChartSeriesData>;
+    if (error.code === 'CHARTS_INVALID_QUERY') {
+      return 'That chart range is not valid';
+    }
 
-  try {
-    body = (await response.json()) as ApiResponse<ChartSeriesData>;
-  } catch {
-    throw new Error(`Chart series request failed (HTTP ${response.status})`);
+    if (error.code === 'CHARTS_SERIES_FAILED') {
+      return 'Unable to load the chart series';
+    }
   }
 
-  if (!response.ok || body?.error) {
-    throw new Error(
-      body?.error?.message ??
-        `Chart series request failed (HTTP ${response.status})`
-    );
-  }
-
-  if (!isChartSeriesData(body?.data)) {
-    throw new Error('Invalid chart-series API response');
-  }
-
-  return body.data;
+  return 'Chart data is unavailable';
 }
 
 /**
- * Charts-owned React hook for GET /api/v1/charts/series. The caller supplies
- * an authenticated fetch function when required by the host UI.
+ * Retrieve a Charts series response through the host's authenticated fetch.
+ * Native fetch is not accepted as a default — it skips Ghostfolio auth.
+ */
+export async function fetchChartSeries(
+  query: ChartSeriesRangeQuery,
+  request: ChartSeriesFetch,
+  signal?: AbortSignal
+): Promise<ChartSeriesData> {
+  const data = await requestApi<unknown>(
+    request,
+    buildSeriesUrl(query),
+    signal
+  );
+
+  if (!isChartSeriesData(data)) {
+    throw new ApiRequestError(
+      200,
+      'INVALID_RESPONSE',
+      'Invalid chart-series API response'
+    );
+  }
+
+  return data;
+}
+
+/**
+ * Charts-owned React hook for GET /api/v1/charts/series. The host must supply
+ * an authenticated fetch adapter. Inline request identity alone does not
+ * refetch — call reload() when auth/impersonation changes.
  */
 export function useChartSeries(
   query: ChartSeriesRangeQuery,
-  request: ChartSeriesFetch = defaultRequest
+  request: ChartSeriesFetch
 ) {
   const [state, setState] = useState<ChartSeriesState>({
     data: null,
@@ -137,6 +147,7 @@ export function useChartSeries(
     status: 'loading'
   });
   const [revision, setRevision] = useState(0);
+  const requestRef = useRef(request);
   const reload = useCallback(() => setRevision((value) => value + 1), []);
 
   const rangeKey =
@@ -146,12 +157,16 @@ export function useChartSeries(
   const kindKey = query.kind ?? 'portfolioValue';
 
   useEffect(() => {
+    requestRef.current = request;
+  }, [request]);
+
+  useEffect(() => {
     const controller = new AbortController();
     let active = true;
 
     setState({ data: null, error: null, status: 'loading' });
 
-    fetchChartSeries(query, request, controller.signal)
+    fetchChartSeries(query, requestRef.current, controller.signal)
       .then((data) => {
         if (active) {
           setState({
@@ -177,7 +192,7 @@ export function useChartSeries(
     };
     // query is summarized via rangeKey/kindKey so callers can pass a fresh
     // object each render without retriggering the fetch.
-  }, [kindKey, rangeKey, request, revision]);
+  }, [kindKey, rangeKey, revision]);
 
   return { ...state, reload };
 }

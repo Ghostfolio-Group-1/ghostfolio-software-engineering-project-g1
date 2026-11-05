@@ -3,7 +3,12 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 
-import { fetchChartSeries, useChartSeries } from './use-chart-series';
+import { ApiRequestError } from '../data/api-request';
+import {
+  chartSeriesErrorMessage,
+  fetchChartSeries,
+  useChartSeries
+} from './use-chart-series';
 import type {
   ChartSeriesData,
   ChartSeriesFetch,
@@ -87,21 +92,26 @@ describe('fetchChartSeries', () => {
     );
   });
 
-  it('exposes an API error message', async () => {
+  it('throws ApiRequestError with a generic message, not server text', async () => {
     const { request } = mockRequest(
       {
         data: null,
         error: {
           code: 'CHARTS_SERIES_FAILED',
-          message: 'Unable to load the chart series'
+          message: 'Internal stack trace should stay hidden'
         },
         meta: {}
       },
       500
     );
 
-    await expect(fetchChartSeries({ range: 'max' }, request)).rejects.toThrow(
-      'Unable to load the chart series'
+    await expect(fetchChartSeries({ range: 'max' }, request)).rejects.toEqual(
+      expect.objectContaining({
+        code: 'CHARTS_SERIES_FAILED',
+        message: 'Unable to load data',
+        name: 'ApiRequestError',
+        status: 500
+      })
     );
   });
 
@@ -124,6 +134,29 @@ describe('fetchChartSeries', () => {
   });
 });
 
+describe('chartSeriesErrorMessage', () => {
+  it('maps known codes and 401 without using server text', () => {
+    expect(
+      chartSeriesErrorMessage(
+        new ApiRequestError(401, 'UNAUTHORIZED', 'secret detail')
+      )
+    ).toBe('Please sign in to view charts');
+    expect(
+      chartSeriesErrorMessage(
+        new ApiRequestError(400, 'CHARTS_INVALID_QUERY', 'secret detail')
+      )
+    ).toBe('That chart range is not valid');
+    expect(
+      chartSeriesErrorMessage(
+        new ApiRequestError(500, 'CHARTS_SERIES_FAILED', 'secret detail')
+      )
+    ).toBe('Unable to load the chart series');
+    expect(chartSeriesErrorMessage(new Error('secret detail'))).toBe(
+      'Chart data is unavailable'
+    );
+  });
+});
+
 describe('useChartSeries', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -138,7 +171,9 @@ describe('useChartSeries', () => {
     const { data, error, status } = useChartSeries(query, request);
     return (
       <div data-status={status}>
-        {error?.message ?? data?.points[0]?.value ?? ''}
+        {error
+          ? chartSeriesErrorMessage(error)
+          : (data?.points[0]?.value ?? '')}
       </div>
     );
   }
@@ -170,7 +205,7 @@ describe('useChartSeries', () => {
     expect(container.textContent).toBe('1000');
   });
 
-  it('reports empty and error states', async () => {
+  it('reports an empty state when there are no points', async () => {
     const empty = mockRequest(success({ ...completeData, points: [] }));
 
     await act(async () => {
@@ -179,13 +214,15 @@ describe('useChartSeries', () => {
     expect(container.firstElementChild?.getAttribute('data-status')).toBe(
       'empty'
     );
+  });
 
+  it('reports an error state with safe copy, not server text', async () => {
     const failed = mockRequest(
       {
         data: null,
         error: {
           code: 'CHARTS_INVALID_QUERY',
-          message: 'Invalid range'
+          message: 'Do not show this server string'
         },
         meta: {}
       },
@@ -197,6 +234,32 @@ describe('useChartSeries', () => {
     expect(container.firstElementChild?.getAttribute('data-status')).toBe(
       'error'
     );
-    expect(container.textContent).toBe('Invalid range');
+    expect(container.textContent).toBe('That chart range is not valid');
+    expect(container.textContent).not.toContain(
+      'Do not show this server string'
+    );
+  });
+
+  it('does not refetch when only the inline request identity changes', async () => {
+    const { mock, request } = mockRequest(success(completeData));
+
+    await act(async () => {
+      root.render(<Probe query={{ range: 'ytd' }} request={request} />);
+    });
+    expect(mock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      root.render(
+        <Probe
+          query={{ range: 'ytd' }}
+          request={
+            ((...args: Parameters<ChartSeriesFetch>) =>
+              request(...args)) as ChartSeriesFetch
+          }
+        />
+      );
+    });
+
+    expect(mock).toHaveBeenCalledTimes(1);
   });
 });
