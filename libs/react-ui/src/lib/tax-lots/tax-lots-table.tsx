@@ -85,6 +85,14 @@ function getSafeErrorMessage(error: Error | null): string {
   return 'Unable to load tax lots. Please try again.';
 }
 
+// Use code-point ordering for deterministic acquisition-date/lot-ID ordering;
+// localeCompare can produce different results across environments.
+function compareStrings(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function canRetry(error: Error | null): boolean {
   if (error instanceof TaxLotsApiError) {
     return error.status >= 500 || error.status === 408 || error.status === 429;
@@ -141,8 +149,8 @@ export function TaxLotsTable({
     .filter((lot) => statusFilter === 'ALL' || lot.status !== 'CLOSED')
     .sort(
       (left, right) =>
-        left.acquiredAt.localeCompare(right.acquiredAt) ||
-        left.lotId.localeCompare(right.lotId)
+        compareStrings(left.acquiredAt, right.acquiredAt) ||
+        compareStrings(left.lotId, right.lotId)
     );
 
   return (
@@ -229,7 +237,7 @@ export function TaxLotsTable({
             columns={columns}
             emptyMessage={
               statusFilter === 'OPEN'
-                ? 'No open FIFO lots in the returned data'
+                ? 'No open or partially consumed FIFO lots. Use the All lots filter to view closed lots.'
                 : 'No FIFO lots in the returned data'
             }
             getRowKey={(lot) => lot.lotId}

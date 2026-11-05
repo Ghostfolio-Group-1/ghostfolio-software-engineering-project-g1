@@ -110,7 +110,7 @@ describe('TaxLotsTable', () => {
     expect(html).toContain('sell-42');
     expect(html).toContain('Excluded activity IDs:');
     expect(html).toContain('buy-14');
-    expect(html).toContain('No open FIFO lots in the returned data');
+    expect(html).toContain('No open or partially consumed FIFO lots');
     expect(html).not.toContain('No FIFO tax lots available');
   });
 
@@ -211,6 +211,26 @@ describe('TaxLotsTable', () => {
     ).toContain('closed-1');
   });
 
+  it('explains how to view closed lots when the default filter finds none', () => {
+    const closed: TaxLot = {
+      ...lot,
+      lotId: 'closed-only',
+      remainingQuantity: '0',
+      status: 'CLOSED'
+    };
+    const state = { ...ready, data: { lots: [closed] } };
+    const html = view(state);
+
+    expect(html).toContain('Open and partially consumed');
+    expect(html).toContain('No open or partially consumed FIFO lots');
+    expect(html).toContain('Use the All lots filter to view closed lots');
+    expect(html).not.toContain('No FIFO tax lots available');
+    expect(html).not.toContain('>closed-only<');
+    expect(
+      renderToStaticMarkup(<TaxLotsTable {...state} statusFilter="ALL" />)
+    ).toContain('>closed-only<');
+  });
+
   it('sorts lots by acquisition date and then lot ID', () => {
     const earlier = {
       ...lot,
@@ -233,6 +253,20 @@ describe('TaxLotsTable', () => {
     expect(tiedHtml).toContain('>same-z<');
     expect(tiedHtml.indexOf('>same-a<')).toBeLessThan(
       tiedHtml.indexOf('>same-z<')
+    );
+
+    // Code-point order is stable even where localeCompare would sort differently.
+    const codePointHtml = view({
+      ...ready,
+      data: {
+        lots: [
+          { ...lot, lotId: 'a' },
+          { ...lot, lotId: 'B' }
+        ]
+      }
+    });
+    expect(codePointHtml.indexOf('>B<')).toBeLessThan(
+      codePointHtml.indexOf('>a<')
     );
   });
 });
