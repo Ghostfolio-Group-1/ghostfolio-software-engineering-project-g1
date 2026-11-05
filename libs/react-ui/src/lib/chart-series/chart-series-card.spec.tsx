@@ -109,24 +109,25 @@ describe('ChartSeriesCard', () => {
     });
   });
 
-  it('shows the chart SVG when ready and labels the selected series', async () => {
+  it('renders the shared ChartWrapper when ready', async () => {
     const { request } = mockRequest(() => ({
       body: success(portfolioData)
     }));
 
     await renderCard(request);
 
-    expect(
-      container.querySelector('[data-testid="chart-series-svg"]')
-    ).not.toBeNull();
+    expect(container.querySelector('svg[role="img"]')).not.toBeNull();
     expect(
       container.querySelector('[data-testid="chart-series-kind-label"]')
         ?.textContent
     ).toBe('Showing Portfolio value');
+    expect(container.textContent).toContain(
+      'Portfolio chart — Portfolio value'
+    );
     expect(
       container
         .querySelector('[data-kind="portfolioValue"]')
-        ?.getAttribute('data-selected')
+        ?.getAttribute('aria-pressed')
     ).toBe('true');
   });
 
@@ -143,18 +144,16 @@ describe('ChartSeriesCard', () => {
     expect(
       container.querySelector('[data-testid="chart-series-toggle"]')
     ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="chart-series-svg"]')
-    ).toBeNull();
+    expect(container.querySelector('svg[role="img"]')).toBeNull();
   });
 
-  it('shows an error state with retry while keeping toggles visible', async () => {
+  it('shows a generic error message, not server text', async () => {
     const { request } = mockRequest(() => ({
       body: {
         data: null,
         error: {
           code: 'CHARTS_SERIES_FAILED',
-          message: 'Unable to load the chart series'
+          message: 'Internal stack trace should stay hidden'
         },
         meta: {}
       },
@@ -164,6 +163,9 @@ describe('ChartSeriesCard', () => {
     await renderCard(request);
 
     expect(container.textContent).toContain('Unable to load the chart series');
+    expect(container.textContent).not.toContain(
+      'Internal stack trace should stay hidden'
+    );
     expect(container.textContent).toContain('Try again');
     expect(
       container.querySelector('[data-testid="chart-series-toggle"]')
@@ -198,13 +200,11 @@ describe('ChartSeriesCard', () => {
       '/api/v1/charts/series?range=ytd&kind=cash',
       expect.any(Object)
     );
-    expect(cashButton.getAttribute('data-selected')).toBe('true');
+    expect(cashButton.getAttribute('aria-pressed')).toBe('true');
     expect(
       container.querySelector('[data-testid="chart-series-kind-label"]')
         ?.textContent
     ).toBe('Showing Cash');
-    expect(
-      container.querySelector('[data-testid="chart-series-svg"]')
-    ).not.toBeNull();
+    expect(container.querySelector('svg[role="img"]')).not.toBeNull();
   });
 });

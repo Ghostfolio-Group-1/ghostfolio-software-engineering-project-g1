@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react';
 
-import { toPath } from '../chart-wrapper/chart-wrapper';
+import { ChartWrapper } from '../chart-wrapper/chart-wrapper';
 import { DashboardCard } from '../dashboard-card/dashboard-card';
 import { useTheme } from '../theme/theme-provider';
 import { designTokens, px } from '../tokens/design-tokens';
-import { CHART_SERIES_KINDS, useChartSeries } from './use-chart-series';
+import {
+  CHART_SERIES_KINDS,
+  chartSeriesErrorMessage,
+  useChartSeries
+} from './use-chart-series';
 import type {
   ChartSeriesFetch,
   ChartSeriesKind,
@@ -23,18 +27,17 @@ export type ChartSeriesRangeSelection =
 export interface ChartSeriesCardProps {
   /** Shared time-range only — this card does not invent a second range control. */
   range: ChartSeriesRangeSelection;
+  /** Host authenticated fetch — required (no native-fetch default). */
+  request: ChartSeriesFetch;
   initialKind?: ChartSeriesKind;
-  request?: ChartSeriesFetch;
   title?: string;
 }
-
-const CHART_WIDTH = 480;
-const CHART_HEIGHT = 160;
 
 /**
  * Visible portfolio chart with a kind toggle for value / invested / cash.
  * Loading, empty, and error states come from useChartSeries for the selected
  * kind; the toggle stays on screen so the series can be switched in any state.
+ * Ready series render through the shared ChartWrapper.
  */
 export function ChartSeriesCard({
   initialKind = 'portfolioValue',
@@ -55,41 +58,31 @@ export function ChartSeriesCard({
     <div data-testid="chart-series-card">
       <SeriesKindToggle kind={kind} onChange={setKind} />
       <div style={{ marginTop: px(designTokens.spacing.sm) }}>
-        <DashboardCard
-          emptyMessage={`No ${seriesLabel.toLowerCase()} data for this range`}
-          errorMessage={error?.message ?? 'Chart data is unavailable'}
-          onRetry={reload}
-          status={status}
-          title={title}
-        >
-          {data ? (
-            <div>
-              <p
-                data-testid="chart-series-kind-label"
-                style={{
-                  color: theme.color.textMuted,
-                  margin: `0 0 ${px(designTokens.spacing.sm)} 0`
-                }}
-              >
-                Showing {seriesLabel}
-              </p>
-              <svg
-                aria-label={`${title}: ${seriesLabel}`}
-                data-testid="chart-series-svg"
-                role="img"
-                viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-                width="100%"
-              >
-                <path
-                  d={toPath(data.points, CHART_WIDTH, CHART_HEIGHT)}
-                  fill="none"
-                  stroke={theme.color.primary}
-                  strokeWidth={2}
-                />
-              </svg>
-            </div>
-          ) : null}
-        </DashboardCard>
+        {status === 'ready' && data ? (
+          <div>
+            <p
+              data-testid="chart-series-kind-label"
+              style={{
+                color: theme.color.textMuted,
+                margin: `0 0 ${px(designTokens.spacing.sm)} 0`
+              }}
+            >
+              Showing {seriesLabel}
+            </p>
+            <ChartWrapper
+              points={data.points}
+              title={`${title} — ${seriesLabel}`}
+            />
+          </div>
+        ) : (
+          <DashboardCard
+            emptyMessage={`No ${seriesLabel.toLowerCase()} data for this range`}
+            errorMessage={chartSeriesErrorMessage(error)}
+            onRetry={reload}
+            status={status}
+            title={title}
+          />
+        )}
       </div>
     </div>
   );
@@ -108,7 +101,6 @@ function SeriesKindToggle({
     <div
       aria-label="Chart series"
       data-testid="chart-series-toggle"
-      role="radiogroup"
       style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -121,12 +113,12 @@ function SeriesKindToggle({
 
         return (
           <button
-            aria-checked={selected}
+            aria-label={label}
+            aria-pressed={selected}
             data-kind={option}
             data-selected={selected ? 'true' : 'false'}
             key={option}
             onClick={() => onChange(option)}
-            role="radio"
             style={{
               backgroundColor: selected ? theme.color.primary : 'transparent',
               border: `1px solid ${theme.color.primary}`,
@@ -135,7 +127,9 @@ function SeriesKindToggle({
               cursor: 'pointer',
               fontSize: px(designTokens.fontSize.sm),
               fontWeight: selected ? 600 : 400,
-              padding: `${px(designTokens.spacing.xs)} ${px(designTokens.spacing.sm)}`
+              padding: `${px(designTokens.spacing.xs)} ${px(
+                designTokens.spacing.sm
+              )}`
             }}
             type="button"
           >
