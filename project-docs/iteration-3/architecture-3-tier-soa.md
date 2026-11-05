@@ -76,24 +76,24 @@ Dependency direction is unchanged: Dashboard → Risk / Tax / Charts → Portfol
 
 Feature screens follow a feature-first layout inside the shared library: one folder per screen, named `<feature>-<screen>`, next to the shared primitives. Shared primitives and the data layer stay with Raniya; feature folders belong to their owner.
 
-| Feature   | Entry point (folder · component)                                                            | Backend route(s)                                                | Issue                     | Status                            |
-| --------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------- | --------------------------------- |
-| Dashboard | `dashboard-page/` · `DashboardPage`                                                         | `GET /dashboard/overview`                                       | #68                       | Planned (Thu–Fri Nov 5–6)         |
-| Risk      | `risk-dashboard/` · `RiskDashboardCard`                                                     | `GET /risk/score`, `GET /risk/concentration`                    | #26                       | Planned (Week 1)                  |
-| Risk      | `risk-indicator/` · `RiskIndicator`                                                         | severity from the risk engine                                   | #188                      | Planned (Week 2)                  |
-| Risk      | `risk-what-if/` · `WhatIfSimulator`                                                         | `POST /risk/what-if`                                            | #187                      | Planned (Week 3)                  |
-| Tax       | `tax-lots/` · `useTaxLots` hook, then tax-lot table with FIFO / average-cost selector       | `GET /tax/lots`                                                 | #186, #194                | Hook built (#195); screen planned |
-| Tax       | `tax-gains/`, `tax-summary/`, `tax-export/`                                                 | `GET /tax/realized-gains`, yearly summary, CSV / PDF export     | Tax Iteration 3 issues    | Planned (Weeks 2–3)               |
-| Charts    | `charts-series/` · interactive chart on `ChartWrapper` with time-range selector and toggles | `GET /charts/series`                                            | Charts Iteration 3 issues | Planned (Weeks 1–2)               |
-| Charts    | `charts-benchmark/`, `charts-return/`, `charts-waterfall/`, `charts-drawdown/`              | benchmark, return comparison, waterfall, `GET /charts/drawdown` | Charts Iteration 3 issues | Planned (Weeks 3–4)               |
+| Feature   | Entry point (folder · component)                                                                                                         | Backend route(s)                                                | Issue                     | Status                            |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------- | --------------------------------- |
+| Dashboard | `dashboard-page/` · `DashboardPage`                                                                                                      | `GET /dashboard/overview`                                       | #68                       | Planned (Thu–Fri Nov 5–6)         |
+| Risk      | `risk-dashboard/` · `RiskDashboardCard`                                                                                                  | `GET /risk/score`, `GET /risk/concentration`                    | #26                       | Built (#211)                      |
+| Risk      | `risk-indicator/` · `RiskIndicator`                                                                                                      | severity from the risk engine                                   | #188                      | Planned (Week 2)                  |
+| Risk      | `risk-what-if/` · `WhatIfSimulator`                                                                                                      | `POST /risk/what-if`                                            | #187                      | Planned (Week 3)                  |
+| Tax       | `tax-lots/` · `useTaxLots` hook, then tax-lot table with FIFO / average-cost selector                                                    | `GET /tax/lots`                                                 | #186, #194                | Hook built (#195); screen planned |
+| Tax       | `tax-gains/`, `tax-summary/`, `tax-export/`                                                                                              | `GET /tax/realized-gains`, yearly summary, CSV / PDF export     | Tax Iteration 3 issues    | Planned (Weeks 2–3)               |
+| Charts    | `chart-series/` · `useChartSeries` hook (#201, in review), then interactive chart on `ChartWrapper` with time-range selector and toggles | `GET /charts/series`                                            | Charts Iteration 3 issues | Planned (Weeks 1–2)               |
+| Charts    | `charts-benchmark/`, `charts-return/`, `charts-waterfall/`, `charts-drawdown/`                                                           | benchmark, return comparison, waterfall, `GET /charts/drawdown` | Charts Iteration 3 issues | Planned (Weeks 3–4)               |
 
 Shared, owned by Raniya (changes go through her PRs):
 
-| Path                                                                                          | Contents                                                                       | Status                                        |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------- |
-| `card/`, `dashboard-card/`, `button/`, `layout-shell/`, `theme/`, `tokens/`, `chart-wrapper/` | UI primitives                                                                  | Built                                         |
-| `table/`                                                                                      | `Table` for row data (lots, gains, holdings); renders decimal strings as given | Added in the Week 1 library audit (Wed Nov 4) |
-| `data/`                                                                                       | `AuthenticatedFetch`, `requestApi`, `ApiRequestError`, `useApiData`            | Added in the Week 1 library audit (Wed Nov 4) |
+| Path                                                                                          | Contents                                                                       | Status       |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------ |
+| `card/`, `dashboard-card/`, `button/`, `layout-shell/`, `theme/`, `tokens/`, `chart-wrapper/` | UI primitives                                                                  | Built        |
+| `table/`                                                                                      | `Table` for row data (lots, gains, holdings); renders decimal strings as given | Built (#208) |
+| `data/`                                                                                       | `AuthenticatedFetch`, `requestApi`, `ApiRequestError`, `useApiData`            | Built (#208) |
 
 Imports use the existing path alias `@ghostfolio/react-ui/<folder>/<file>` (for example `@ghostfolio/react-ui/card/card`).
 
