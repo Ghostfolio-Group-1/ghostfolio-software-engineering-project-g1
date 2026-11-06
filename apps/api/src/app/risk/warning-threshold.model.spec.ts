@@ -80,4 +80,27 @@ describe('validateThresholds', () => {
 
     expect(error).toBeNull();
   });
+
+  // Regression: the real caller (validateThresholdUpdateInput in
+  // risk-threshold.mapper.ts) always builds the overrides object with all 4
+  // keys present, explicit `undefined` for anything the user didn't set -
+  // not simply omitting the key, as the other tests in this file do. A
+  // blind `{...defaults, ...overrides}` spread clobbers the default with
+  // `undefined` for an explicitly-undefined key, which this test would have
+  // caught: PortfolioVolatility's defaults (min 0.1, max 0.25) are
+  // perfectly valid, and overriding only min to a still-valid 0.12 should
+  // not be rejected just because max/redMax/redMin weren't also set.
+  it('falls back to defaults for band fields explicitly left undefined, not just omitted', () => {
+    const error = validateThresholds({
+      ruleKey: 'PortfolioVolatility',
+      overrides: {
+        redThresholdMax: undefined,
+        redThresholdMin: undefined,
+        thresholdMax: undefined,
+        thresholdMin: 0.12
+      }
+    });
+
+    expect(error).toBeNull();
+  });
 });

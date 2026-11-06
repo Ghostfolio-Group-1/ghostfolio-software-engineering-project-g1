@@ -153,6 +153,35 @@ describe('GET /risk/warnings', () => {
       true
     );
   });
+
+  it.each([
+    ['page', '0'],
+    ['page', '-1'],
+    ['page', 'abc'],
+    ['pageSize', '0'],
+    ['pageSize', '101'] // MAX_WARNINGS_PAGE_SIZE is 100
+  ])(
+    'rejects an invalid %s value (%s) with RISK_INVALID_QUERY',
+    async (field, value) => {
+      const controller = await createController();
+      const args: [string | undefined, string | undefined] =
+        field === 'page' ? [value, undefined] : [undefined, value];
+
+      const exception = await controller
+        .getWarnings(context(), undefined, ...args)
+        .then(
+          () => {
+            throw new Error('expected rejection');
+          },
+          (error: HttpException) => error
+        );
+
+      expect(exception.getStatus()).toBe(400);
+      expect(exception.getResponse()).toMatchObject({
+        error: { code: 'RISK_INVALID_QUERY' }
+      });
+    }
+  );
 });
 
 describe('GET/PUT/DELETE /risk/target-allocation', () => {
@@ -313,6 +342,21 @@ describe('GET/PUT/DELETE /risk/target-allocation', () => {
       },
       (error: HttpException) => error
     );
+
+    expect(exception.getStatus()).toBe(403);
+  });
+
+  it('rejects DELETE while impersonating another user', async () => {
+    const controller = await createController();
+
+    const exception = await controller
+      .deleteTargetAllocation(context({ isActive: true }))
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
 
     expect(exception.getStatus()).toBe(403);
   });
@@ -502,6 +546,38 @@ describe('GET/PUT/DELETE /risk/thresholds', () => {
     expect(exception.getStatus()).toBe(403);
   });
 
+  it('rejects PUT while impersonating another user', async () => {
+    const controller = await createController();
+
+    const exception = await controller
+      .putThreshold(context({ isActive: true }), 'SingleStockConcentration', {
+        isActive: true
+      })
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(403);
+  });
+
+  it('rejects DELETE while impersonating another user', async () => {
+    const controller = await createController();
+
+    const exception = await controller
+      .deleteThreshold(context({ isActive: true }), 'SingleStockConcentration')
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(403);
+  });
+
   // Regression: an update must be validated against the rule's *current*
   // override, not its defaults - otherwise a partial update that only
   // changes one field can silently produce an invalid merged result.
@@ -554,6 +630,29 @@ describe('GET/PUT/DELETE /risk/thresholds', () => {
     const exception = await controller
       .putThreshold(context(), 'SingleStockConcentration', {
         thresholds: { max: 0.9 }
+      })
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(400);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'RISK_THRESHOLD_INVALID_ORDER' }
+    });
+  });
+
+  it('rejects an out-of-order band override', async () => {
+    const controller = await createController();
+
+    // PortfolioVolatility is a band rule (defaults: redMin 0.05, min 0.1,
+    // max 0.25, redMax 0.35) - redMin must be < min, which this override
+    // breaks (redMin 0.2 > min 0.1).
+    const exception = await controller
+      .putThreshold(context(), 'PortfolioVolatility', {
+        thresholds: { min: 0.1, redMin: 0.2 }
       })
       .then(
         () => {
