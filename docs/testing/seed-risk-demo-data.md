@@ -3,11 +3,23 @@
 `scripts/seed-risk-demo-data.mts` seeds four demo users, each showing a
 different Risk dashboard state, for the Thu Nov 12 team demonstration.
 Idempotent — every row is keyed by a fixed id and upserted, so re-running it
-is safe and just refreshes the data.
+is safe and just refreshes the data, including resetting a cash balance back
+to 0 if it was previously nonzero.
 
-**Not run against a live database in this session** — Docker wasn't running
-in the sandbox this was written in. Please run it and confirm it works
-before the demo.
+**Verified against the real `RiskEvaluationService` logic (not just
+asserted)** — see the "balanced" row below for what that verification
+caught. The script itself still needs running against a real database at
+least once before the demo to confirm the real `ExchangeRateDataService`
+EUR/USD conversion lines up with the numbers quoted here (see "A note on
+currency conversion" below).
+
+## Safety
+
+This script writes four fixed, publicly-documented login tokens into
+whatever database `DATABASE_URL` points at. It refuses to run unless
+`ALLOW_RISK_DEMO_SEED=yes` is set, so it fails safely by default instead of
+accidentally reaching production or a shared environment — see "How to run
+it" below.
 
 ## What it seeds
 
@@ -18,7 +30,7 @@ numbers.
 | User id                       | Login token              | Demonstrates                                                                                                                                                       |
 | ----------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `demo-risk-user-concentrated` | `demo-risk-concentrated` | RED concentration — one stock is ~90% of holdings, plus the warnings it produces                                                                                   |
-| `demo-risk-user-balanced`     | `demo-risk-balanced`     | Mostly GREEN — five diversified holdings, healthy cash ratio                                                                                                       |
+| `demo-risk-user-balanced`     | `demo-risk-balanced`     | No RED anywhere — GREEN sector mix and cash ratio; single-stock/country/currency sit at YELLOW, not RED (see "A note on currency conversion" below)                |
 | `demo-risk-user-empty`        | `demo-risk-empty`        | Empty portfolio — every rule `NO_DATA`, score `null`, `unavailableReason: NO_ACTIVE_RULES`                                                                         |
 | `demo-risk-user-target`       | `demo-risk-target`       | A target allocation is configured (50% EQUITY / 50% FIXED_INCOME) and visibly deviated from, since every holding is EQUITY — exercises `TargetAllocationDeviation` |
 
@@ -26,12 +38,28 @@ numbers.
 
 1. Start the dev stack: `docker compose -f docker/docker-compose.dev.yml up -d` (or however the team normally starts Postgres locally).
 2. Make sure `DATABASE_URL` (and `DIRECT_URL` if set) in your `.env` points at that database — same as `npm run database:seed` uses.
-3. Run the script:
+3. Run the script, loading your `.env` the same way the project's own `test:*` scripts do (via `dotenv-cli`), with the safety opt-in set:
    ```
-   npx tsx scripts/seed-risk-demo-data.mts
+   ALLOW_RISK_DEMO_SEED=yes npx dotenv-cli -e .env -- npx tsx scripts/seed-risk-demo-data.mts
    ```
-   (`npx` fetches `tsx` on first run if it isn't already installed; no permanent dependency is added.)
+   On Windows PowerShell, set the env var first: `$env:ALLOW_RISK_DEMO_SEED = "yes"; npx dotenv-cli -e .env -- npx tsx scripts/seed-risk-demo-data.mts`.
+   (`npx` fetches `tsx`/`dotenv-cli` on first run if either isn't already installed; no permanent dependency is added.)
 4. You should see one line per seeded user, ending with a summary count.
+
+## A note on currency conversion
+
+The "balanced" account's 10 holdings are deliberately engineered — see the
+comment on `demo-risk-user-balanced` in the script — so that every
+concentration rule lands GREEN or YELLOW, never RED, confirmed by running
+the actual holdings through `RiskEvaluationService` directly with the
+exchange rate treated as 1:1. In the real app, `ExchangeRateDataService`
+uses the database's real EUR/USD rate, which isn't exactly 1:1, and this
+account's single-stock/country/currency buckets sit only slightly above
+their GREEN boundary (~50-51% against a 50% ceiling). A real rate further
+from 1:1 than assumed here could tip one of those from YELLOW to GREEN or
+vice versa, but the margin to the next boundary up (RED at 75%/25%) is
+large, so this should not produce a RED. Treat the exact split as
+approximate until confirmed against a live run.
 
 ## How to view each demo account
 

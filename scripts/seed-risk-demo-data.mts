@@ -21,6 +21,24 @@ const prisma = new PrismaClient({ adapter });
 
 const PRICE_DATE = new Date('2026-11-06T00:00:00.000Z');
 
+// This script writes fixed, documented login tokens (docs/testing/seed-
+// risk-demo-data.md) into whatever database DATABASE_URL points at. That's
+// fine for a disposable local/dev database, but it must never run against
+// production or a shared environment - requiring an explicit opt-in env
+// var (rather than e.g. sniffing the URL for "localhost") means it fails
+// safely by default instead of guessing.
+function assertSafeToSeed(): void {
+  if (process.env.ALLOW_RISK_DEMO_SEED !== 'yes') {
+    throw new Error(
+      'Refusing to seed: ALLOW_RISK_DEMO_SEED is not set to "yes". This ' +
+        'script writes fixed, publicly-documented login tokens into ' +
+        'DATABASE_URL - only run it against a disposable local/dev ' +
+        'database, never production or a shared environment. Set ' +
+        'ALLOW_RISK_DEMO_SEED=yes once you have confirmed that.'
+    );
+  }
+}
+
 // Matches UserService#createAccessToken exactly (apps/api/src/app/user/
 // user.service.ts) so a plaintext token generated here can log in through
 // the client's existing "Security Token" field via POST /auth/anonymous.
@@ -37,6 +55,10 @@ function hashAccessToken(plaintext: string): string {
 }
 
 interface SeedSymbol {
+  // ISO country code for the Risk module's CountryConcentration rule - each
+  // symbol needs its own, not a portfolio-wide default (see the fix note on
+  // the balanced user below).
+  country: string;
   currency: string;
   id: string;
   name: string;
@@ -48,6 +70,7 @@ interface SeedSymbol {
 const SYMBOLS: SeedSymbol[] = [
   {
     id: 'demo-risk-sym-aapl',
+    country: 'US',
     currency: 'USD',
     name: 'Apple Inc.',
     price: 180,
@@ -56,6 +79,7 @@ const SYMBOLS: SeedSymbol[] = [
   },
   {
     id: 'demo-risk-sym-msft',
+    country: 'US',
     currency: 'USD',
     name: 'Microsoft Corp.',
     price: 320,
@@ -64,6 +88,7 @@ const SYMBOLS: SeedSymbol[] = [
   },
   {
     id: 'demo-risk-sym-jnj',
+    country: 'US',
     currency: 'USD',
     name: 'Johnson & Johnson',
     price: 150,
@@ -72,6 +97,7 @@ const SYMBOLS: SeedSymbol[] = [
   },
   {
     id: 'demo-risk-sym-pg',
+    country: 'US',
     currency: 'USD',
     name: 'Procter & Gamble',
     price: 140,
@@ -80,11 +106,71 @@ const SYMBOLS: SeedSymbol[] = [
   },
   {
     id: 'demo-risk-sym-sap',
+    country: 'DE',
     currency: 'EUR',
     name: 'SAP SE',
     price: 130,
     sector: 'Technology',
     symbol: 'DEMO-SAP'
+  },
+  // The 6 below are fictional - standing in for a non-US, non-Technology
+  // name in their sector/currency so the "balanced" user below can be
+  // diversified across sector, country and currency, not just added up to
+  // look busy. Everything here is dataSource MANUAL and prefixed DEMO-, so
+  // nothing here is presented as a real security.
+  {
+    id: 'demo-risk-sym-eutec',
+    country: 'FR',
+    currency: 'EUR',
+    name: 'Demo European Technology Co.',
+    price: 100,
+    sector: 'Technology',
+    symbol: 'DEMO-EUTEC'
+  },
+  {
+    id: 'demo-risk-sym-eufin',
+    country: 'DE',
+    currency: 'EUR',
+    name: 'Demo European Financials Co.',
+    price: 100,
+    sector: 'Financials',
+    symbol: 'DEMO-EUFIN'
+  },
+  {
+    id: 'demo-risk-sym-euind',
+    country: 'FR',
+    currency: 'EUR',
+    name: 'Demo European Industrials Co.',
+    price: 100,
+    sector: 'Industrials',
+    symbol: 'DEMO-EUIND'
+  },
+  {
+    id: 'demo-risk-sym-usenr',
+    country: 'US',
+    currency: 'USD',
+    name: 'Demo US Energy Co.',
+    price: 100,
+    sector: 'Energy',
+    symbol: 'DEMO-USENR'
+  },
+  {
+    id: 'demo-risk-sym-usmat',
+    country: 'US',
+    currency: 'USD',
+    name: 'Demo US Materials Co.',
+    price: 100,
+    sector: 'Materials',
+    symbol: 'DEMO-USMAT'
+  },
+  {
+    id: 'demo-risk-sym-euutil',
+    country: 'DE',
+    currency: 'EUR',
+    name: 'Demo European Utilities Co.',
+    price: 100,
+    sector: 'Utilities',
+    symbol: 'DEMO-EUUTIL'
   }
 ];
 
@@ -122,14 +208,30 @@ const SEED_USERS: SeedUser[] = [
   {
     id: 'demo-risk-user-balanced',
     accessToken: 'demo-risk-balanced',
-    cashBalance: 2000,
-    demonstrates: 'Mostly GREEN: diversified holdings, healthy cash ratio',
+    cashBalance: 800,
+    // Verified against the real RiskEvaluationService (not asserted on
+    // faith - see the PR #225 review): no RED anywhere. Sector and cash
+    // land clearly GREEN; single-stock, country and currency sit just
+    // above their GREEN boundary (YELLOW) because the worst bucket in each
+    // is ~50-51% against a 50% GREEN ceiling - an inherent result of only
+    // having two home currencies (USD/EUR) to split 10 holdings across,
+    // not a bug. (The original version of this account wrongly tagged
+    // every symbol's country as "US", including DEMO-SAP, which actually
+    // produced ~86-100% RED country/currency concentration - the opposite
+    // of what "balanced" was supposed to demonstrate.)
+    demonstrates:
+      'No RED anywhere: GREEN sector mix and cash ratio, YELLOW (not RED) single-stock/country/currency concentration',
     holdings: [
       { quantity: 5, symbolId: 'demo-risk-sym-aapl' },
-      { quantity: 5, symbolId: 'demo-risk-sym-msft' },
-      { quantity: 8, symbolId: 'demo-risk-sym-jnj' },
-      { quantity: 8, symbolId: 'demo-risk-sym-pg' },
-      { quantity: 6, symbolId: 'demo-risk-sym-sap' }
+      { quantity: 7, symbolId: 'demo-risk-sym-sap' },
+      { quantity: 9, symbolId: 'demo-risk-sym-eutec' },
+      { quantity: 6, symbolId: 'demo-risk-sym-jnj' },
+      { quantity: 6, symbolId: 'demo-risk-sym-pg' },
+      { quantity: 9, symbolId: 'demo-risk-sym-eufin' },
+      { quantity: 10, symbolId: 'demo-risk-sym-euind' },
+      { quantity: 10, symbolId: 'demo-risk-sym-usenr' },
+      { quantity: 10, symbolId: 'demo-risk-sym-usmat' },
+      { quantity: 9, symbolId: 'demo-risk-sym-euutil' }
     ]
   },
   {
@@ -171,14 +273,22 @@ async function seedSymbols() {
         id: symbol.id,
         assetClass: 'EQUITY',
         assetSubClass: 'STOCK',
-        countries: [{ code: 'US', weight: 1 }],
+        countries: [{ code: symbol.country, weight: 1 }],
         currency: symbol.currency,
         dataSource: 'MANUAL',
         name: symbol.name,
         sectors: [{ name: symbol.sector, weight: 1 }],
         symbol: symbol.symbol
       },
-      update: { name: symbol.name },
+      // Re-applies countries/sectors too, not just name - otherwise
+      // re-running this script after fixing a symbol's classification (as
+      // happened with DEMO-SAP's country, PR #225 review) would leave an
+      // already-seeded database stuck on the old, wrong value.
+      update: {
+        countries: [{ code: symbol.country, weight: 1 }],
+        name: symbol.name,
+        sectors: [{ name: symbol.sector, weight: 1 }]
+      },
       where: { id: symbol.id }
     });
 
@@ -229,18 +339,21 @@ async function seedUser(seedUser: SeedUser) {
     where: { id_userId: { id: accountId, userId: seedUser.id } }
   });
 
-  if (seedUser.cashBalance > 0) {
-    await prisma.accountBalance.upsert({
-      create: {
-        accountId,
-        date: PRICE_DATE,
-        userId: seedUser.id,
-        value: seedUser.cashBalance
-      },
-      update: { value: seedUser.cashBalance },
-      where: { accountId_date: { accountId, date: PRICE_DATE } }
-    });
-  }
+  // Always upserted, even for cashBalance: 0 - skipping the write when 0
+  // (as this used to) meant re-running the script against an account that
+  // already had a nonzero balance (e.g. from an earlier, different seed
+  // revision) would leave that stale balance in place instead of resetting
+  // it to the value this script now intends.
+  await prisma.accountBalance.upsert({
+    create: {
+      accountId,
+      date: PRICE_DATE,
+      userId: seedUser.id,
+      value: seedUser.cashBalance
+    },
+    update: { value: seedUser.cashBalance },
+    where: { accountId_date: { accountId, date: PRICE_DATE } }
+  });
 
   for (const [index, holding] of seedUser.holdings.entries()) {
     const symbol = symbolById.get(holding.symbolId);
@@ -301,6 +414,7 @@ async function seedUser(seedUser: SeedUser) {
 }
 
 async function main() {
+  assertSafeToSeed();
   await seedSymbols();
 
   for (const user of SEED_USERS) {

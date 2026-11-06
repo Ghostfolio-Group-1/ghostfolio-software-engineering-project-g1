@@ -99,6 +99,7 @@ dashboard → read indicators → run a what-if.
 ## Seed data
 
 See `docs/testing/seed-risk-demo-data.md`. Covers: a concentrated portfolio
-(RED concentration), a balanced one (mostly GREEN), an empty portfolio
-(`NO_DATA` / no-active-rules), and one with a target allocation configured
-(exercises `TargetAllocationDeviation`).
+(RED concentration), a balanced one (no RED anywhere, verified against the
+real evaluation logic), an empty portfolio (`NO_DATA` / no-active-rules),
+and one with a target allocation configured (exercises
+`TargetAllocationDeviation`).

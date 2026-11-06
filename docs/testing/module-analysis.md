@@ -76,10 +76,13 @@ project's own "don't pad coverage" convention.
    data into a running Postgres instance (`prisma/seed.mts` only seeds
    tags). Building this for real requires `SymbolProfile`/`MarketData` rows
    with `dataSource: MANUAL` so no external price-gathering call is needed
-   — documented and built in this PR, but **not run against a live
-   database in this session**, since Docker isn't running in this sandbox.
-   Please run and confirm it (`docker/docker-compose.dev.yml` up, then the
-   seed command documented in `docs/testing/seed-risk-demo-data.md`).
+   — documented and built in this PR. Its severity outcomes are verified
+   against the real `RiskEvaluationService` logic directly (not just
+   asserted), but the script itself still needs running against a real
+   database at least once before the demo, since Docker isn't running in
+   this sandbox (`docker/docker-compose.dev.yml` up, then the seed command
+   documented in `docs/testing/seed-risk-demo-data.md`, including the
+   `ALLOW_RISK_DEMO_SEED=yes` safety opt-in).
 2. **Playwright/E2E scope**: per your "work ahead, but hold UI/Playwright"
    decision, this issue does not install Playwright or add
    `data-testid` attributes — deferred to after #68's harness lands.
