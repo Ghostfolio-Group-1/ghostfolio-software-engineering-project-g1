@@ -1,5 +1,6 @@
 import { AccountService } from '@ghostfolio/api/app/account/account.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
+import { UserService } from '@ghostfolio/api/app/user/user.service';
 import { ConfigurationService } from '@ghostfolio/api/services/configuration/configuration.service';
 import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import {
@@ -88,6 +89,10 @@ describe('GET /api/v1/risk/concentration (end to end)', () => {
             HealthScoreCalculatorService,
             RiskEvaluationService,
             ThresholdEngineService,
+            {
+              provide: UserService,
+              useValue: { updateUserSetting: jest.fn() }
+            },
             WhatIfService
           ]
         }),
@@ -226,6 +231,10 @@ describe('GET /api/v1/risk/score (end to end)', () => {
             HealthScoreCalculatorService,
             RiskEvaluationService,
             ThresholdEngineService,
+            {
+              provide: UserService,
+              useValue: { updateUserSetting: jest.fn() }
+            },
             WhatIfService
           ]
         }),
@@ -330,6 +339,10 @@ describe('POST /api/v1/risk/what-if (end to end)', () => {
             HealthScoreCalculatorService,
             RiskEvaluationService,
             ThresholdEngineService,
+            {
+              provide: UserService,
+              useValue: { updateUserSetting: jest.fn() }
+            },
             WhatIfService
           ]
         }),
