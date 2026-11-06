@@ -90,9 +90,18 @@ export function toRiskThresholdsList(
 // Validates a PUT body (Section 6.9). "At least one field must be present"
 // and the ceiling/band ordering + 0-1 range checks (delegated to
 // validateThresholds, which already encodes both shapes' rules).
+//
+// `current` is the rule's existing override (if any). A field the update
+// leaves out keeps its *current* value, not the rule's default - the same
+// merge buildUpdatedRuleSettings performs when actually saving. Validating
+// against the defaults instead (as this used to) could pass an update that
+// is only valid in isolation but breaks ordering once merged with what's
+// already saved, e.g. an existing thresholdMax: 0.20 plus an update that
+// only lowers redThresholdMax to 0.15.
 export function validateThresholdUpdateInput(
   ruleKey: string,
-  dto: UpdateRiskThresholdDto
+  dto: UpdateRiskThresholdDto,
+  current?: RuleSettings
 ): RiskThresholdValidationError | null {
   if (!isKnownRiskRuleKey(ruleKey)) {
     return {
@@ -113,10 +122,10 @@ export function validateThresholdUpdateInput(
   }
 
   const overrides: WarningThresholds = {
-    redThresholdMax: dto.thresholds.redMax,
-    redThresholdMin: dto.thresholds.redMin,
-    thresholdMax: dto.thresholds.max,
-    thresholdMin: dto.thresholds.min
+    redThresholdMax: dto.thresholds.redMax ?? current?.redThresholdMax,
+    redThresholdMin: dto.thresholds.redMin ?? current?.redThresholdMin,
+    thresholdMax: dto.thresholds.max ?? current?.thresholdMax,
+    thresholdMin: dto.thresholds.min ?? current?.thresholdMin
   };
   const error = validateThresholds({ overrides, ruleKey });
 

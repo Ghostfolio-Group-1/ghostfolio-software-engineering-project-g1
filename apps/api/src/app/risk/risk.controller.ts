@@ -12,7 +12,11 @@ import {
 } from '@ghostfolio/common/api-conventions';
 import { SubscriptionType } from '@ghostfolio/common/enums';
 import { RuleSettings } from '@ghostfolio/common/interfaces/x-ray-rules-settings.interface';
-import { isRestrictedView } from '@ghostfolio/common/permissions';
+import {
+  hasPermission,
+  isRestrictedView,
+  permissions
+} from '@ghostfolio/common/permissions';
 import { hasScope, scopes } from '@ghostfolio/common/scopes';
 import type {
   ImpersonationContext,
@@ -33,7 +37,8 @@ import {
   Param,
   Post,
   Put,
-  Query
+  Query,
+  UseFilters
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 
@@ -53,6 +58,7 @@ import {
   toRiskConcentrationResponse
 } from './risk-concentration.mapper';
 import { RiskEvaluationService } from './risk-evaluation.service';
+import { RiskExceptionFilter } from './risk-exception.filter';
 import { toRiskScoreResponse } from './risk-score.mapper';
 import {
   buildUpdatedRuleSettings,
@@ -72,6 +78,7 @@ import { VolatilityCacheService } from './volatility-cache.service';
 import { WhatIfService } from './what-if.service';
 
 @Controller('risk')
+@UseFilters(RiskExceptionFilter)
 export class RiskController {
   public constructor(
     private readonly accountService: AccountService,
@@ -98,6 +105,30 @@ export class RiskController {
         createErrorResponse(
           'RISK_FORBIDDEN',
           'Cannot change risk settings while impersonating another user.'
+        ),
+        HttpStatus.FORBIDDEN
+      );
+    }
+  }
+
+  // Risk thresholds and target allocation live in userSettings.xRayRules /
+  // userSettings.targetAllocation, written via UserService#updateUserSetting
+  // - the same settings store /user/setting guards with
+  // permissions.updateUserSettings (UserController#updateUserSetting). The
+  // DEMO role has portfolio:read but not updateUserSettings, so without this
+  // check a demo user could write risk settings the rest of the app treats
+  // as read-only for them.
+  private rejectIfNoSettingsPermission(): void {
+    if (
+      !hasPermission(
+        this.request.user.permissions,
+        permissions.updateUserSettings
+      )
+    ) {
+      throw new HttpException(
+        createErrorResponse(
+          'RISK_FORBIDDEN',
+          'You do not have permission to change risk settings.'
         ),
         HttpStatus.FORBIDDEN
       );
@@ -172,7 +203,9 @@ export class RiskController {
       baseCurrency: userSettings.baseCurrency,
       cashBalance: cashDetails.balanceInBaseCurrency,
       targetAllocation: userSettings.targetAllocation,
-      volatility
+      volatility,
+      xRayRules: userSettings.xRayRules as
+        Record<string, RuleSettings> | undefined
     });
     const healthScore = this.healthScoreCalculatorService.calculateHealthScore(
       evaluation.ruleResults
@@ -281,7 +314,9 @@ export class RiskController {
       baseCurrency: userSettings.baseCurrency,
       cashBalance: cashDetails.balanceInBaseCurrency,
       targetAllocation: userSettings.targetAllocation,
-      volatility
+      volatility,
+      xRayRules: userSettings.xRayRules as
+        Record<string, RuleSettings> | undefined
     });
     const warnings = this.riskEvaluationService.calculateWarnings(evaluation);
     const { items, total } = paginateWarnings(warnings, query);
@@ -298,15 +333,19 @@ export class RiskController {
   public async getTargetAllocation(
     @Impersonation() { userId, userSettings }: ImpersonationContext
   ): Promise<ApiResponse<TargetAllocationResponse>> {
-    const holdings = await this.portfolioService.getHoldings({
-      userId,
-      dateRange: 'max'
-    });
+    const [holdings, cashDetails] = await Promise.all([
+      this.portfolioService.getHoldings({ userId, dateRange: 'max' }),
+      this.accountService.getCashDetails({
+        userId,
+        currency: userSettings.baseCurrency
+      })
+    ]);
 
     return createSuccessResponse(
       toTargetAllocationResponse({
         holdings,
         baseCurrency: userSettings.baseCurrency,
+        cashBalance: cashDetails.balanceInBaseCurrency,
         exchangeRateDataService: this.exchangeRateDataService,
         targetAllocation: userSettings.targetAllocation,
         thresholdEngineService: this.thresholdEngineService
@@ -321,6 +360,7 @@ export class RiskController {
     @Body() dto: UpdateTargetAllocationDto
   ): Promise<ApiResponse<TargetAllocationResponse>> {
     this.rejectIfImpersonating(isActive);
+    this.rejectIfNoSettingsPermission();
 
     const validationError = validateTargetAllocationInput(dto);
 
@@ -343,15 +383,19 @@ export class RiskController {
       userSettings: { ...userSettings, targetAllocation }
     });
 
-    const holdings = await this.portfolioService.getHoldings({
-      userId,
-      dateRange: 'max'
-    });
+    const [holdings, cashDetails] = await Promise.all([
+      this.portfolioService.getHoldings({ userId, dateRange: 'max' }),
+      this.accountService.getCashDetails({
+        userId,
+        currency: userSettings.baseCurrency
+      })
+    ]);
 
     return createSuccessResponse(
       toTargetAllocationResponse({
         holdings,
         baseCurrency: userSettings.baseCurrency,
+        cashBalance: cashDetails.balanceInBaseCurrency,
         exchangeRateDataService: this.exchangeRateDataService,
         targetAllocation,
         thresholdEngineService: this.thresholdEngineService
@@ -365,6 +409,7 @@ export class RiskController {
     @Impersonation() { isActive, userId, userSettings }: ImpersonationContext
   ): Promise<ApiResponse<TargetAllocationResponse>> {
     this.rejectIfImpersonating(isActive);
+    this.rejectIfNoSettingsPermission();
 
     const userSettingsWithoutTarget = { ...userSettings };
     delete userSettingsWithoutTarget.targetAllocation;
@@ -398,8 +443,13 @@ export class RiskController {
     @Body() dto: UpdateRiskThresholdDto
   ): Promise<ApiResponse<RiskThresholdItem>> {
     this.rejectIfImpersonating(isActive);
+    this.rejectIfNoSettingsPermission();
 
-    const validationError = validateThresholdUpdateInput(ruleKey, dto);
+    const validationError = validateThresholdUpdateInput(
+      ruleKey,
+      dto,
+      userSettings.xRayRules?.[ruleKey] as RuleSettings | undefined
+    );
 
     if (validationError) {
       throw new HttpException(
@@ -433,6 +483,7 @@ export class RiskController {
     @Param('ruleKey') ruleKey: string
   ): Promise<ApiResponse<RiskThresholdItem>> {
     this.rejectIfImpersonating(isActive);
+    this.rejectIfNoSettingsPermission();
 
     if (!isKnownRiskRuleKey(ruleKey)) {
       throw new HttpException(

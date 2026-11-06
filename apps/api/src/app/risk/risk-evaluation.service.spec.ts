@@ -275,4 +275,57 @@ describe('RiskEvaluationService', () => {
       warnings.some((warning) => warning.ruleKey === 'SingleStockConcentration')
     ).toBe(true);
   });
+
+  // Regression: GET /risk/thresholds lets a user customize a rule's
+  // threshold, but until now evaluate() never read xRayRules back, so a
+  // saved override had no effect on the score or warnings it was supposed
+  // to tune.
+  it('applies a customized threshold override from xRayRules to severity', () => {
+    // MSFT is 60000/90000 = 0.6667 -> RED against the default thresholdMax
+    // (0.1) / redThresholdMax (0.25), but GREEN against a redThresholdMax
+    // raised to 0.9.
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 10000,
+      holdings,
+      xRayRules: {
+        SingleStockConcentration: { isActive: true, redThresholdMax: 0.9 }
+      }
+    });
+
+    const ruleResult = evaluation.ruleResults.find(
+      (result) => result.key === 'SingleStockConcentration'
+    );
+    expect(ruleResult.passed).toBe(true);
+
+    const warnings = service.calculateWarnings(evaluation);
+    expect(
+      warnings.some((warning) => warning.ruleKey === 'SingleStockConcentration')
+    ).toBe(false);
+  });
+
+  // A rule the user turned off (isActive: false) must behave like NO_DATA -
+  // excluded from the score and never warned about - not silently passed,
+  // the same "never show a fake green" rule genuine NO_DATA already follows.
+  it('treats a rule disabled via xRayRules as NO_DATA, not a free pass', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 10000,
+      holdings,
+      xRayRules: {
+        SingleStockConcentration: { isActive: false }
+      }
+    });
+
+    const ruleResult = evaluation.ruleResults.find(
+      (result) => result.key === 'SingleStockConcentration'
+    );
+    expect(ruleResult.isActive).toBe(false);
+    expect(evaluation.skippedRuleKeys).toContain('SingleStockConcentration');
+
+    const warnings = service.calculateWarnings(evaluation);
+    expect(
+      warnings.some((warning) => warning.ruleKey === 'SingleStockConcentration')
+    ).toBe(false);
+  });
 });

@@ -99,12 +99,14 @@ export function toEmptyTargetAllocationResponse(): TargetAllocationResponse {
 
 export function toTargetAllocationResponse({
   baseCurrency,
+  cashBalance,
   exchangeRateDataService,
   holdings,
   targetAllocation,
   thresholdEngineService
 }: {
   baseCurrency: string;
+  cashBalance: number;
   exchangeRateDataService: ExchangeRateDataService;
   holdings: PortfolioPosition[];
   targetAllocation?: TargetAllocationSettings;
@@ -118,6 +120,7 @@ export function toTargetAllocationResponse({
   const rule = new TargetDeviation(exchangeRateDataService, holdings);
   const { buckets } = rule.evaluate({
     baseCurrency,
+    cashBalance,
     groupBy,
     isActive: true,
     locale: 'en',

@@ -41,7 +41,7 @@ export class TargetDeviation extends Rule<Settings> {
   }
 
   public evaluate(ruleSettings: Settings): TargetDeviationEvaluationResult {
-    const { buckets: actualBuckets, totalValue } =
+    const { buckets: actualBuckets, totalValue: holdingsValue } =
       groupHoldingsByWeightedAttribute({
         baseCurrency: ruleSettings.baseCurrency,
         exchangeRateDataService: this.exchangeRateDataService,
@@ -50,12 +50,25 @@ export class TargetDeviation extends Rule<Settings> {
           this.getBucketsForHolding(holding, ruleSettings.groupBy)
       });
 
+    // The "CASH" key (docs/sesha-notes/10-risk-api-contract.md Section 11)
+    // only makes sense against assetClass buckets - cash held at the broker
+    // has no sector/country/currency of its own to group by.
+    const cashBalance =
+      ruleSettings.groupBy === 'assetClass'
+        ? (ruleSettings.cashBalance ?? 0)
+        : 0;
+    const totalValue = holdingsValue + cashBalance;
+
     const actualByKey = new Map(
       actualBuckets.map(({ key, value }) => [
         key,
         totalValue > 0 ? value / totalValue : 0
       ])
     );
+
+    if (cashBalance > 0) {
+      actualByKey.set('CASH', totalValue > 0 ? cashBalance / totalValue : 0);
+    }
 
     // Every bucket the user actually holds counts, even ones missing from
     // their stated target (those are an implicit 0% target).
@@ -174,6 +187,9 @@ export class TargetDeviation extends Rule<Settings> {
 
 interface Settings extends RuleSettings {
   baseCurrency: string;
+  // In baseCurrency, same as holding values. Only read for groupBy
+  // 'assetClass' - see the comment in evaluate().
+  cashBalance?: number;
   groupBy: TargetAllocationGroupBy;
   targets: { key: string; percentage: number }[];
   thresholdMax: number;

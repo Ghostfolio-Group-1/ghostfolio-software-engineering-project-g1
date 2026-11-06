@@ -4,6 +4,7 @@ import {
   PortfolioPosition,
   TargetAllocationSettings
 } from '@ghostfolio/common/interfaces';
+import { RuleSettings } from '@ghostfolio/common/interfaces/x-ray-rules-settings.interface';
 
 import { Injectable } from '@nestjs/common';
 
@@ -15,6 +16,7 @@ import {
   ThresholdEngineInput,
   ThresholdEngineService
 } from './threshold-engine.service';
+import { WarningThresholds } from './warning-threshold.model';
 
 export interface VolatilityInput {
   annualizedVolatility: number | null;
@@ -27,6 +29,12 @@ export interface RiskEvaluationRequest {
   holdings: PortfolioPosition[];
   targetAllocation?: TargetAllocationSettings;
   volatility?: VolatilityInput;
+  // Per-rule overrides from userSettings.xRayRules (GET/PUT/DELETE
+  // /risk/thresholds). A rule with isActive: false is treated the same as
+  // NO_DATA (actual forced to null) rather than silently passed - the same
+  // "never show a fake green" rule toRuleEvaluation already applies when a
+  // rule genuinely has no data.
+  xRayRules?: Record<string, RuleSettings>;
 }
 
 export interface RiskEvaluation {
@@ -91,8 +99,8 @@ const CATEGORY_RULE_COUNT: Record<string, number> = {
 // calculators exist" and "the risk API actually computes something real" -
 // see deviations.md D-12.
 //
-// isActive / per-rule threshold overrides from UserSettings.xRayRules are
-// intentionally out of scope here (that's a bigger feature of its own);
+// Per-rule isActive / threshold overrides from UserSettings.xRayRules
+// (Section 6.8-6.10 of the contract) are applied via toRuleEvaluation;
 // every rule defaults to active except TargetAllocationDeviation, which
 // only runs when a target allocation is actually configured - matching
 // TargetDeviation's own getSettings().
@@ -115,36 +123,47 @@ export class RiskEvaluationService {
       request.baseCurrency
     );
     const skippedRuleKeys: string[] = [];
+    const { xRayRules } = request;
 
     const evaluations: RiskRuleEvaluation[] = [
       this.evaluateConcentration(
         'SingleStockConcentration',
         'stock',
-        summary.concentration.stock
+        summary.concentration.stock,
+        xRayRules
       ),
       this.evaluateConcentration(
         'SectorConcentration',
         'sector',
-        summary.concentration.sector
+        summary.concentration.sector,
+        xRayRules
       ),
       this.evaluateConcentration(
         'CountryConcentration',
         'country',
-        summary.concentration.country
+        summary.concentration.country,
+        xRayRules
       ),
       this.evaluateConcentration(
         'CurrencyClusterRiskCurrentInvestment',
         'currency',
-        summary.concentration.currency
+        summary.concentration.currency,
+        xRayRules
       ),
-      this.evaluateCashAllocation(request.cashBalance, portfolioValue),
-      this.evaluateVolatility(request.volatility)
+      this.evaluateCashAllocation(
+        request.cashBalance,
+        portfolioValue,
+        xRayRules
+      ),
+      this.evaluateVolatility(request.volatility, xRayRules)
     ];
 
     const targetEvaluation = this.evaluateTargetAllocation(
       request.holdings,
       request.baseCurrency,
-      request.targetAllocation
+      request.cashBalance,
+      request.targetAllocation,
+      xRayRules
     );
 
     if (targetEvaluation) {
@@ -207,7 +226,8 @@ export class RiskEvaluationService {
   private evaluateConcentration(
     ruleKey: string,
     subjectType: RiskWarning['subject']['type'],
-    buckets: ExposureBucket[]
+    buckets: ExposureBucket[],
+    xRayRules?: Record<string, RuleSettings>
   ): RiskRuleEvaluation {
     const worst = buckets.reduce<ExposureBucket | null>((max, bucket) => {
       return !max || bucket.percentage > max.percentage ? bucket : max;
@@ -232,12 +252,13 @@ export class RiskEvaluationService {
           }))
         : [thresholdInput];
 
-    return this.toRuleEvaluation(thresholdInput, warningInputs);
+    return this.toRuleEvaluation(thresholdInput, warningInputs, xRayRules);
   }
 
   private evaluateCashAllocation(
     cashBalance: number,
-    portfolioValue: number
+    portfolioValue: number,
+    xRayRules?: Record<string, RuleSettings>
   ): RiskRuleEvaluation {
     // null (not 0) for an empty portfolio (no holdings, no cash) - a 0%
     // cash ratio is a real, passable ratio for a non-empty portfolio, but
@@ -249,10 +270,13 @@ export class RiskEvaluationService {
       subject: { type: 'bucket', value: 'cash' }
     };
 
-    return this.toRuleEvaluation(thresholdInput, [thresholdInput]);
+    return this.toRuleEvaluation(thresholdInput, [thresholdInput], xRayRules);
   }
 
-  private evaluateVolatility(volatility?: VolatilityInput): RiskRuleEvaluation {
+  private evaluateVolatility(
+    volatility?: VolatilityInput,
+    xRayRules?: Record<string, RuleSettings>
+  ): RiskRuleEvaluation {
     const MINIMUM_HISTORY_DAYS = 20;
     const hasSufficientData =
       volatility !== undefined &&
@@ -265,13 +289,15 @@ export class RiskEvaluationService {
       subject: { type: 'portfolio', value: 'volatility' }
     };
 
-    return this.toRuleEvaluation(thresholdInput, [thresholdInput]);
+    return this.toRuleEvaluation(thresholdInput, [thresholdInput], xRayRules);
   }
 
   private evaluateTargetAllocation(
     holdings: PortfolioPosition[],
     baseCurrency: string,
-    targetAllocation?: TargetAllocationSettings
+    cashBalance: number,
+    targetAllocation: TargetAllocationSettings | undefined,
+    xRayRules?: Record<string, RuleSettings>
   ): RiskRuleEvaluation | null {
     if (!targetAllocation?.isActive) {
       return null;
@@ -283,6 +309,7 @@ export class RiskEvaluationService {
     );
     const { buckets } = rule.evaluate({
       baseCurrency,
+      cashBalance,
       groupBy: targetAllocation.groupBy ?? 'assetClass',
       isActive: true,
       locale: 'en',
@@ -320,7 +347,7 @@ export class RiskEvaluationService {
           }))
         : [thresholdInput];
 
-    return this.toRuleEvaluation(thresholdInput, warningInputs);
+    return this.toRuleEvaluation(thresholdInput, warningInputs, xRayRules);
   }
 
   private subjectTypeForGroupBy(
@@ -341,9 +368,38 @@ export class RiskEvaluationService {
   }
 
   private toRuleEvaluation(
-    thresholdInput: ThresholdEngineInput,
-    warningInputs: ThresholdEngineInput[]
+    rawThresholdInput: ThresholdEngineInput,
+    rawWarningInputs: ThresholdEngineInput[],
+    xRayRules?: Record<string, RuleSettings>
   ): RiskRuleEvaluation {
+    const ruleSettings = xRayRules?.[rawThresholdInput.ruleKey];
+    // isActive: false means the user turned the rule off, not that it's
+    // missing data - but treating it the same as NO_DATA (null actual) gets
+    // the same "excluded from the score, no warnings" behavior for free,
+    // consistent with the comment below for genuine NO_DATA.
+    const isDisabled = ruleSettings?.isActive === false;
+    const overrides: WarningThresholds | undefined = ruleSettings
+      ? {
+          redThresholdMax: ruleSettings.redThresholdMax,
+          redThresholdMin: ruleSettings.redThresholdMin,
+          thresholdMax: ruleSettings.thresholdMax,
+          thresholdMin: ruleSettings.thresholdMin
+        }
+      : undefined;
+
+    const thresholdInput: ThresholdEngineInput = {
+      ...rawThresholdInput,
+      actual: isDisabled ? null : rawThresholdInput.actual,
+      overrides
+    };
+    const warningInputs: ThresholdEngineInput[] = rawWarningInputs.map(
+      (input) => ({
+        ...input,
+        actual: isDisabled ? null : input.actual,
+        overrides
+      })
+    );
+
     const severity =
       this.thresholdEngineService.calculateSeverity(thresholdInput);
     // A rule's pass/fail is false if and only if its severity is YELLOW or

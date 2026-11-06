@@ -5,8 +5,10 @@ import {
   HttpStatus,
   Logger
 } from '@nestjs/common';
+import { EXCEPTION_FILTERS_METADATA } from '@nestjs/common/constants';
 
 import { RiskExceptionFilter } from './risk-exception.filter';
+import { RiskController } from './risk.controller';
 
 function createHost() {
   const json = jest.fn();
@@ -102,5 +104,17 @@ describe('RiskExceptionFilter', () => {
       'Unexpected error in the risk module',
       'boom'
     );
+  });
+
+  // The filter is only useful if RiskController actually applies it
+  // (@UseFilters(RiskExceptionFilter)) - an unregistered filter class
+  // compiles fine but never runs.
+  it('is registered on RiskController via @UseFilters', () => {
+    const registeredFilters: unknown[] = Reflect.getMetadata(
+      EXCEPTION_FILTERS_METADATA,
+      RiskController
+    );
+
+    expect(registeredFilters).toContain(RiskExceptionFilter);
   });
 });

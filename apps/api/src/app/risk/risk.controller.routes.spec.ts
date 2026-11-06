@@ -4,6 +4,7 @@ import { UserService } from '@ghostfolio/api/app/user/user.service';
 import { ConfigurationService } from '@ghostfolio/api/services/configuration/configuration.service';
 import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import { ImpersonationService } from '@ghostfolio/api/services/impersonation/impersonation.service';
+import { permissions } from '@ghostfolio/common/permissions';
 import type { ImpersonationContext } from '@ghostfolio/common/types';
 
 import { HttpException } from '@nestjs/common';
@@ -29,11 +30,15 @@ import { WhatIfService } from './what-if.service';
 const ajv = new Ajv({ allErrors: true });
 
 async function createController({
+  getCashDetails = jest.fn().mockResolvedValue({ balanceInBaseCurrency: 0 }),
   getHoldings = jest.fn().mockResolvedValue([]),
-  updateUserSetting = jest.fn().mockResolvedValue({})
+  updateUserSetting = jest.fn().mockResolvedValue({}),
+  userPermissions = [permissions.updateUserSettings]
 }: {
+  getCashDetails?: jest.Mock;
   getHoldings?: jest.Mock;
   updateUserSetting?: jest.Mock;
+  userPermissions?: string[];
 } = {}) {
   const moduleRef = await Test.createTestingModule({
     controllers: [RiskController],
@@ -45,11 +50,7 @@ async function createController({
       ThresholdEngineService,
       {
         provide: AccountService,
-        useValue: {
-          getCashDetails: jest
-            .fn()
-            .mockResolvedValue({ balanceInBaseCurrency: 0 })
-        }
+        useValue: { getCashDetails }
       },
       {
         provide: ConfigurationService,
@@ -65,6 +66,7 @@ async function createController({
         provide: REQUEST,
         useValue: {
           user: {
+            permissions: userPermissions,
             settings: { settings: { isRestrictedView: false } },
             subscription: { type: 'Premium' }
           }
@@ -281,6 +283,81 @@ describe('GET/PUT/DELETE /risk/target-allocation', () => {
     expect(exception.getStatus()).toBe(403);
   });
 
+  it('rejects a PUT from a user without updateUserSettings permission', async () => {
+    const controller = await createController({ userPermissions: [] });
+
+    const exception = await controller
+      .putTargetAllocation(context(), {
+        groupBy: 'assetClass',
+        targets: [{ key: 'CASH', percentage: 1 }]
+      })
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(403);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'RISK_FORBIDDEN' }
+    });
+  });
+
+  it('rejects a DELETE from a user without updateUserSettings permission', async () => {
+    const controller = await createController({ userPermissions: [] });
+
+    const exception = await controller.deleteTargetAllocation(context()).then(
+      () => {
+        throw new Error('expected rejection');
+      },
+      (error: HttpException) => error
+    );
+
+    expect(exception.getStatus()).toBe(403);
+  });
+
+  // The CASH key represents uninvested cash (docs/sesha-notes/10-risk-api-
+  // contract.md Section 11), not a holding - its actual % must come from
+  // the account's real cash balance, not default to 0 regardless of it.
+  it('computes the CASH bucket from the real cash balance', async () => {
+    const controller = await createController({
+      getCashDetails: jest
+        .fn()
+        .mockResolvedValue({ balanceInBaseCurrency: 500 }),
+      getHoldings: jest.fn().mockResolvedValue([
+        {
+          assetProfile: { assetClass: 'EQUITY', currency: 'USD' },
+          quantity: 5,
+          marketPrice: 100
+        }
+      ])
+    });
+
+    const response = await controller.getTargetAllocation(
+      context({
+        userSettings: {
+          baseCurrency: 'USD',
+          targetAllocation: {
+            groupBy: 'assetClass',
+            isActive: true,
+            targets: [
+              { key: 'EQUITY', percentage: 0.5 },
+              { key: 'CASH', percentage: 0.5 }
+            ]
+          }
+        }
+      })
+    );
+
+    // 500 holdings + 500 cash = 1000 total, so each bucket is exactly 50%.
+    const cashBucket = response.data.buckets.find(
+      (bucket) => bucket.key === 'CASH'
+    );
+    expect(cashBucket?.actual).toBeCloseTo(0.5, 10);
+    expect(cashBucket?.deviation).toBeCloseTo(0, 10);
+  });
+
   it('deletes the target and persists the cleared setting', async () => {
     const updateUserSetting = jest.fn().mockResolvedValue({});
     const controller = await createController({ updateUserSetting });
@@ -377,6 +454,81 @@ describe('GET/PUT/DELETE /risk/thresholds', () => {
       .putThreshold(context(), 'SingleStockConcentration', {
         thresholds: { max: 0.3, redMax: 0.2 }
       })
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(400);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'RISK_THRESHOLD_INVALID_ORDER' }
+    });
+  });
+
+  it('rejects a PUT from a user without updateUserSettings permission', async () => {
+    const controller = await createController({ userPermissions: [] });
+
+    const exception = await controller
+      .putThreshold(context(), 'SingleStockConcentration', {
+        isActive: false
+      })
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(403);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'RISK_FORBIDDEN' }
+    });
+  });
+
+  it('rejects a DELETE from a user without updateUserSettings permission', async () => {
+    const controller = await createController({ userPermissions: [] });
+
+    const exception = await controller
+      .deleteThreshold(context(), 'SingleStockConcentration')
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(403);
+  });
+
+  // Regression: an update must be validated against the rule's *current*
+  // override, not its defaults - otherwise a partial update that only
+  // changes one field can silently produce an invalid merged result.
+  // Existing override: max 0.20 / redMax 0.40. An update that only lowers
+  // redMax to 0.15 would merge to max 0.20 / redMax 0.15 (invalid: max must
+  // be less than redMax) even though 0.15 alone is a valid redMax in
+  // isolation against the *default* max of 0.1.
+  it('rejects a partial update that is only invalid once merged with the current override', async () => {
+    const controller = await createController();
+
+    const exception = await controller
+      .putThreshold(
+        context({
+          userSettings: {
+            baseCurrency: 'USD',
+            xRayRules: {
+              SingleStockConcentration: {
+                isActive: true,
+                thresholdMax: 0.2,
+                redThresholdMax: 0.4
+              }
+            }
+          }
+        }),
+        'SingleStockConcentration',
+        { thresholds: { redMax: 0.15 } }
+      )
       .then(
         () => {
           throw new Error('expected rejection');
