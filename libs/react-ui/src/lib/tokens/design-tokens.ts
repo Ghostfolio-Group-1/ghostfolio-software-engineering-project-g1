@@ -4,12 +4,14 @@ export const designTokens = {
     background: '#ffffff',
     border: '#e0e0e0',
     danger: '#dc3545',
+    noData: '#9e9e9e',
     primary: '#36cfcc',
     secondary: '#3686cf',
     success: '#28a745',
     surface: '#fafafa',
     text: '#212121',
-    textMuted: '#757575'
+    textMuted: '#757575',
+    warning: '#ffc107'
   },
   fontFamily: "'Inter', 'Roboto', 'Helvetica Neue', sans-serif",
   fontSize: { lg: 20, md: 16, sm: 14, xl: 28 },

@@ -4,74 +4,12 @@ import {
   DashboardCard,
   DashboardCardStatus
 } from '../dashboard-card/dashboard-card';
+import { RiskIndicator } from '../risk-indicator/risk-indicator';
+import type { RiskSeverity } from '../risk-indicator/risk-indicator';
 import { useTheme } from '../theme/theme-provider';
 import { designTokens, px } from '../tokens/design-tokens';
 
-// Matches apps/api/src/app/risk/interfaces/severity.type.ts one-to-one, kept
-// local so the React library has no dependency on the API types (same
-// convention as ChartPoint in chart-wrapper.tsx). A shared RiskIndicator
-// component (issue #188) lands separately - this card uses its own minimal
-// severity dot for now rather than reaching ahead for that component.
-export type RiskSeverity = 'GREEN' | 'NO_DATA' | 'RED' | 'YELLOW';
-
-// YELLOW/NO_DATA aren't design tokens yet - GREEN/RED already are
-// (designTokens.color.success/danger). Adding warning/noData tokens is
-// shared design-system surface, left for when RiskIndicator itself is
-// built and that change can go through review with the rest of the team.
-const SEVERITY_COLOR: Record<RiskSeverity, string> = {
-  GREEN: designTokens.color.success,
-  NO_DATA: '#9e9e9e',
-  RED: designTokens.color.danger,
-  YELLOW: '#ffc107'
-};
-
-const SEVERITY_LABEL: Record<RiskSeverity, string> = {
-  GREEN: 'Green',
-  NO_DATA: 'No data',
-  RED: 'Red',
-  YELLOW: 'Yellow'
-};
-
-// Shows the severity word visibly next to the dot, not only in the
-// aria-label - the Risk wireframe requires severity to be understandable
-// without relying on color alone (Tharun's review on PR #211).
-function SeverityDot({
-  label,
-  severity
-}: {
-  label?: string;
-  severity: RiskSeverity;
-}) {
-  const severityWord = SEVERITY_LABEL[severity];
-  const accessibleLabel = label ? `${label}: ${severityWord}` : severityWord;
-
-  return (
-    <span
-      aria-label={accessibleLabel}
-      role="status"
-      style={{
-        alignItems: 'center',
-        display: 'inline-flex',
-        gap: px(designTokens.spacing.xs)
-      }}
-    >
-      <span
-        aria-hidden="true"
-        data-severity={severity}
-        style={{
-          backgroundColor: SEVERITY_COLOR[severity],
-          borderRadius: '50%',
-          display: 'inline-block',
-          flexShrink: 0,
-          height: px(designTokens.spacing.sm),
-          width: px(designTokens.spacing.sm)
-        }}
-      />
-      {label ? <span>{label}</span> : null}
-      <span aria-hidden="true">{severityWord}</span>
-    </span>
-  );
-}
+export type { RiskSeverity };
 
 // The only unavailableReason the API sends today (NO_ACTIVE_RULES) can mean
 // an empty portfolio or every risk rule disabled - anything else falls back
@@ -168,7 +106,7 @@ function RiskDashboardCardBody({
             Grade {data.grade}
           </span>
         ) : null}
-        <SeverityDot label="Overall" severity={data.severity} />
+        <RiskIndicator label="Overall" severity={data.severity} />
       </div>
 
       {data.score === null && data.unavailableReason ? (
@@ -185,7 +123,7 @@ function RiskDashboardCardBody({
 
       {data.topConcentration ? (
         <div style={{ margin: `${px(designTokens.spacing.sm)} 0 0` }}>
-          <SeverityDot
+          <RiskIndicator
             label={`Top concentration: ${data.topConcentration.name} (${Math.round(data.topConcentration.percentage * 1000) / 10}%)`}
             severity={data.topConcentration.severity}
           />
@@ -210,7 +148,10 @@ function RiskDashboardCardBody({
                 padding: `${px(designTokens.spacing.xs)} 0`
               }}
             >
-              <SeverityDot label={category.name} severity={category.severity} />
+              <RiskIndicator
+                label={category.name}
+                severity={category.severity}
+              />
               <span>
                 {category.score !== null ? Math.round(category.score) : '—'}
               </span>
