@@ -14,6 +14,7 @@ import type {
   TaxResultCompleteness,
   TaxScopeDiagnostic
 } from './interfaces/tax-diagnostic.interface';
+import type { TaxDividendsResponse } from './interfaces/tax-dividends-response.interface';
 import {
   TaxLotResponse,
   TaxLotsResponse
@@ -103,6 +104,41 @@ export class TaxService {
     );
 
     return this.withDiagnostic(response, diagnostic);
+  }
+
+  /** Reuse the tax-domain dividend calculation; serialize Big without floats. */
+  public async getDividendRecords(
+    userId: string,
+    year: number
+  ): Promise<TaxDividendsResponse> {
+    if (!Number.isInteger(year) || year < 1000 || year > 9999) {
+      throw new Error('A four-digit calendar year is required.');
+    }
+
+    const startDate = new Date(Date.UTC(year, 0, 1));
+    const endDateExclusive = new Date(Date.UTC(year + 1, 0, 1));
+    const activities = await this.taxDataService.getDividendActivities(userId, {
+      endDateExclusive,
+      startDate
+    });
+
+    return {
+      records: activities.map((activity) => {
+        const record = createDividendRecord(activity);
+
+        return {
+          accountId: record.accountId,
+          activityFee: record.activityFee.toFixed(),
+          date: record.date.toISOString(),
+          grossDividend: record.grossDividend.toFixed(),
+          netDividend: record.netDividend?.toFixed() ?? null,
+          sourceActivityId: record.sourceActivityId,
+          symbolProfileId: record.symbolProfileId,
+          transactionCurrency: record.transactionCurrency,
+          withholdingTax: record.withholdingTax?.toFixed() ?? null
+        };
+      })
+    };
   }
 
   public async getYearlySummary(

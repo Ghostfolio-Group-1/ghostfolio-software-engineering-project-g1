@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 
 import { GetRealizedGainsDto } from './get-realized-gains.dto';
+import type { TaxDividendsResponse } from './interfaces/tax-dividends-response.interface';
 import type { TaxLotsResponse } from './interfaces/tax-lots-response.interface';
 import type { TaxRealizedGainsResponse } from './interfaces/tax-realized-gains-response.interface';
 import { TaxService } from './tax.service';
@@ -45,6 +46,42 @@ export class TaxController {
           error instanceof Error
             ? error.message
             : 'Unable to calculate realized gains'
+        ),
+        HttpStatus.UNPROCESSABLE_ENTITY
+      );
+    }
+  }
+
+  /** The requested UTC calendar year is explicit; no implicit current-year default. */
+  @Get('dividends')
+  @RequiresScope(scopes.portfolioRead)
+  public async getDividends(
+    @Impersonation() { userId }: ImpersonationContext,
+    @Query('year') year: unknown
+  ): Promise<ApiResponse<TaxDividendsResponse>> {
+    if (typeof year !== 'string' || !/^[1-9]\d{3}$/.test(year)) {
+      throw new HttpException(
+        createErrorResponse(
+          'TAX_DIVIDENDS_INVALID_YEAR',
+          'Specify a four-digit calendar year.'
+        ),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    try {
+      const result = await this.taxService.getDividendRecords(
+        userId,
+        Number(year)
+      );
+
+      return createSuccessResponse(result);
+    } catch {
+      // Do not leak tax activity details through a public HTTP error message.
+      throw new HttpException(
+        createErrorResponse(
+          'TAX_DIVIDENDS_FAILED',
+          'Unable to derive dividend records.'
         ),
         HttpStatus.UNPROCESSABLE_ENTITY
       );
