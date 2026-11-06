@@ -50,7 +50,8 @@ describe('ChartWrapper', () => {
 
     expect(html).toContain('Portfolio value');
     expect(html).toContain('role="img"');
-    expect(html).toContain('aria-label="Portfolio value"');
+    expect(html).toContain('2026-01-03: 15.00');
+    expect(html).toContain('aria-label="Portfolio value, 2026-01-03, 15.00"');
     expect(html).toContain('d="M0,100 L150,0 L300,50"');
     expect(html).toContain('stroke="#36cfcc"');
   });
