@@ -542,6 +542,32 @@ describe('GET/PUT/DELETE /risk/thresholds', () => {
     });
   });
 
+  // Regression (#233, Tharun's second review on PR #222): with no previous
+  // override at all, an update that only raises thresholdMax to 0.9 must
+  // still be checked against the rule's *default* redThresholdMax (0.25),
+  // not an `undefined` one a blind `{ ...defaults, ...overrides }` spread
+  // would otherwise produce (which compares as false and lets anything
+  // through).
+  it('rejects a partial update that is invalid against the default when no override exists yet', async () => {
+    const controller = await createController();
+
+    const exception = await controller
+      .putThreshold(context(), 'SingleStockConcentration', {
+        thresholds: { max: 0.9 }
+      })
+      .then(
+        () => {
+          throw new Error('expected rejection');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(400);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'RISK_THRESHOLD_INVALID_ORDER' }
+    });
+  });
+
   it('saves a valid override and returns the updated item', async () => {
     const updateUserSetting = jest.fn().mockResolvedValue({});
     const controller = await createController({ updateUserSetting });

@@ -5,6 +5,7 @@ import { RiskThresholdItem } from './interfaces/risk-threshold-response.interfac
 import { toRiskThresholds } from './risk-score.mapper';
 import {
   getThresholdDefault,
+  mergeThresholds,
   validateThresholds,
   WARNING_THRESHOLD_DEFAULTS,
   WarningThresholds
@@ -54,19 +55,10 @@ export function toRiskThresholdItem(
   const isCustomized = Object.values(overrideThresholds).some(
     (value) => value !== undefined
   );
-  // Field-by-field fallback, not an object spread: a spread would copy
-  // `undefined` for every threshold the override didn't set, clobbering
-  // the corresponding default instead of falling back to it.
-  const effectiveThresholds: WarningThresholds = {
-    redThresholdMax:
-      overrideThresholds.redThresholdMax ?? definition.defaults.redThresholdMax,
-    redThresholdMin:
-      overrideThresholds.redThresholdMin ?? definition.defaults.redThresholdMin,
-    thresholdMax:
-      overrideThresholds.thresholdMax ?? definition.defaults.thresholdMax,
-    thresholdMin:
-      overrideThresholds.thresholdMin ?? definition.defaults.thresholdMin
-  };
+  const effectiveThresholds: WarningThresholds = mergeThresholds(
+    definition.defaults,
+    overrideThresholds
+  );
 
   return {
     ruleKey,

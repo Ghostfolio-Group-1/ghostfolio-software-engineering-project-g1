@@ -5,6 +5,7 @@ import { ConfigurationService } from '@ghostfolio/api/services/configuration/con
 import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import {
   E2E_NO_LOGIN,
+  E2E_NO_PERMISSIONS,
   E2E_NO_SCOPES,
   createE2eApp,
   withE2eUser
@@ -14,6 +15,7 @@ import {
   FIXTURE_USER_ID,
   holdingsFixture
 } from '@ghostfolio/api/testing/fixtures/portfolio.fixtures';
+import { permissions } from '@ghostfolio/common/permissions';
 
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -446,5 +448,201 @@ describe('POST /api/v1/risk/what-if (end to end)', () => {
       .expect(401);
 
     expect(getHoldings).not.toHaveBeenCalled();
+  });
+});
+
+// Tharun's review on PR #222 (2nd round): the existing write-route tests in
+// risk.controller.routes.spec.ts call controller methods directly, so they
+// never exercise the HTTP guard chain or RiskExceptionFilter. These do.
+describe('PUT /api/v1/risk/target-allocation and /risk/thresholds (end to end)', () => {
+  const getHoldings = jest.fn().mockResolvedValue(holdingsFixture);
+  const getCashDetails = jest
+    .fn()
+    .mockResolvedValue({ balanceInBaseCurrency: 1000 });
+  const updateUserSetting = jest.fn().mockResolvedValue({});
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [RiskController],
+          providers: [
+            ExposureCalculatorService,
+            ExposureService,
+            {
+              provide: ExchangeRateDataService,
+              useValue: { toCurrency: (value: number) => value }
+            },
+            { provide: AccountService, useValue: { getCashDetails } },
+            {
+              provide: ConfigurationService,
+              useValue: { get: jest.fn().mockReturnValue(false) }
+            },
+            { provide: PortfolioService, useValue: { getHoldings } },
+            {
+              provide: VolatilityCacheService,
+              useValue: {
+                getPortfolioVolatility: jest.fn().mockResolvedValue({
+                  annualizedVolatility: null,
+                  historyDays: 0
+                })
+              }
+            },
+            HealthScoreCalculatorService,
+            RiskEvaluationService,
+            ThresholdEngineService,
+            { provide: UserService, useValue: { updateUserSetting } },
+            WhatIfService
+          ]
+        }),
+        {
+          baseCurrency: FIXTURE_BASE_CURRENCY,
+          permissions: [permissions.updateUserSettings],
+          userId: FIXTURE_USER_ID
+        }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    getHoldings.mockClear();
+    getCashDetails.mockClear();
+    updateUserSetting.mockClear();
+  });
+
+  it('saves a target allocation for a user with updateUserSettings permission', async () => {
+    const response = await request(app.getHttpServer())
+      .put('/api/v1/risk/target-allocation')
+      .send({
+        groupBy: 'assetClass',
+        targets: [{ key: 'CASH', percentage: 1 }]
+      })
+      .expect(200);
+
+    expect(response.body.data.isSet).toBe(true);
+    expect(updateUserSetting).toHaveBeenCalled();
+  });
+
+  it('returns 403 (RISK_FORBIDDEN) when the user lacks updateUserSettings permission', async () => {
+    const response = await request(app.getHttpServer())
+      .put('/api/v1/risk/target-allocation')
+      .set(E2E_NO_PERMISSIONS)
+      .send({
+        groupBy: 'assetClass',
+        targets: [{ key: 'CASH', percentage: 1 }]
+      })
+      .expect(403);
+
+    expect(response.body.error.code).toBe('RISK_FORBIDDEN');
+    expect(updateUserSetting).not.toHaveBeenCalled();
+  });
+
+  it('saves a threshold override for a user with updateUserSettings permission', async () => {
+    const response = await request(app.getHttpServer())
+      .put('/api/v1/risk/thresholds/SingleStockConcentration')
+      .send({ thresholds: { max: 0.15, redMax: 0.3 } })
+      .expect(200);
+
+    expect(response.body.data.isCustomized).toBe(true);
+    expect(updateUserSetting).toHaveBeenCalled();
+  });
+
+  it('returns 403 (RISK_FORBIDDEN) on a threshold PUT when the user lacks updateUserSettings permission', async () => {
+    const response = await request(app.getHttpServer())
+      .put('/api/v1/risk/thresholds/SingleStockConcentration')
+      .set(E2E_NO_PERMISSIONS)
+      .send({ thresholds: { max: 0.15, redMax: 0.3 } })
+      .expect(403);
+
+    expect(response.body.error.code).toBe('RISK_FORBIDDEN');
+    expect(updateUserSetting).not.toHaveBeenCalled();
+  });
+});
+
+// Confirms @UseFilters(RiskExceptionFilter) is actually wired into the HTTP
+// pipeline, not just present in source - risk-exception.filter.spec.ts
+// tests the filter's own logic in isolation, and the unit test on
+// RiskController's metadata confirms registration, but neither proves a
+// real unhandled error reaching this controller actually comes back as the
+// documented envelope instead of Nest's default error response.
+describe('RiskExceptionFilter (end to end)', () => {
+  const getHoldings = jest
+    .fn()
+    .mockRejectedValue(new Error('Unexpected failure reading holdings'));
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [RiskController],
+          providers: [
+            ExposureCalculatorService,
+            ExposureService,
+            {
+              provide: ExchangeRateDataService,
+              useValue: { toCurrency: (value: number) => value }
+            },
+            {
+              provide: AccountService,
+              useValue: {
+                getCashDetails: jest
+                  .fn()
+                  .mockResolvedValue({ balanceInBaseCurrency: 0 })
+              }
+            },
+            {
+              provide: ConfigurationService,
+              useValue: { get: jest.fn().mockReturnValue(false) }
+            },
+            { provide: PortfolioService, useValue: { getHoldings } },
+            {
+              provide: VolatilityCacheService,
+              useValue: {
+                getPortfolioVolatility: jest.fn().mockResolvedValue({
+                  annualizedVolatility: null,
+                  historyDays: 0
+                })
+              }
+            },
+            HealthScoreCalculatorService,
+            RiskEvaluationService,
+            ThresholdEngineService,
+            {
+              provide: UserService,
+              useValue: { updateUserSetting: jest.fn() }
+            },
+            WhatIfService
+          ]
+        }),
+        { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('turns an unexpected error into the documented RISK_CALC_FAILED envelope with a 500, not a bare stack trace', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/risk/score')
+      .expect(500);
+
+    expect(response.body).toEqual({
+      data: null,
+      error: {
+        code: 'RISK_CALC_FAILED',
+        message: expect.any(String)
+      },
+      meta: {}
+    });
   });
 });

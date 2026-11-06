@@ -251,7 +251,9 @@ export class RiskController {
         baseCurrency: userSettings.baseCurrency,
         cashBalance: cashDetails.balanceInBaseCurrency,
         scenario: { dataSource, dropPercentage, symbol },
-        targetAllocation: userSettings.targetAllocation
+        targetAllocation: userSettings.targetAllocation,
+        xRayRules: userSettings.xRayRules as
+          Record<string, RuleSettings> | undefined
       });
 
       return createSuccessResponse(result);

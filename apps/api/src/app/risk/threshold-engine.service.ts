@@ -4,6 +4,7 @@ import { RiskWarning } from './interfaces/risk-warning.interface';
 import { Severity } from './interfaces/severity.type';
 import {
   getThresholdDefault,
+  mergeThresholds,
   WarningThresholds
 } from './warning-threshold.model';
 
@@ -31,7 +32,13 @@ export class ThresholdEngineService {
       return 'NO_DATA';
     }
 
-    const thresholds = { ...definition.defaults, ...input.overrides };
+    // Fixes #233 (same bug as validateThresholds, surfaced here too since
+    // RiskEvaluationService builds `overrides` with all 4 keys present,
+    // some explicitly `undefined`, for a rule with only a partial
+    // RuleSettings override): a blind spread would clobber an un-overridden
+    // default with that explicit `undefined`, letting an actual well past
+    // the real (default) threshold compute as GREEN.
+    const thresholds = mergeThresholds(definition.defaults, input.overrides);
     const { actual } = input;
 
     if (definition.shape === 'ceiling') {
@@ -69,7 +76,7 @@ export class ThresholdEngineService {
       }
 
       const definition = getThresholdDefault(input.ruleKey);
-      const thresholds = { ...definition.defaults, ...input.overrides };
+      const thresholds = mergeThresholds(definition.defaults, input.overrides);
       const threshold =
         definition.shape === 'ceiling'
           ? severity === 'RED'

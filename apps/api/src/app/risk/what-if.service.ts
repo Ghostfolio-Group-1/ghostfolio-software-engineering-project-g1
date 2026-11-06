@@ -79,14 +79,16 @@ export class WhatIfService {
       cashBalance: request.cashBalance,
       holdings: request.holdings,
       targetAllocation: request.targetAllocation,
-      volatility: request.volatility
+      volatility: request.volatility,
+      xRayRules: request.xRayRules
     });
     const evaluationAfter = this.riskEvaluationService.evaluate({
       baseCurrency: request.baseCurrency,
       cashBalance: request.cashBalance,
       holdings: shockedHoldings,
       targetAllocation: request.targetAllocation,
-      volatility: request.volatility
+      volatility: request.volatility,
+      xRayRules: request.xRayRules
     });
 
     const holdingValueBefore = this.calculateHoldingValue(

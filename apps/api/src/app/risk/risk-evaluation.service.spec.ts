@@ -280,10 +280,15 @@ describe('RiskEvaluationService', () => {
   // threshold, but until now evaluate() never read xRayRules back, so a
   // saved override had no effect on the score or warnings it was supposed
   // to tune.
-  it('applies a customized threshold override from xRayRules to severity', () => {
-    // MSFT is 60000/90000 = 0.6667 -> RED against the default thresholdMax
-    // (0.1) / redThresholdMax (0.25), but GREEN against a redThresholdMax
-    // raised to 0.9.
+  it('applies a customized threshold override from xRayRules to severity, preserving the un-overridden default', () => {
+    // MSFT is 60000/90000 = 0.6667 -> RED against the defaults (thresholdMax
+    // 0.1, redThresholdMax 0.25). Overriding only redThresholdMax to 0.9
+    // must still check actual against the *default* thresholdMax (0.1),
+    // which it exceeds -> YELLOW, not GREEN and not RED. (Regression for
+    // #233: a blind `{ ...defaults, ...overrides }` spread would clobber
+    // the un-overridden thresholdMax with `undefined`, making this
+    // compute as GREEN - Tharun's review on PR #222 caught this exact
+    // case.)
     const evaluation = service.evaluate({
       baseCurrency: 'USD',
       cashBalance: 10000,
@@ -293,10 +298,47 @@ describe('RiskEvaluationService', () => {
       }
     });
 
+    const thresholdInput = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'SingleStockConcentration'
+    );
+    expect(thresholdEngineService.calculateSeverity(thresholdInput)).toBe(
+      'YELLOW'
+    );
+
     const ruleResult = evaluation.ruleResults.find(
       (result) => result.key === 'SingleStockConcentration'
     );
-    expect(ruleResult.passed).toBe(true);
+    expect(ruleResult.passed).toBe(false);
+
+    const warnings = service.calculateWarnings(evaluation);
+    const warning = warnings.find(
+      (candidate) => candidate.ruleKey === 'SingleStockConcentration'
+    );
+    expect(warning?.severity).toBe('YELLOW');
+  });
+
+  it('applies a customized threshold override that actually changes severity to GREEN', () => {
+    // Same 0.6667 actual, but both thresholdMax and redThresholdMax raised
+    // well above it -> genuinely GREEN, not just "not RED".
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 10000,
+      holdings,
+      xRayRules: {
+        SingleStockConcentration: {
+          isActive: true,
+          redThresholdMax: 0.9,
+          thresholdMax: 0.7
+        }
+      }
+    });
+
+    const thresholdInput = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'SingleStockConcentration'
+    );
+    expect(thresholdEngineService.calculateSeverity(thresholdInput)).toBe(
+      'GREEN'
+    );
 
     const warnings = service.calculateWarnings(evaluation);
     expect(

@@ -2,6 +2,7 @@ import {
   PortfolioPosition,
   TargetAllocationSettings
 } from '@ghostfolio/common/interfaces';
+import { RuleSettings } from '@ghostfolio/common/interfaces/x-ray-rules-settings.interface';
 
 import { VolatilityInput } from '../risk-evaluation.service';
 import { RiskWarning } from './risk-warning.interface';
@@ -46,6 +47,11 @@ export interface WhatIfRequest {
   scenario: WhatIfScenario;
   targetAllocation?: TargetAllocationSettings;
   volatility?: VolatilityInput;
+  // Same customized/disabled thresholds GET /risk/score and /risk/warnings
+  // apply (Tharun's review on PR #222) - without this, a what-if run for a
+  // user with a customized threshold would evaluate against the wrong
+  // (default) thresholds, disagreeing with their actual current score.
+  xRayRules?: Record<string, RuleSettings>;
 }
 
 export interface WhatIfResult {

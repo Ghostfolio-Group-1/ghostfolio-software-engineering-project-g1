@@ -68,6 +68,26 @@ export function getThresholdDefault(
   return WARNING_THRESHOLD_DEFAULTS.find((entry) => entry.ruleKey === ruleKey);
 }
 
+// Field-by-field fallback, not an object spread: a caller's `overrides` can
+// have all 4 keys present with some explicitly `undefined` (e.g. a partial
+// PUT body, or a ThresholdEngineInput built from a RuleSettings override
+// that only customizes one field) - `{ ...defaults, ...overrides }` would
+// copy that explicit `undefined` over the default instead of falling back
+// to it, silently breaking any partial override. Every place that merges a
+// rule's defaults with a possibly-partial override (validation, severity,
+// and warning generation) must go through this, not re-spread inline.
+export function mergeThresholds(
+  defaults: WarningThresholds,
+  overrides?: WarningThresholds
+): WarningThresholds {
+  return {
+    redThresholdMax: overrides?.redThresholdMax ?? defaults.redThresholdMax,
+    redThresholdMin: overrides?.redThresholdMin ?? defaults.redThresholdMin,
+    thresholdMax: overrides?.thresholdMax ?? defaults.thresholdMax,
+    thresholdMin: overrides?.thresholdMin ?? defaults.thresholdMin
+  };
+}
+
 export interface ThresholdValidationError {
   message: string;
 }
@@ -88,7 +108,11 @@ export function validateThresholds({
     return { message: `Unknown risk rule: ${ruleKey}.` };
   }
 
-  const effective: WarningThresholds = { ...definition.defaults, ...overrides };
+  // See mergeThresholds's comment. Fixes #233.
+  const effective: WarningThresholds = mergeThresholds(
+    definition.defaults,
+    overrides
+  );
 
   for (const [field, value] of Object.entries(effective)) {
     if (value !== undefined && (value < 0 || value > 1)) {
