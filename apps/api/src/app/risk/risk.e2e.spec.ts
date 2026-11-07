@@ -451,9 +451,9 @@ describe('POST /api/v1/risk/what-if (end to end)', () => {
   });
 });
 
-// Tharun's review on PR #222 (2nd round): the existing write-route tests in
-// risk.controller.routes.spec.ts call controller methods directly, so they
-// never exercise the HTTP guard chain or RiskExceptionFilter. These do.
+// The existing write-route tests in risk.controller.routes.spec.ts call
+// controller methods directly, so they never exercise the HTTP guard chain
+// or RiskExceptionFilter. These do.
 describe('PUT /api/v1/risk/target-allocation and /risk/thresholds (end to end)', () => {
   const getHoldings = jest.fn().mockResolvedValue(holdingsFixture);
   const getCashDetails = jest

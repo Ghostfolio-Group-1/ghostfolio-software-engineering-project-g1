@@ -131,9 +131,9 @@ describe('WhatIfService', () => {
     ).toBe(true);
   });
 
-  // Tharun's review on PR #222: xRayRules overrides must apply to both the
-  // before and after evaluations, or a what-if run would disagree with the
-  // Risk score it's supposed to preview a change against.
+  // xRayRules overrides must apply to both the before and after
+  // evaluations, or a what-if run would disagree with the Risk score it's
+  // supposed to preview a change against.
   it('applies a customized threshold override to both the before and after evaluations', () => {
     // Without the override, MSFT is RED both before (0.6667) and after
     // (0.7692) - see the test above. With redThresholdMax raised to 0.9

@@ -542,7 +542,7 @@ describe('GET/PUT/DELETE /risk/thresholds', () => {
     });
   });
 
-  // Regression (#233, Tharun's second review on PR #222): with no previous
+  // Regression (#233): with no previous
   // override at all, an update that only raises thresholdMax to 0.9 must
   // still be checked against the rule's *default* redThresholdMax (0.25),
   // not an `undefined` one a blind `{ ...defaults, ...overrides }` spread

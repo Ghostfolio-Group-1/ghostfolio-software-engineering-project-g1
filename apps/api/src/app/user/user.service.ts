@@ -49,6 +49,10 @@ import {
   UserSettings
 } from '@ghostfolio/common/interfaces';
 import {
+  RuleSettings,
+  XRayRulesSettings
+} from '@ghostfolio/common/interfaces/x-ray-rules-settings.interface';
+import {
   getPermissions,
   hasRole,
   permissions
@@ -405,7 +409,19 @@ export class UserService {
       (user.settings.settings as UserSettings).viewMode = 'DEFAULT';
     }
 
-    (user.settings.settings as UserSettings).xRayRules = {
+    // This rebuild only knows the 17 legacy X-Ray rule keys and each one's
+    // isActive/thresholdMax/thresholdMin, so without preserving the stored
+    // copy first it would silently drop the Risk module's 6 extra rule keys
+    // (SingleStockConcentration, SectorConcentration, CountryConcentration,
+    // CashAllocation, PortfolioVolatility, TargetAllocationDeviation) and
+    // every rule's redThresholdMax/Min on every request: a saved threshold
+    // override would appear to take effect in its own PUT response, then
+    // vanish on the very next request once this ran again. See
+    // mergeXRayRules below.
+    const storedXRayRules: XRayRulesSettings =
+      (user.settings.settings as UserSettings).xRayRules ?? {};
+
+    const rebuiltXRayRules: XRayRulesSettings = {
       AccountClusterRiskCurrentInvestment:
         new AccountClusterRiskCurrentInvestment(
           undefined,
@@ -527,6 +543,11 @@ export class UserService {
           undefined
         ).getSettings(user.settings.settings)
     };
+
+    (user.settings.settings as UserSettings).xRayRules = this.mergeXRayRules(
+      storedXRayRules,
+      rebuiltXRayRules
+    );
 
     let currentPermissions = getPermissions(user.role);
 
@@ -671,6 +692,30 @@ export class UserService {
     user.permissions = currentPermissions.sort();
 
     return user;
+  }
+
+  // The 17-rule rebuild above only ever touches isActive/thresholdMax/
+  // thresholdMin for the legacy X-Ray rule keys it knows about. Starting
+  // from the stored copy and overlaying each rebuilt entry's own fields on
+  // top keeps anything that rebuild doesn't know how to produce: the Risk
+  // module's rule-only keys (e.g. SingleStockConcentration) pass through
+  // untouched since `rebuilt` has no entry for them at all, and a shared
+  // key's redThresholdMax/Min survive because `rebuilt[key]` never has
+  // those fields to begin with, so the spread can't overwrite them.
+  private mergeXRayRules(
+    stored: XRayRulesSettings,
+    rebuilt: XRayRulesSettings
+  ): XRayRulesSettings {
+    const merged: XRayRulesSettings = { ...stored };
+
+    for (const key of Object.keys(rebuilt) as (keyof XRayRulesSettings)[]) {
+      merged[key] = {
+        ...stored[key],
+        ...rebuilt[key]
+      } as RuleSettings;
+    }
+
+    return merged;
   }
 
   public async users(params: {

@@ -287,8 +287,7 @@ describe('RiskEvaluationService', () => {
     // which it exceeds -> YELLOW, not GREEN and not RED. (Regression for
     // #233: a blind `{ ...defaults, ...overrides }` spread would clobber
     // the un-overridden thresholdMax with `undefined`, making this
-    // compute as GREEN - Tharun's review on PR #222 caught this exact
-    // case.)
+    // compute as GREEN instead of YELLOW.)
     const evaluation = service.evaluate({
       baseCurrency: 'USD',
       cashBalance: 10000,
