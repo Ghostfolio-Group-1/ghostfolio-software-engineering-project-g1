@@ -14,6 +14,7 @@ import type {
   TaxResultCompleteness,
   TaxScopeDiagnostic
 } from './interfaces/tax-diagnostic.interface';
+import type { TaxDividendsResponse } from './interfaces/tax-dividends-response.interface';
 import {
   TaxLotResponse,
   TaxLotsResponse
@@ -32,6 +33,9 @@ import {
   type YearlyRealizedGainSource,
   type YearlyTaxSummary
 } from './yearly-tax-summary';
+
+export const MIN_TAX_DIVIDEND_YEAR = 1970;
+export const MAX_TAX_DIVIDEND_YEAR = 2100;
 
 @Injectable()
 export class TaxService {
@@ -103,6 +107,47 @@ export class TaxService {
     );
 
     return this.withDiagnostic(response, diagnostic);
+  }
+
+  /** Reuse the tax-domain dividend calculation; serialize Big without floats. */
+  public async getDividendRecords(
+    userId: string,
+    year: number
+  ): Promise<TaxDividendsResponse> {
+    if (
+      !Number.isInteger(year) ||
+      year < MIN_TAX_DIVIDEND_YEAR ||
+      year > MAX_TAX_DIVIDEND_YEAR
+    ) {
+      throw new Error(
+        'An integer UTC calendar year between 1970 and 2100 is required.'
+      );
+    }
+
+    const startDate = new Date(Date.UTC(year, 0, 1));
+    const endDateExclusive = new Date(Date.UTC(year + 1, 0, 1));
+    const activities = await this.taxDataService.getDividendActivities(userId, {
+      endDateExclusive,
+      startDate
+    });
+
+    return {
+      records: activities.map((activity) => {
+        const record = createDividendRecord(activity);
+
+        return {
+          accountId: record.accountId,
+          activityFee: record.activityFee.toFixed(),
+          date: record.date.toISOString(),
+          grossDividend: record.grossDividend.toFixed(),
+          netDividend: record.netDividend?.toFixed() ?? null,
+          sourceActivityId: record.sourceActivityId,
+          symbolProfileId: record.symbolProfileId,
+          transactionCurrency: record.transactionCurrency,
+          withholdingTax: record.withholdingTax?.toFixed() ?? null
+        };
+      })
+    };
   }
 
   public async getYearlySummary(

@@ -531,6 +531,7 @@ The live tax controller currently exposes:
 ```text
 GET /api/v1/tax/realized-gains
 GET /api/v1/tax/lots
+GET /api/v1/tax/dividends?year=YYYY
 ```
 
 Realized gains support:
@@ -553,7 +554,20 @@ Values such as `fifo` or `average_cost` are not normalized and result in an unsu
 
 The tax-lot endpoint currently represents FIFO tax lots.
 
-Both endpoints use Ghostfolio's shared API envelope.
+The dividend endpoint requires an explicit integer UTC calendar year
+(`1970`–`2100`, inclusive; no default). A missing, malformed, or out-of-range
+year returns HTTP `400` with code `TAX_INVALID_QUERY`. It returns
+`data.records[]` with source activity IDs, stored ISO UTC timestamps,
+transaction currency, gross dividend, withholding, net dividend, and activity
+fees. Tax amounts are decimal strings; unknown withholding and net remain
+`null`, and known zero stays `"0"`. The endpoint uses `portfolio:read`
+and the same tax-relevant, non-draft and non-excluded dividend filters as the
+yearly summary. Year boundaries are UTC `[Jan 1, next Jan 1)`. React displays
+`date.slice(0, 10)` without local-time conversion. Unexpected failures are
+logged server-side, with the generic `TAX_DIVIDENDS_FAILED` envelope returned
+to clients.
+
+All three endpoints use Ghostfolio's shared API envelope.
 
 Successful responses have the form:
 
@@ -578,12 +592,15 @@ Endpoint error codes are:
 ```text
 TAX_REALIZED_GAINS_FAILED
 TAX_LOTS_FAILED
+TAX_DIVIDENDS_FAILED
+TAX_INVALID_QUERY (HTTP 400, invalid dividend year)
 ```
 
 The response schemas are the source of truth for the current HTTP contracts:
 
 - [`contracts/tax-realized-gains.schema.ts`](./contracts/tax-realized-gains.schema.ts)
 - [`contracts/tax-lots.schema.ts`](./contracts/tax-lots.schema.ts)
+- [`contracts/tax-dividends.schema.ts`](./contracts/tax-dividends.schema.ts)
 
 Yearly-summary, CSV-export, and PDF-export functionality exists in the tax service/domain layer but is not currently exposed through separate public HTTP endpoints.
 
