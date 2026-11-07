@@ -8,7 +8,7 @@ export interface TaxDividendsData {
 
 /** Matches the required YYYY parameter of the proposed Tax API contract. */
 export function isValidDividendYear(year: number): boolean {
-  return Number.isInteger(year) && year >= 1000 && year <= 9999;
+  return Number.isInteger(year) && year >= 1970 && year <= 2100;
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -54,7 +54,9 @@ export async function fetchDividendWithholding(
   signal?: AbortSignal
 ): Promise<TaxDividendsData> {
   if (!isValidDividendYear(year)) {
-    throw new Error('A four-digit calendar year is required');
+    throw new Error(
+      'An integer UTC calendar year between 1970 and 2100 is required'
+    );
   }
 
   const data = await requestApi<unknown>(

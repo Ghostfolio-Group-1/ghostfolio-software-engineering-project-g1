@@ -100,8 +100,8 @@ export function DividendWithholdingScreen({
         <label htmlFor="dividend-tax-year">Calendar year (UTC)</label>{' '}
         <input
           id="dividend-tax-year"
-          max={9999}
-          min={1000}
+          max={2100}
+          min={1970}
           onChange={(event) => setDraftYear(event.target.value)}
           required
           step={1}

@@ -76,6 +76,10 @@ describe('fetchDividendWithholding', () => {
     );
   });
 
+  it.each([1970, 2100])('accepts boundary dividend year %s', (year) => {
+    expect(isValidDividendYear(year)).toBe(true);
+  });
+
   it('accepts empty results without manufacturing data', async () => {
     const { request } = mockRequest({
       data: { records: [] },
@@ -87,13 +91,13 @@ describe('fetchDividendWithholding', () => {
     });
   });
 
-  it.each([100, 0, 10000, 2026.5, Number.NaN])(
+  it.each([100, 0, 1969, 2101, 10000, 2026.5, Number.NaN])(
     'rejects invalid year %s before making a request',
     async (year) => {
       const { mock, request } = mockRequest({});
       expect(isValidDividendYear(year)).toBe(false);
       await expect(fetchDividendWithholding(request, year)).rejects.toThrow(
-        'four-digit calendar year'
+        'integer UTC calendar year between 1970 and 2100'
       );
       expect(mock).not.toHaveBeenCalled();
     }

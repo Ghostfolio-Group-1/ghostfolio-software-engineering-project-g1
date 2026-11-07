@@ -103,7 +103,9 @@ describe('DividendWithholdingScreen', () => {
     await render(request);
 
     expect(container.textContent).toContain('10.1234567890123456789');
-    expect(container.textContent).toContain('Unknown');
+    expect((container.textContent?.match(/Not available/g) ?? []).length).toBe(
+      2
+    );
     expect(container.textContent).toContain('Not available');
     expect(container.textContent).toContain('2026-01-01');
     expect(container.textContent).toContain('dividend-1');
@@ -119,7 +121,7 @@ describe('DividendWithholdingScreen', () => {
     await render(request);
 
     expect(container.textContent).toContain('9.86');
-    expect(container.textContent).not.toContain('Unknown');
+    expect(container.textContent).not.toContain('Not available');
     expect(container.textContent).toContain('0');
   });
 
