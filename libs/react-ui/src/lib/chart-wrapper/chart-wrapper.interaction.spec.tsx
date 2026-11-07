@@ -67,10 +67,14 @@ describe('ChartWrapper value series', () => {
       );
     });
 
-    expect(
-      container.querySelector('[data-testid="chart-value-readout"]')
-        ?.textContent
-    ).toBe('2026-01-01: 10.00');
+    const readout = container.querySelector(
+      '[data-testid="chart-value-readout"]'
+    );
+
+    expect(readout?.getAttribute('aria-live')).toBe('polite');
+    expect(readout?.textContent).toBe('2026-01-01: 10.00');
+    expect(svg.getAttribute('role')).toBe('group');
+    expect(svg.getAttribute('aria-describedby')).toBe(readout?.id);
 
     act(() => {
       svg.dispatchEvent(

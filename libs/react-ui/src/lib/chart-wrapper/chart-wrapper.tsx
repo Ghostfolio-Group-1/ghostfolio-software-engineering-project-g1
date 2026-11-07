@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { KeyboardEvent, PointerEvent } from 'react';
 
 import { Card } from '../card/card';
 import { useTheme } from '../theme/theme-provider';
+import { designTokens, px } from '../tokens/design-tokens';
 
 // Same shape as ChartSeriesPoint in @ghostfolio/common, kept local so the
 // React library has no dependency on the API types.
@@ -18,11 +19,13 @@ export interface ChartWrapperProps {
   width?: number;
 }
 
+const chartValueFormat = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2
+});
+
 export function formatChartValue(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2
-  }).format(value);
+  return chartValueFormat.format(value);
 }
 
 // Points are evenly spaced on x and scaled between the series min and max on y.
@@ -89,6 +92,7 @@ export function ChartWrapper({
   width = 480
 }: ChartWrapperProps) {
   const theme = useTheme();
+  const readoutId = useId();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const index =
     activeIndex === null || activeIndex >= points.length
@@ -119,24 +123,27 @@ export function ChartWrapper({
       ) : (
         <div>
           <p
+            aria-live="polite"
             data-testid="chart-value-readout"
+            id={readoutId}
             style={{
               color: theme.color.text,
-              fontSize: '1rem',
+              fontSize: px(designTokens.fontSize.md),
               fontWeight: 600,
-              margin: '8px 0'
+              margin: `${px(designTokens.spacing.sm)} 0`
             }}
           >
             {active.date}: {formatChartValue(active.value)}
           </p>
           <svg
-            aria-label={`${title}, ${active.date}, ${formatChartValue(active.value)}`}
+            aria-describedby={readoutId}
+            aria-label={title}
             onKeyDown={onKeyDown}
             onPointerLeave={() => setActiveIndex(null)}
             onPointerMove={(event) =>
               setActiveIndex(indexFromPointer(event, points.length))
             }
-            role="img"
+            role="group"
             tabIndex={0}
             viewBox={`0 0 ${width} ${height}`}
             width="100%"
