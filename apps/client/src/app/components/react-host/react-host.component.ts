@@ -69,6 +69,8 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
   public ngAfterViewInit(): void {
     effect(
       () => {
+        // Only colorScheme is tracked. Screens should pass a stable
+        // renderReact reference; a new callback does not remount on its own.
         const scheme = this.colorScheme() ?? DEFAULT_COLOR_SCHEME;
 
         untracked(() => {
@@ -83,6 +85,7 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
     this.destroyed = true;
     this.renderGeneration += 1;
     this.reactRoot?.unmount();
+    this.reactRoot = undefined;
   }
 
   private readonly request: AuthenticatedFetch = (fetchInput, init) => {
@@ -115,38 +118,63 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
 
   private async renderTree(scheme: ColorScheme): Promise<void> {
     const generation = ++this.renderGeneration;
-    const [
-      { createElement },
-      { createRoot },
-      { ThemeProvider },
-      { darkTheme, lightTheme }
-    ] = await Promise.all([
-      import('react'),
-      import('react-dom/client'),
-      import('@ghostfolio/react-ui/theme/theme-provider'),
-      import('@ghostfolio/react-ui/theme/theme')
-    ]);
 
-    if (this.destroyed || generation !== this.renderGeneration) {
-      return;
+    try {
+      const [
+        { createElement },
+        { createRoot },
+        { ThemeProvider },
+        { darkTheme, lightTheme }
+      ] = await Promise.all([
+        import('react'),
+        import('react-dom/client'),
+        import('@ghostfolio/react-ui/theme/theme-provider'),
+        import('@ghostfolio/react-ui/theme/theme')
+      ]);
+
+      if (this.destroyed || generation !== this.renderGeneration) {
+        return;
+      }
+
+      const node = await this.renderReact()({
+        createElement,
+        request: this.request
+      });
+
+      if (this.destroyed || generation !== this.renderGeneration) {
+        return;
+      }
+
+      this.reactRoot ??= createRoot(this.mount.nativeElement);
+      this.reactRoot.render(
+        createElement(
+          ThemeProvider,
+          { theme: scheme === 'DARK' ? darkTheme : lightTheme },
+          node
+        )
+      );
+    } catch (error) {
+      console.error(error);
+
+      if (this.destroyed || generation !== this.renderGeneration) {
+        return;
+      }
+
+      this.renderFallback();
     }
+  }
 
-    const node = await this.renderReact()({
-      createElement,
-      request: this.request
-    });
+  private renderFallback(): void {
+    this.reactRoot?.unmount();
+    this.reactRoot = undefined;
 
-    if (this.destroyed || generation !== this.renderGeneration) {
-      return;
-    }
+    const message = document.createElement('p');
 
-    this.reactRoot ??= createRoot(this.mount.nativeElement);
-    this.reactRoot.render(
-      createElement(
-        ThemeProvider,
-        { theme: scheme === 'DARK' ? darkTheme : lightTheme },
-        node
-      )
-    );
+    message.dataset['testid'] = 'react-host-error';
+    message.style.color = '#757575';
+    message.style.margin = '0';
+    message.textContent = 'This section could not be loaded';
+
+    this.mount.nativeElement.replaceChildren(message);
   }
 }
