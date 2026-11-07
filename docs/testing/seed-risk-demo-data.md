@@ -4,7 +4,9 @@
 different Risk dashboard state, for the Thu Nov 12 team demonstration.
 Idempotent — every row is keyed by a fixed id and upserted, so re-running it
 is safe and just refreshes the data, including resetting a cash balance back
-to 0 if it was previously nonzero.
+to 0 if it was previously nonzero, and fully replacing (not just re-pricing)
+each user's orders if a script revision changes their holdings — any order
+left over from a previous revision's holding count is deleted.
 
 **Verified against the real `RiskEvaluationService` logic (not just
 asserted)** — see the "balanced" row below for what that verification

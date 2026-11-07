@@ -355,6 +355,18 @@ async function seedUser(seedUser: SeedUser) {
     where: { accountId_date: { accountId, date: PRICE_DATE } }
   });
 
+  // Order ids are positional (`${seedUser.id}-order-${index + 1}`), so if a
+  // revision of SEED_USERS changes a holding at a given position (e.g. the
+  // balanced user's 2nd holding used to be MSFT, now SAP) or changes how
+  // many holdings a user has, re-running against a database seeded by an
+  // earlier revision must not leave a stale order around with the old
+  // symbol/currency and only the new quantity/price - Tharun's review on
+  // PR #225 caught update only setting quantity/unitPrice. Every field
+  // that can legitimately change between revisions is updated, and any
+  // order id beyond the current holding count is deleted, scoped strictly
+  // to this one demo user via accountUserId.
+  const currentOrderIds: string[] = [];
+
   for (const [index, holding] of seedUser.holdings.entries()) {
     const symbol = symbolById.get(holding.symbolId);
 
@@ -363,6 +375,7 @@ async function seedUser(seedUser: SeedUser) {
     }
 
     const orderId = `${seedUser.id}-order-${index + 1}`;
+    currentOrderIds.push(orderId);
 
     await prisma.order.upsert({
       create: {
@@ -378,10 +391,26 @@ async function seedUser(seedUser: SeedUser) {
         unitPrice: symbol.price,
         userId: seedUser.id
       },
-      update: { quantity: holding.quantity, unitPrice: symbol.price },
+      update: {
+        accountId,
+        currency: symbol.currency,
+        date: PRICE_DATE,
+        fee: 0,
+        quantity: holding.quantity,
+        symbolProfileId: symbol.id,
+        type: 'BUY',
+        unitPrice: symbol.price
+      },
       where: { id: orderId }
     });
   }
+
+  await prisma.order.deleteMany({
+    where: {
+      accountUserId: seedUser.id,
+      id: { notIn: currentOrderIds, startsWith: `${seedUser.id}-order-` }
+    }
+  });
 
   await prisma.settings.upsert({
     create: {
