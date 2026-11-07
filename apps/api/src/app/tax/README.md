@@ -554,16 +554,18 @@ Values such as `fifo` or `average_cost` are not normalized and result in an unsu
 
 The tax-lot endpoint currently represents FIFO tax lots.
 
-The dividend endpoint requires a four-digit UTC calendar year (`1000`–`9999`);
-missing or malformed years return HTTP `400` with code
-`TAX_DIVIDENDS_INVALID_YEAR`. It returns `data.records[]` with source activity
-IDs, stored UTC timestamps, currency, gross, withholding, net, and activity
-fees. Tax money fields are plain decimal strings; unknown withholding and net
-remain `null` and known zero stays `"0"`. The endpoint uses the authenticated
-portfolio-read scope and the TaxDataService's existing tax-relevance and
-account/activity exclusion filters. Rendering a dividend's local calendar date
-must be agreed with the authenticated host adapter, since the persisted date
-is exposed as an ISO UTC timestamp.
+The dividend endpoint requires an explicit integer UTC calendar year
+(`1970`–`2100`, inclusive; no default). A missing, malformed, or out-of-range
+year returns HTTP `400` with code `TAX_INVALID_QUERY`. It returns
+`data.records[]` with source activity IDs, stored ISO UTC timestamps,
+transaction currency, gross dividend, withholding, net dividend, and activity
+fees. Tax amounts are decimal strings; unknown withholding and net remain
+`null`, and known zero stays `"0"`. The endpoint uses `portfolio:read`
+and the same tax-relevant, non-draft and non-excluded dividend filters as the
+yearly summary. Year boundaries are UTC `[Jan 1, next Jan 1)`. React displays
+`date.slice(0, 10)` without local-time conversion. Unexpected failures are
+logged server-side, with the generic `TAX_DIVIDENDS_FAILED` envelope returned
+to clients.
 
 All three endpoints use Ghostfolio's shared API envelope.
 
@@ -591,7 +593,7 @@ Endpoint error codes are:
 TAX_REALIZED_GAINS_FAILED
 TAX_LOTS_FAILED
 TAX_DIVIDENDS_FAILED
-TAX_DIVIDENDS_INVALID_YEAR (HTTP 400)
+TAX_INVALID_QUERY (HTTP 400, invalid dividend year)
 ```
 
 The response schemas are the source of truth for the current HTTP contracts:

@@ -9,7 +9,9 @@ import {
 } from '@ghostfolio/api/testing/e2e/e2e-app';
 import {
   FIXTURE_BASE_CURRENCY,
-  FIXTURE_USER_ID
+  FIXTURE_USER_ID,
+  dividendFixture,
+  ordersFixture
 } from '@ghostfolio/api/testing/fixtures/portfolio.fixtures';
 import {
   TAG_ID_DRAFT,
@@ -144,6 +146,30 @@ describe('GET /api/v1/tax/dividends (end to end)', () => {
     ]);
   });
 
+  it('reconciles the shared MSFT dividend fixture with gross 4, withholding 0.6, net 3.4', async () => {
+    const activity = ordersFixture.find(
+      (order) => order.id === dividendFixture.orderId
+    );
+    if (!activity) {
+      throw new Error('Shared MSFT dividend fixture is missing');
+    }
+
+    findMany.mockResolvedValue([activity]);
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/tax/dividends?year=2026')
+      .expect(200);
+
+    expect(validateResponse(response.body)).toBe(true);
+    expect(response.body.data.records).toEqual([
+      expect.objectContaining({
+        sourceActivityId: dividendFixture.orderId,
+        grossDividend: String(dividendFixture.gross),
+        withholdingTax: String(dividendFixture.withholdingTax),
+        netDividend: String(dividendFixture.net)
+      })
+    ]);
+  });
+
   it('returns an empty records array when no dividend activities match', async () => {
     findMany.mockResolvedValue([]);
     const response = await request(app.getHttpServer())
@@ -152,17 +178,42 @@ describe('GET /api/v1/tax/dividends (end to end)', () => {
     expect(response.body.data).toEqual({ records: [] });
   });
 
-  it.each(['', '?year=xyz', '?year=0', '?year=2026.5', '?year=26'])(
-    'returns a TAX_ 400 for missing or malformed year (%s)',
+  it.each([
+    '',
+    '?year=xyz',
+    '?year=0',
+    '?year=2026.5',
+    '?year=26',
+    '?year=1969',
+    '?year=2101'
+  ])(
+    'returns TAX_INVALID_QUERY 400 for missing or invalid year (%s)',
     async (query) => {
       const response = await request(app.getHttpServer())
         .get(`/api/v1/tax/dividends${query}`)
         .expect(400);
       expect(validateError(response.body)).toBe(true);
-      expect(response.body.error.code).toBe('TAX_DIVIDENDS_INVALID_YEAR');
+      expect(response.body.error.code).toBe('TAX_INVALID_QUERY');
       expect(findMany).not.toHaveBeenCalled();
     }
   );
+
+  it.each([1970, 2100])('accepts boundary UTC year %s', async (year) => {
+    findMany.mockResolvedValue([]);
+    await request(app.getHttpServer())
+      .get(`/api/v1/tax/dividends?year=${year}`)
+      .expect(200);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          date: {
+            gte: new Date(`${year}-01-01T00:00:00.000Z`),
+            lt: new Date(`${year + 1}-01-01T00:00:00.000Z`)
+          }
+        })
+      })
+    );
+  });
 
   it('returns 422 on data failure with a safe TAX_ error envelope', async () => {
     findMany.mockRejectedValue(new Error('private internal database details'));

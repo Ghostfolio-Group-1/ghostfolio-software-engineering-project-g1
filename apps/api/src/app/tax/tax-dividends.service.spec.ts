@@ -42,6 +42,17 @@ describe('TaxService.getDividendRecords', () => {
     });
   });
 
+  it.each([1970, 2100])('accepts supported boundary year %s', async (year) => {
+    getDividendActivities.mockResolvedValue([]);
+    await expect(service.getDividendRecords('user-7', year)).resolves.toEqual({
+      records: []
+    });
+    expect(getDividendActivities).toHaveBeenCalledWith('user-7', {
+      startDate: new Date(`${year}-01-01T00:00:00.000Z`),
+      endDateExclusive: new Date(`${year + 1}-01-01T00:00:00.000Z`)
+    });
+  });
+
   it('returns exact decimal strings and keeps fees separate from withholding', async () => {
     getDividendActivities.mockResolvedValue([source]);
 
@@ -87,11 +98,11 @@ describe('TaxService.getDividendRecords', () => {
     });
   });
 
-  it.each([2026.5, 0, 99, 10000])(
+  it.each([2026.5, 0, 99, 1969, 2101, 10000])(
     'rejects invalid year %s before reading any activity',
     async (year) => {
       await expect(service.getDividendRecords('user-7', year)).rejects.toThrow(
-        'A four-digit calendar year is required.'
+        'An integer UTC calendar year between 1970 and 2100 is required.'
       );
       expect(getDividendActivities).not.toHaveBeenCalled();
     }

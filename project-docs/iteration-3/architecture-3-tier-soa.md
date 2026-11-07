@@ -48,14 +48,15 @@ Each tier talks only to the one below it. The only path from React to the backen
 
 Each feature is one service: one Nest module, one controller, its own JSON-schema contract under `contracts/`, and its own error-code prefix. Other services use it only through its exported Nest provider or its HTTP route.
 
-| Service   | Owner  | Routes (`/api/v1`, all `portfolio:read`)                                          | Exports                        | Error prefix | Status                   |
-| --------- | ------ | --------------------------------------------------------------------------------- | ------------------------------ | ------------ | ------------------------ |
-| Risk      | Sesha  | `GET /risk/concentration`, `GET /risk/score` (#193), `POST /risk/what-if`         | `ExposureService`              | `RISK_`      | Built                    |
-| Risk      | Sesha  | thresholds / warnings / target-allocation routes, catch-all envelope              | —                              | `RISK_`      | Planned (#24, Nov 11–12) |
-| Tax       | Tharun | `GET /tax/realized-gains`, `GET /tax/lots`                                        | `TaxDataService`, `TaxService` | `TAX_`       | Built                    |
-| Charts    | Arthur | `GET /charts/series`, `GET /charts/drawdown`                                      | `ChartsApi`                    | `CHARTS_`    | Built                    |
-| Charts    | Arthur | `GET /charts/benchmark-comparison` (#160), `GET /charts/return-comparison` (#105) | —                              | `CHARTS_`    | Planned (Week 3)         |
-| Dashboard | Raniya | `GET /dashboard/overview`                                                         | `DashboardOverview`            | `DASHBOARD_` | Built                    |
+| Service   | Owner  | Routes (`/api/v1`, all `portfolio:read`)                                          | Exports                        | Error prefix | Status                      |
+| --------- | ------ | --------------------------------------------------------------------------------- | ------------------------------ | ------------ | --------------------------- |
+| Risk      | Sesha  | `GET /risk/concentration`, `GET /risk/score` (#193), `POST /risk/what-if`         | `ExposureService`              | `RISK_`      | Built                       |
+| Risk      | Sesha  | thresholds / warnings / target-allocation routes, catch-all envelope              | —                              | `RISK_`      | Planned (#24, Nov 11–12)    |
+| Tax       | Tharun | `GET /tax/realized-gains`, `GET /tax/lots`                                        | `TaxDataService`, `TaxService` | `TAX_`       | Built                       |
+| Tax       | Tharun | `GET /tax/dividends?year=YYYY` (#228)                                             | `TaxService`                   | `TAX_`       | Planned (PR #229 in review) |
+| Charts    | Arthur | `GET /charts/series`, `GET /charts/drawdown`                                      | `ChartsApi`                    | `CHARTS_`    | Built                       |
+| Charts    | Arthur | `GET /charts/benchmark-comparison` (#160), `GET /charts/return-comparison` (#105) | —                              | `CHARTS_`    | Planned (Week 3)            |
+| Dashboard | Raniya | `GET /dashboard/overview`                                                         | `DashboardOverview`            | `DASHBOARD_` | Built                       |
 
 Dependency direction is unchanged: Dashboard → Risk / Tax / Charts → Portfolio / Prisma. Only the dashboard composes other services; no other feature imports another feature's module.
 
@@ -84,6 +85,7 @@ Feature screens follow a feature-first layout inside the shared library: one fol
 | Risk      | `risk-what-if/` · `WhatIfSimulator`                                                                                                      | `POST /risk/what-if`                                            | #187                      | Planned (Week 3)                  |
 | Tax       | `tax-lots/` · `useTaxLots` hook, then tax-lot table with FIFO / average-cost selector                                                    | `GET /tax/lots`                                                 | #186, #194                | Hook built (#195); screen planned |
 | Tax       | `tax-gains/`, `tax-summary/`, `tax-export/`                                                                                              | `GET /tax/realized-gains`, yearly summary, CSV / PDF export     | Tax Iteration 3 issues    | Planned (Weeks 2–3)               |
+| Tax       | `dividend-withholding/` · `DividendWithholdingScreen`                                                                                    | `GET /tax/dividends?year=YYYY`                                  | #228, #230                | Planned (API #229, UI #231)       |
 | Charts    | `chart-series/` · `useChartSeries` hook (#201, in review), then interactive chart on `ChartWrapper` with time-range selector and toggles | `GET /charts/series`                                            | Charts Iteration 3 issues | Planned (Weeks 1–2)               |
 | Charts    | `charts-benchmark/`, `charts-return/`, `charts-waterfall/`, `charts-drawdown/`                                                           | benchmark, return comparison, waterfall, `GET /charts/drawdown` | Charts Iteration 3 issues | Planned (Weeks 3–4)               |
 

@@ -13,6 +13,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Logger,
   Query
 } from '@nestjs/common';
 
@@ -20,10 +21,16 @@ import { GetRealizedGainsDto } from './get-realized-gains.dto';
 import type { TaxDividendsResponse } from './interfaces/tax-dividends-response.interface';
 import type { TaxLotsResponse } from './interfaces/tax-lots-response.interface';
 import type { TaxRealizedGainsResponse } from './interfaces/tax-realized-gains-response.interface';
-import { TaxService } from './tax.service';
+import {
+  MAX_TAX_DIVIDEND_YEAR,
+  MIN_TAX_DIVIDEND_YEAR,
+  TaxService
+} from './tax.service';
 
 @Controller('tax')
 export class TaxController {
+  private readonly logger = new Logger(TaxController.name);
+
   public constructor(private readonly taxService: TaxService) {}
 
   @Get('realized-gains')
@@ -59,11 +66,16 @@ export class TaxController {
     @Impersonation() { userId }: ImpersonationContext,
     @Query('year') year: unknown
   ): Promise<ApiResponse<TaxDividendsResponse>> {
-    if (typeof year !== 'string' || !/^[1-9]\d{3}$/.test(year)) {
+    if (
+      typeof year !== 'string' ||
+      !/^\d{4}$/.test(year) ||
+      Number(year) < MIN_TAX_DIVIDEND_YEAR ||
+      Number(year) > MAX_TAX_DIVIDEND_YEAR
+    ) {
       throw new HttpException(
         createErrorResponse(
-          'TAX_DIVIDENDS_INVALID_YEAR',
-          'Specify a four-digit calendar year.'
+          'TAX_INVALID_QUERY',
+          'Specify an integer UTC calendar year between 1970 and 2100.'
         ),
         HttpStatus.BAD_REQUEST
       );
@@ -76,8 +88,12 @@ export class TaxController {
       );
 
       return createSuccessResponse(result);
-    } catch {
-      // Do not leak tax activity details through a public HTTP error message.
+    } catch (error) {
+      // Keep the public response generic; record the underlying failure in server logs.
+      this.logger.error(
+        'Dividend records query failed',
+        error instanceof Error ? error.stack : String(error)
+      );
       throw new HttpException(
         createErrorResponse(
           'TAX_DIVIDENDS_FAILED',

@@ -34,6 +34,9 @@ import {
   type YearlyTaxSummary
 } from './yearly-tax-summary';
 
+export const MIN_TAX_DIVIDEND_YEAR = 1970;
+export const MAX_TAX_DIVIDEND_YEAR = 2100;
+
 @Injectable()
 export class TaxService {
   public constructor(
@@ -111,8 +114,14 @@ export class TaxService {
     userId: string,
     year: number
   ): Promise<TaxDividendsResponse> {
-    if (!Number.isInteger(year) || year < 1000 || year > 9999) {
-      throw new Error('A four-digit calendar year is required.');
+    if (
+      !Number.isInteger(year) ||
+      year < MIN_TAX_DIVIDEND_YEAR ||
+      year > MAX_TAX_DIVIDEND_YEAR
+    ) {
+      throw new Error(
+        'An integer UTC calendar year between 1970 and 2100 is required.'
+      );
     }
 
     const startDate = new Date(Date.UTC(year, 0, 1));
