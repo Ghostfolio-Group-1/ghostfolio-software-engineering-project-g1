@@ -14,13 +14,18 @@ import { TestingModuleBuilder } from '@nestjs/testing';
 // Request headers that switch the stand-in login for a single request.
 export const E2E_NO_LOGIN = { 'x-test-auth': 'none' };
 export const E2E_NO_SCOPES = { 'x-test-scopes': 'none' };
+export const E2E_NO_PERMISSIONS = { 'x-test-no-permissions': 'none' };
 
 // Replaces the JWT login, permission and impersonation guards with stand-ins
 // that act as the given user. The real ScopeGuard still runs, so scope checks
 // are tested end to end.
 export function withE2eUser(
   builder: TestingModuleBuilder,
-  { baseCurrency, userId }: { baseCurrency: string; userId: string }
+  {
+    baseCurrency,
+    permissions = [],
+    userId
+  }: { baseCurrency: string; permissions?: string[]; userId: string }
 ): TestingModuleBuilder {
   const request = (context: ExecutionContext) => {
     return context.switchToHttp().getRequest();
@@ -34,7 +39,13 @@ export function withE2eUser(
           throw new UnauthorizedException();
         }
 
-        request(context).user = { id: userId };
+        request(context).user = {
+          id: userId,
+          permissions:
+            request(context).headers['x-test-no-permissions'] === 'none'
+              ? []
+              : permissions
+        };
 
         return true;
       }

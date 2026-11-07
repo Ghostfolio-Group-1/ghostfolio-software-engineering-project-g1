@@ -88,6 +88,51 @@ describe('TargetDeviation', () => {
     expect(settings.isActive).toBe(false);
   });
 
+  it('computes the CASH bucket from cashBalance, diluting every other bucket', () => {
+    const holdings = [holding('EQUITY', 500)];
+    const rule = new TargetDeviation(exchangeRateDataServiceMock, holdings);
+
+    const result = rule.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 500,
+      locale: 'en',
+      groupBy: 'assetClass',
+      isActive: true,
+      thresholdMax: 0.05,
+      targets: [
+        { key: 'EQUITY', percentage: 0.5 },
+        { key: 'CASH', percentage: 0.5 }
+      ]
+    });
+
+    // 500 equity + 500 cash = 1000 total, so each bucket is exactly 50%,
+    // matching its target with zero deviation.
+    const equityBucket = result.buckets.find((b) => b.key === 'EQUITY');
+    expect(equityBucket.actual).toBeCloseTo(0.5, 10);
+    expect(equityBucket.deviation).toBeCloseTo(0, 10);
+
+    const cashBucket = result.buckets.find((b) => b.key === 'CASH');
+    expect(cashBucket.actual).toBeCloseTo(0.5, 10);
+    expect(cashBucket.deviation).toBeCloseTo(0, 10);
+  });
+
+  it('ignores cashBalance for a non-assetClass groupBy', () => {
+    const holdings = [holding('EQUITY', 500)];
+    const rule = new TargetDeviation(exchangeRateDataServiceMock, holdings);
+
+    const result = rule.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 500,
+      locale: 'en',
+      groupBy: 'symbol',
+      isActive: true,
+      thresholdMax: 0.05,
+      targets: []
+    });
+
+    expect(result.buckets.some((b) => b.key === 'CASH')).toBe(false);
+  });
+
   it('runs (isActive true) when the user has set an active target', () => {
     const rule = new TargetDeviation(exchangeRateDataServiceMock, []);
 

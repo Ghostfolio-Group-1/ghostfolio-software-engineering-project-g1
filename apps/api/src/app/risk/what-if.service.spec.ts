@@ -131,6 +131,63 @@ describe('WhatIfService', () => {
     ).toBe(true);
   });
 
+  // xRayRules overrides must apply to both the before and after
+  // evaluations, or a what-if run would disagree with the Risk score it's
+  // supposed to preview a change against.
+  it('applies a customized threshold override to both the before and after evaluations', () => {
+    // Without the override, MSFT is RED both before (0.6667) and after
+    // (0.7692) - see the test above. With redThresholdMax raised to 0.9
+    // (default thresholdMax 0.1 unchanged via mergeThresholds), both sides
+    // instead land YELLOW: above the still-default 0.1 ceiling, but now
+    // under the raised 0.9 one.
+    const result = service.calculateWhatIf(
+      baseRequest({
+        xRayRules: {
+          SingleStockConcentration: { isActive: true, redThresholdMax: 0.9 }
+        }
+      })
+    );
+
+    const singleStockChange = result.ruleChanges.find(
+      (change) => change.ruleKey === 'SingleStockConcentration'
+    );
+
+    expect(singleStockChange.severityBefore).toBe('YELLOW');
+    expect(singleStockChange.severityAfter).toBe('YELLOW');
+
+    // The actual percentage still moves (0.6667 -> 0.7692), so this is a
+    // real changedWarning, but on both sides of the shock it is YELLOW
+    // under the override - never the RED the defaults would produce.
+    const changedWarning = result.changedWarnings.find(
+      (warning) => warning.ruleKey === 'SingleStockConcentration'
+    );
+    expect(changedWarning?.severity).toBe('YELLOW');
+  });
+
+  it('treats a rule disabled via xRayRules as NO_DATA on both sides of the shock, not a free pass on either', () => {
+    const result = service.calculateWhatIf(
+      baseRequest({
+        xRayRules: {
+          SingleStockConcentration: { isActive: false }
+        }
+      })
+    );
+
+    // Both before and after are NO_DATA with a null actual, so there is no
+    // reportable change for this rule at all - not a change from RED to
+    // GREEN, which would wrongly read as the shock having fixed something.
+    expect(
+      result.ruleChanges.some(
+        (change) => change.ruleKey === 'SingleStockConcentration'
+      )
+    ).toBe(false);
+    expect(
+      result.newWarnings
+        .concat(result.changedWarnings, result.resolvedWarnings)
+        .some((warning) => warning.ruleKey === 'SingleStockConcentration')
+    ).toBe(false);
+  });
+
   it("includes the matched holding's display name as scenario.name", () => {
     const result = service.calculateWhatIf(
       baseRequest({

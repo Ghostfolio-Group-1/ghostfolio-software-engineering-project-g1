@@ -1,5 +1,6 @@
 import { AccountService } from '@ghostfolio/api/app/account/account.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
+import { UserService } from '@ghostfolio/api/app/user/user.service';
 import { ConfigurationService } from '@ghostfolio/api/services/configuration/configuration.service';
 import { ExchangeRateDataService } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.service';
 import { ImpersonationService } from '@ghostfolio/api/services/impersonation/impersonation.service';
@@ -72,6 +73,7 @@ describe('RiskController contract: GET /risk/concentration', () => {
         { provide: ImpersonationService, useValue: {} },
         { provide: PortfolioService, useValue: { getHoldings } },
         { provide: REQUEST, useValue: fullAccessRequest },
+        { provide: UserService, useValue: { updateUserSetting: jest.fn() } },
         {
           provide: VolatilityCacheService,
           useValue: { getPortfolioVolatility: jest.fn() }
@@ -198,6 +200,7 @@ describe('RiskController contract: GET /risk/concentration', () => {
           { provide: ImpersonationService, useValue: {} },
           { provide: PortfolioService, useValue: { getHoldings } },
           { provide: REQUEST, useValue: fullAccessRequest },
+          { provide: UserService, useValue: { updateUserSetting: jest.fn() } },
           {
             provide: VolatilityCacheService,
             useValue: { getPortfolioVolatility }
@@ -271,6 +274,7 @@ describe('RiskController contract: GET /risk/concentration', () => {
           { provide: ImpersonationService, useValue: {} },
           { provide: PortfolioService, useValue: { getHoldings } },
           { provide: REQUEST, useValue: fullAccessRequest },
+          { provide: UserService, useValue: { updateUserSetting: jest.fn() } },
           {
             provide: VolatilityCacheService,
             useValue: { getPortfolioVolatility: jest.fn() }
@@ -328,6 +332,7 @@ describe('RiskController contract: GET /risk/concentration', () => {
           { provide: ImpersonationService, useValue: {} },
           { provide: PortfolioService, useValue: { getHoldings } },
           { provide: REQUEST, useValue: fullAccessRequest },
+          { provide: UserService, useValue: { updateUserSetting: jest.fn() } },
           {
             provide: VolatilityCacheService,
             useValue: { getPortfolioVolatility: jest.fn() }
@@ -405,6 +410,7 @@ describe('RiskController contract: GET /risk/concentration', () => {
           { provide: ImpersonationService, useValue: {} },
           { provide: PortfolioService, useValue: { getHoldings } },
           { provide: REQUEST, useValue: request },
+          { provide: UserService, useValue: { updateUserSetting: jest.fn() } },
           {
             provide: VolatilityCacheService,
             useValue: { getPortfolioVolatility }
