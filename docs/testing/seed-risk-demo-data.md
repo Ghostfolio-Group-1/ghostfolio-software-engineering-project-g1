@@ -8,12 +8,10 @@ to 0 if it was previously nonzero, and fully replacing (not just re-pricing)
 each user's orders if a script revision changes their holdings — any order
 left over from a previous revision's holding count is deleted.
 
-**Verified against the real `RiskEvaluationService` logic (not just
-asserted)** — see the "balanced" row below for what that verification
-caught. The script itself still needs running against a real database at
-least once before the demo to confirm the real `ExchangeRateDataService`
-EUR/USD conversion lines up with the numbers quoted here (see "A note on
-currency conversion" below).
+**Verified against a real throwaway Postgres + Redis database** (idempotence
+across two runs, and the four users' actual Risk API responses) — see the
+"balanced" row below for what that verification caught: single-stock and
+country land GREEN, not YELLOW, and only currency lands YELLOW.
 
 ## Safety
 
@@ -32,7 +30,7 @@ numbers.
 | User id                       | Login token              | Demonstrates                                                                                                                                                       |
 | ----------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `demo-risk-user-concentrated` | `demo-risk-concentrated` | RED concentration — one stock is ~90% of holdings, plus the warnings it produces                                                                                   |
-| `demo-risk-user-balanced`     | `demo-risk-balanced`     | No RED anywhere — GREEN sector mix and cash ratio; single-stock/country/currency sit at YELLOW, not RED (see "A note on currency conversion" below)                |
+| `demo-risk-user-balanced`     | `demo-risk-balanced`     | No RED anywhere — score 80 / grade B; single-stock and country sit at GREEN, currency sits at YELLOW (see "A note on currency conversion" below)                   |
 | `demo-risk-user-empty`        | `demo-risk-empty`        | Empty portfolio — every rule `NO_DATA`, score `null`, `unavailableReason: NO_ACTIVE_RULES`                                                                         |
 | `demo-risk-user-target`       | `demo-risk-target`       | A target allocation is configured (50% EQUITY / 50% FIXED_INCOME) and visibly deviated from, since every holding is EQUITY — exercises `TargetAllocationDeviation` |
 
@@ -52,16 +50,16 @@ numbers.
 
 The "balanced" account's 10 holdings are deliberately engineered — see the
 comment on `demo-risk-user-balanced` in the script — so that every
-concentration rule lands GREEN or YELLOW, never RED, confirmed by running
-the actual holdings through `RiskEvaluationService` directly with the
-exchange rate treated as 1:1. In the real app, `ExchangeRateDataService`
-uses the database's real EUR/USD rate, which isn't exactly 1:1, and this
-account's single-stock/country/currency buckets sit only slightly above
-their GREEN boundary (~50-51% against a 50% ceiling). A real rate further
-from 1:1 than assumed here could tip one of those from YELLOW to GREEN or
-vice versa, but the margin to the next boundary up (RED at 75%/25%) is
-large, so this should not produce a RED. Treat the exact split as
-approximate until confirmed against a live run.
+concentration rule lands GREEN or YELLOW, never RED. Confirmed against a
+real throwaway database: a fresh database has no EUR/USD rate recorded, so
+`ExchangeRateDataService` converts EUR at 1:1 until a price-gathering run
+populates one. Under that 1:1 conversion, single-stock sits at GREEN
+(9.95% against a 10% ceiling) and country produces no warning; currency is
+the one bucket that lands YELLOW. With a real (non-1:1) EUR/USD rate, the
+1,000 EUR holding could cross the 10% single-stock ceiling and tip that
+bucket to YELLOW too, but the margin to the next boundary up (RED at 25%)
+is large, so this should not produce a RED either way. Treat the exact
+split as approximate until confirmed against a live run with real rates.
 
 ## How to view each demo account
 
