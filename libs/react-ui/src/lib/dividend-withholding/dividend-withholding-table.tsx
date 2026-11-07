@@ -5,7 +5,7 @@ import type { TableColumn } from '../table/table';
 /**
  * Presentational counterpart of the Tax domain's DividendRecord.
  * The host must supply Date as ISO text and Big amounts as plain decimal
- * strings. TaxController does not currently offer a dividends HTTP route.
+ * strings. TaxController exposes GET /api/v1/tax/dividends?year=YYYY.
  */
 export interface DividendWithholdingViewRecord {
   accountId: string | null;
@@ -47,7 +47,7 @@ const columns: TableColumn<DividendWithholdingViewRecord>[] = [
   },
   {
     align: 'right',
-    cell: (record) => record.withholdingTax ?? 'Unknown',
+    cell: (record) => record.withholdingTax ?? 'Not available',
     header: 'Withholding tax',
     key: 'withholding'
   },

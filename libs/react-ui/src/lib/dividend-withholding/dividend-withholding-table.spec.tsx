@@ -36,8 +36,7 @@ describe('DividendWithholdingTable', () => {
       { ...dividend, netDividend: null, withholdingTax: null }
     ]);
 
-    expect(unknownHtml).toContain('>Unknown<');
-    expect(unknownHtml).toContain('>Not available<');
+    expect((unknownHtml.match(/>Not available</g) ?? []).length).toBe(2);
     expect(unknownHtml).not.toContain('>0<');
 
     const zeroHtml = render([
@@ -49,7 +48,7 @@ describe('DividendWithholdingTable', () => {
       }
     ]);
     expect((zeroHtml.match(/>0</g) ?? []).length).toBe(3);
-    expect(zeroHtml).not.toContain('>Unknown<');
+    expect(zeroHtml).not.toContain('>Not available<');
   });
 
   it('keeps the supplied net value without performing financial arithmetic', () => {
