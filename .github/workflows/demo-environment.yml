@@ -1,0 +1,58 @@
+name: Demo environment
+
+# Builds the demo image (linux/amd64 only), starts it with Postgres and Redis
+# from docker/docker-compose.demo.yml and runs scripts/demo-smoke.sh against it.
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'docker/**'
+      - 'scripts/demo-smoke.sh'
+      - '.env.demo.example'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'prisma/**'
+      - '.github/workflows/demo-environment.yml'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-environment-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Demo build and smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create demo environment file
+        run: |
+          cp .env.demo.example .env.demo
+          sed -i "s/CHANGE_ME_redis_password/$(openssl rand -hex 16)/" .env.demo
+          sed -i "s/CHANGE_ME_postgres_password/$(openssl rand -hex 16)/" .env.demo
+          sed -i "s/CHANGE_ME_random_string/$(openssl rand -hex 32)/g" .env.demo
+
+      - name: Build and start the demo environment
+        run: docker compose -f docker/docker-compose.demo.yml up --build -d
+
+      - name: Smoke test every Iteration 3 route
+        run: ./scripts/demo-smoke.sh http://localhost:3333
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose -f docker/docker-compose.demo.yml logs --tail 200
+
+      - name: Stop the demo environment
+        if: always()
+        run: docker compose -f docker/docker-compose.demo.yml down -v
