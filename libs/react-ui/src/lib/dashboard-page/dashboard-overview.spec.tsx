@@ -1,3 +1,5 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+
 import {
   DASHBOARD_OVERVIEW_PATH,
   toDashboardSections
@@ -19,9 +21,9 @@ const overview: DashboardOverviewData = {
     data: {
       stock: {
         buckets: [
-          { name: 'AAPL', percentage: 40 },
-          { name: 'MSFT', percentage: 35 },
-          { name: 'SAP', percentage: 25 }
+          { name: 'MSFT', percentage: 0.35, severity: 'YELLOW' },
+          { name: 'AAPL', percentage: 0.4, severity: 'RED' },
+          { name: 'SAP', percentage: 0.25, severity: 'GREEN' }
         ]
       }
     },
@@ -30,29 +32,45 @@ const overview: DashboardOverviewData = {
   tax: {
     data: {
       method: 'FIFO',
-      sales: [{ realizedGainAfterActivityFees: '217.6' }]
+      sales: [
+        {
+          currency: 'USD',
+          realizedGainAfterActivityFees: '217.6',
+          sellActivityId: 'fixture-order-04',
+          sellDate: '2026-03-02T00:00:00.000Z'
+        }
+      ]
     },
     status: 'available'
   }
 };
+
+const html = (node: unknown) =>
+  renderToStaticMarkup(node as Parameters<typeof renderToStaticMarkup>[0]);
 
 describe('toDashboardSections', () => {
   it('uses the overview route path', () => {
     expect(DASHBOARD_OVERVIEW_PATH).toBe('/api/v1/dashboard/overview');
   });
 
-  it('marks every available section ready with its summary', () => {
-    const sections = toDashboardSections(overview);
+  it('renders the risk card from the stock concentration buckets', () => {
+    const { risk } = toDashboardSections(overview);
 
-    expect(sections.risk).toEqual({
-      content: '3 holdings in the risk breakdown',
-      status: 'ready'
-    });
-    expect(sections.tax).toEqual({
-      content: '1 realized sales (FIFO)',
-      status: 'ready'
-    });
-    expect(sections.charts).toEqual({
+    expect(risk.status).toBe('ready');
+    expect(html(risk.content)).toContain('AAPL exceeds the single-stock limit');
+    expect(html(risk.content)).toContain('40.0%');
+  });
+
+  it('renders the tax card with the exact realized gain', () => {
+    const { tax } = toDashboardSections(overview);
+
+    expect(tax.status).toBe('ready');
+    expect(html(tax.content)).toContain('217.6 USD');
+    expect(html(tax.content)).toContain('1 sale · FIFO');
+  });
+
+  it('keeps the charts summary until the charts card lands', () => {
+    expect(toDashboardSections(overview).charts).toEqual({
       content: '2 data points · latest 2026-04-01',
       status: 'ready'
     });
@@ -79,7 +97,6 @@ describe('toDashboardSections', () => {
       onRetry,
       status: 'error'
     });
-    expect(JSON.stringify(sections.tax)).not.toContain('internal detail');
     expect(sections.risk.status).toBe('ready');
     expect(sections.charts.status).toBe('ready');
   });

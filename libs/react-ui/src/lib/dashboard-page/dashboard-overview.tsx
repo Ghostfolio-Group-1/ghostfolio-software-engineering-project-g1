@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react';
-
 import { requestApi } from '../data/api-request';
 import type { AuthenticatedFetch } from '../data/api-request';
 import type {
@@ -7,18 +5,22 @@ import type {
   DashboardSectionView,
   DashboardSectionViews
 } from './dashboard-page';
+import { DashboardRiskSummary } from './dashboard-risk-summary';
+import type { OverviewRiskBucket } from './dashboard-risk-summary';
+import { DashboardTaxSummary } from './dashboard-tax-summary';
+import type { OverviewTaxSale } from './dashboard-tax-summary';
 
 export const DASHBOARD_OVERVIEW_PATH = '/api/v1/dashboard/overview';
 
 // Mirrors the GET /api/v1/dashboard/overview contract, kept local so the React
 // library does not import from the API app. Only the fields the cards read.
 export interface OverviewRiskData {
-  stock: { buckets: { name: string; percentage: number }[] };
+  stock: { buckets: OverviewRiskBucket[] };
 }
 
 export interface OverviewTaxData {
   method: string;
-  sales: { realizedGainAfterActivityFees: string }[];
+  sales: OverviewTaxSale[];
 }
 
 export interface OverviewChartsData {
@@ -68,7 +70,7 @@ function toView<T>(
   key: DashboardSectionKey,
   section: OverviewSection<T> | undefined,
   isEmpty: (data: T) => boolean,
-  render: (data: T) => ReactNode,
+  render: (data: T) => DashboardSectionView['content'],
   onRetry?: () => void
 ): DashboardSectionView {
   if (section?.status !== 'available') {
@@ -85,8 +87,8 @@ function toView<T>(
 /**
  * Maps the overview response onto the three dashboard cards. An unavailable
  * section becomes an error card with a generic message (never the server text);
- * the other sections still render. The detailed Risk / Tax / Charts cards
- * replace these summaries on Nov 9–10.
+ * the other sections still render. Risk and Tax render their summary cards;
+ * the Charts card is completed on Nov 10.
  */
 export function toDashboardSections(
   overview: DashboardOverviewData,
@@ -107,14 +109,14 @@ export function toDashboardSections(
       'risk',
       overview.risk,
       (data) => data.stock.buckets.length === 0,
-      (data) => `${data.stock.buckets.length} holdings in the risk breakdown`,
+      (data) => <DashboardRiskSummary buckets={data.stock.buckets} />,
       onRetry
     ),
     tax: toView(
       'tax',
       overview.tax,
       (data) => data.sales.length === 0,
-      (data) => `${data.sales.length} realized sales (${data.method})`,
+      (data) => <DashboardTaxSummary method={data.method} sales={data.sales} />,
       onRetry
     )
   };
