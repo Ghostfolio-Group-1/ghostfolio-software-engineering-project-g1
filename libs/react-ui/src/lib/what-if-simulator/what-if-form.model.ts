@@ -23,6 +23,17 @@ export interface WhatIfFormErrors {
   symbol?: string;
 }
 
+// A holding the user can actually run a scenario against, from
+// GET /api/v1/portfolio/holdings (fetchWhatIfHoldingOptions in
+// what-if-simulator.client.ts). dataSource travels with the holding rather
+// than being guessed, since the same symbol can exist under more than one
+// data source.
+export interface WhatIfHoldingOption {
+  dataSource: string;
+  name: string;
+  symbol: string;
+}
+
 export const DEFAULT_WHAT_IF_DATA_SOURCE = 'YAHOO';
 
 export function createEmptyWhatIfFormValues(): WhatIfFormValues {
