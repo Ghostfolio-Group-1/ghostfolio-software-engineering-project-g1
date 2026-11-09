@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { Button } from '../button/button';
+import type { DashboardCardStatus } from '../dashboard-card/dashboard-card';
 import { designTokens, px } from '../tokens/design-tokens';
 import type {
   WhatIfFormErrors,
@@ -12,15 +13,22 @@ export interface WhatIfSimulatorFormProps {
   errors?: WhatIfFormErrors;
   // The user's actual open holdings (issue #187 review: a free-text symbol
   // let the user shock a holding they don't have, or guess the wrong data
-  // source for one they do). Empty while holdings are loading or on an
-  // empty portfolio - the select then shows a placeholder and stays
-  // disabled, same spirit as DashboardCard's empty state.
+  // source for one they do).
   holdings: WhatIfHoldingOption[];
+  // Distinguishes "still loading", "failed to load" and "genuinely has no
+  // holdings" - all three used to collapse into one "No holdings
+  // available" placeholder, which made a failed holdings request look like
+  // an empty portfolio. Same status vocabulary as DashboardCard.
+  holdingsStatus?: DashboardCardStatus;
+  holdingsErrorMessage?: string;
   isSubmitting?: boolean;
   onChange: (values: WhatIfFormValues) => void;
+  onRetryHoldings?: () => void;
   onSubmit: () => void;
   values: WhatIfFormValues;
 }
+
+const GENERIC_HOLDINGS_ERROR_MESSAGE = 'Could not load your holdings.';
 
 // A symbol alone doesn't identify a holding (the same symbol can exist
 // under more than one data source), so the select's value is this combined
@@ -45,8 +53,11 @@ function holdingOptionKey({
 export function WhatIfSimulatorForm({
   errors = {},
   holdings,
+  holdingsErrorMessage,
+  holdingsStatus = 'ready',
   isSubmitting = false,
   onChange,
+  onRetryHoldings,
   onSubmit,
   values
 }: WhatIfSimulatorFormProps) {
@@ -57,6 +68,12 @@ export function WhatIfSimulatorForm({
           dataSource: values.dataSource,
           symbol: values.symbol
         });
+  const holdingsPlaceholder =
+    holdingsStatus === 'loading'
+      ? 'Loading holdings…'
+      : holdingsStatus === 'error'
+        ? 'Could not load holdings'
+        : 'No holdings available';
 
   return (
     <div
@@ -95,9 +112,7 @@ export function WhatIfSimulatorForm({
           value={selectedKey}
         >
           <option value="">
-            {holdings.length === 0
-              ? 'No holdings available'
-              : 'Select a holding'}
+            {holdings.length === 0 ? holdingsPlaceholder : 'Select a holding'}
           </option>
           {holdings.map((holding) => (
             <option
@@ -108,6 +123,24 @@ export function WhatIfSimulatorForm({
             </option>
           ))}
         </select>
+        {holdingsStatus === 'error' ? (
+          <span
+            role="alert"
+            style={{
+              alignItems: 'center',
+              color: designTokens.color.danger,
+              display: 'inline-flex',
+              gap: px(designTokens.spacing.xs)
+            }}
+          >
+            {holdingsErrorMessage ?? GENERIC_HOLDINGS_ERROR_MESSAGE}
+            {onRetryHoldings ? (
+              <Button onClick={onRetryHoldings} variant="secondary">
+                Retry
+              </Button>
+            ) : null}
+          </span>
+        ) : null}
       </Field>
 
       <Field error={errors.dropPercentage} label="Drop percentage">

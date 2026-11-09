@@ -30,8 +30,14 @@ export interface WhatIfSimulatorPageProps {
 // "page wires a presentational component to live data" split as
 // DashboardOverviewPage/dashboard-overview.ts.
 export function WhatIfSimulatorPage({ request }: WhatIfSimulatorPageProps) {
-  const { data: holdings } = useApiData(() =>
-    fetchWhatIfHoldingOptions(request)
+  const {
+    data: holdings,
+    error: holdingsError,
+    reload: reloadHoldings,
+    status: holdingsStatus
+  } = useApiData(
+    (signal) => fetchWhatIfHoldingOptions(request, signal),
+    (data) => data.length === 0
   );
   const [values, setValues] = useState<WhatIfFormValues>(
     createEmptyWhatIfFormValues()
@@ -71,8 +77,11 @@ export function WhatIfSimulatorPage({ request }: WhatIfSimulatorPageProps) {
       apiErrorMessage={apiErrorMessage}
       errors={errors}
       holdings={holdings ?? []}
+      holdingsErrorMessage={holdingsError?.message}
+      holdingsStatus={holdingsStatus}
       onChange={setValues}
       onRetry={submit}
+      onRetryHoldings={reloadHoldings}
       onSubmit={submit}
       result={result}
       status={status}
