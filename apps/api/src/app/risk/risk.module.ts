@@ -2,6 +2,7 @@ import { AccountModule } from '@ghostfolio/api/app/account/account.module';
 import { PortfolioModule } from '@ghostfolio/api/app/portfolio/portfolio.module';
 import { RedisCacheModule } from '@ghostfolio/api/app/redis-cache/redis-cache.module';
 import { UserModule } from '@ghostfolio/api/app/user/user.module';
+import { ConfigurationModule } from '@ghostfolio/api/services/configuration/configuration.module';
 import { ExchangeRateDataModule } from '@ghostfolio/api/services/exchange-rate-data/exchange-rate-data.module';
 import { ImpersonationModule } from '@ghostfolio/api/services/impersonation/impersonation.module';
 import { MarketDataModule } from '@ghostfolio/api/services/market-data/market-data.module';
@@ -23,6 +24,7 @@ import { WhatIfService } from './what-if.service';
   exports: [ExposureService],
   imports: [
     AccountModule,
+    ConfigurationModule,
     ExchangeRateDataModule,
     ImpersonationModule,
     MarketDataModule,
