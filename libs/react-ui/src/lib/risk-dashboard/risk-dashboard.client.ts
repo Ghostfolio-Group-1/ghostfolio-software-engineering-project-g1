@@ -1,3 +1,5 @@
+import type { ApiResponse } from '@ghostfolio/common/api-conventions';
+
 import type { AuthenticatedFetch } from '../data/api-request';
 import { requestApi } from '../data/api-request';
 import type {
@@ -5,6 +7,22 @@ import type {
   RiskDashboardTopConcentration,
   RiskSeverity
 } from './risk-dashboard-card';
+
+// Shared with the what-if simulator client (what-if-simulator.client.ts),
+// which POSTs rather than GETs and so cannot use requestApi (GET-only) -
+// this is the same { data, error, meta } envelope shape, with the server's
+// error message preserved rather than generalized, since the what-if
+// error codes (RISK_WHATIF_INVALID_DROP, RISK_WHATIF_HOLDING_NOT_FOUND) are
+// deliberately safe, user-actionable text (risk.controller.ts#postWhatIf),
+// unlike the generic failures requestApi hides.
+export type RiskApiEnvelope<T> = ApiResponse<T>;
+
+export class RiskApiError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = 'RiskApiError';
+  }
+}
 
 // Wiring for the Risk dashboard card (Thu Nov 5): pulls real data from
 // GET /risk/score and GET /risk/concentration and maps the API's
