@@ -132,6 +132,42 @@ describe('WhatIfSimulatorForm', () => {
     expect((select?.props as { disabled: boolean }).disabled).toBe(true);
   });
 
+  it('shows a loading placeholder, not the empty-portfolio one, while holdings are loading', () => {
+    const html = renderToStaticMarkup(
+      <WhatIfSimulatorForm
+        holdings={[]}
+        holdingsStatus="loading"
+        onChange={jest.fn()}
+        onSubmit={jest.fn()}
+        values={createEmptyWhatIfFormValues()}
+      />
+    );
+
+    expect(html).toContain('Loading holdings…');
+    expect(html).not.toContain('No holdings available');
+  });
+
+  it('shows a retryable error, not the empty-portfolio placeholder, when holdings fail to load', () => {
+    const onRetryHoldings = jest.fn();
+    const html = renderToStaticMarkup(
+      <WhatIfSimulatorForm
+        holdings={[]}
+        holdingsErrorMessage="Could not load your holdings."
+        holdingsStatus="error"
+        onChange={jest.fn()}
+        onRetryHoldings={onRetryHoldings}
+        onSubmit={jest.fn()}
+        values={createEmptyWhatIfFormValues()}
+      />
+    );
+
+    expect(html).toContain('Could not load holdings');
+    expect(html).toContain('Could not load your holdings.');
+    expect(html).not.toContain('No holdings available');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Retry');
+  });
+
   it('calls onSubmit when the submit button is activated', () => {
     const onSubmit = jest.fn();
     const button = findByType(

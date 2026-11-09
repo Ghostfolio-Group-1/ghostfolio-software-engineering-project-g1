@@ -142,6 +142,46 @@ describe('runWhatIf', () => {
       })
     ).rejects.toThrow('Could not run the simulation. Please try again.');
   });
+
+  it('falls back to a generic message when a nested field is malformed, not just the four top-level keys', async () => {
+    const postJson = jest.fn().mockResolvedValue({
+      // holding.valueAfter is missing entirely - the top-level keys
+      // (holding/portfolio/scenario/score) all look present.
+      data: {
+        ...fullResult,
+        holding: { ...fullResult.holding, valueAfter: undefined }
+      },
+      error: null,
+      meta: {}
+    });
+
+    await expect(
+      runWhatIf(postJson, {
+        dataSource: 'YAHOO',
+        dropPercentage: 0.4,
+        symbol: 'AAPL'
+      })
+    ).rejects.toThrow('Could not run the simulation. Please try again.');
+  });
+
+  it('falls back to a generic message when a warning in the array is malformed', async () => {
+    const postJson = jest.fn().mockResolvedValue({
+      data: {
+        ...fullResult,
+        newWarnings: [{ ruleKey: 'CONCENTRATION', severity: 'RED' }]
+      },
+      error: null,
+      meta: {}
+    });
+
+    await expect(
+      runWhatIf(postJson, {
+        dataSource: 'YAHOO',
+        dropPercentage: 0.4,
+        symbol: 'AAPL'
+      })
+    ).rejects.toThrow('Could not run the simulation. Please try again.');
+  });
 });
 
 describe('createWhatIfPostJson', () => {
@@ -188,28 +228,29 @@ describe('createWhatIfPostJson', () => {
 });
 
 describe('fetchWhatIfHoldingOptions', () => {
-  it('maps portfolio holdings to symbol/dataSource/name options', async () => {
+  // PortfolioController's GET /portfolio/holdings predates the
+  // { data, error, meta } envelope - it answers with { holdings } directly,
+  // each holding's identity nested under assetProfile.
+  it('maps active holdings to symbol/dataSource/name options, filtering by holdingType=ACTIVE', async () => {
     const request = jest.fn(() =>
       respond(200, {
-        data: {
-          holdings: [
-            {
+        holdings: [
+          {
+            assetProfile: {
               dataSource: 'YAHOO',
               name: 'Apple Inc.',
-              symbol: 'AAPL',
-              valueInBaseCurrency: 30000
-            }
-          ]
-        },
-        error: null,
-        meta: {}
+              symbol: 'AAPL'
+            },
+            quantity: 100
+          }
+        ]
       })
     );
 
     const holdings = await fetchWhatIfHoldingOptions(request);
 
     expect(request).toHaveBeenCalledWith(
-      '/api/v1/portfolio/holdings',
+      '/api/v1/portfolio/holdings?holdingType=ACTIVE',
       expect.objectContaining({ method: 'GET' })
     );
     expect(holdings).toEqual([
@@ -218,12 +259,40 @@ describe('fetchWhatIfHoldingOptions', () => {
   });
 
   it('returns an empty list for an empty portfolio', async () => {
-    const request = jest.fn(() =>
-      respond(200, { data: { holdings: [] }, error: null, meta: {} })
-    );
+    const request = jest.fn(() => respond(200, { holdings: [] }));
 
     const holdings = await fetchWhatIfHoldingOptions(request);
 
     expect(holdings).toEqual([]);
+  });
+
+  it('throws a RiskApiError on a non-OK response', async () => {
+    const request = jest.fn(() => respond(500, { message: 'server error' }));
+
+    await expect(fetchWhatIfHoldingOptions(request)).rejects.toThrow(
+      RiskApiError
+    );
+  });
+
+  it('throws a RiskApiError when the body has no holdings array', async () => {
+    const request = jest.fn(() => respond(200, { unrelated: true }));
+
+    await expect(fetchWhatIfHoldingOptions(request)).rejects.toThrow(
+      RiskApiError
+    );
+  });
+
+  it('throws a RiskApiError when the response body is not valid JSON', async () => {
+    const request = jest.fn(() =>
+      Promise.resolve({
+        json: () => Promise.reject(new Error('not json')),
+        ok: true,
+        status: 200
+      } as unknown as Response)
+    );
+
+    await expect(fetchWhatIfHoldingOptions(request)).rejects.toThrow(
+      RiskApiError
+    );
   });
 });

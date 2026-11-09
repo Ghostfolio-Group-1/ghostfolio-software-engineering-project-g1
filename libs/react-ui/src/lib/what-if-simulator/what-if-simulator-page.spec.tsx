@@ -14,12 +14,18 @@ function respond(status: number, body: unknown) {
   } as Response);
 }
 
+const HOLDINGS_URL = '/api/v1/portfolio/holdings?holdingType=ACTIVE';
+
+// PortfolioController's GET /portfolio/holdings answers with { holdings }
+// directly (no { data, error, meta } envelope), identity nested under
+// assetProfile - see fetchWhatIfHoldingOptions.
 const oneHolding = {
-  data: {
-    holdings: [{ dataSource: 'YAHOO', name: 'Apple Inc.', symbol: 'AAPL' }]
-  },
-  error: null,
-  meta: {}
+  holdings: [
+    {
+      assetProfile: { dataSource: 'YAHOO', name: 'Apple Inc.', symbol: 'AAPL' },
+      quantity: 100
+    }
+  ]
 };
 
 const whatIfResult = {
@@ -132,10 +138,10 @@ describe('WhatIfSimulatorPage', () => {
     button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   }
 
-  it('loads holdings through the host fetch and shows the empty-portfolio placeholder until they arrive', async () => {
+  it('loads holdings through the host fetch and shows a distinct loading state until they arrive', async () => {
     let resolveHoldings: (() => void) | undefined;
     const request = jest.fn((url: string) => {
-      if (url === '/api/v1/portfolio/holdings') {
+      if (url === HOLDINGS_URL) {
         return new Promise((resolve) => {
           resolveHoldings = () => resolve(respond(200, oneHolding));
         });
@@ -146,7 +152,8 @@ describe('WhatIfSimulatorPage', () => {
 
     await render(request);
 
-    expect(container.textContent).toContain('No holdings available');
+    expect(container.textContent).toContain('Loading holdings…');
+    expect(container.textContent).not.toContain('No holdings available');
 
     await act(async () => {
       resolveHoldings?.();
@@ -156,9 +163,56 @@ describe('WhatIfSimulatorPage', () => {
     expect(container.textContent).toContain('Apple Inc. (AAPL · YAHOO)');
   });
 
+  it('shows a genuinely empty portfolio distinctly once holdings have loaded with none', async () => {
+    const request = jest.fn((url: string) => {
+      if (url === HOLDINGS_URL) {
+        return respond(200, { holdings: [] });
+      }
+
+      throw new Error(`unexpected request to ${url}`);
+    });
+
+    await render(request);
+    await act(async () => Promise.resolve());
+
+    expect(container.textContent).toContain('No holdings available');
+  });
+
+  it('shows a retryable error, not the empty-portfolio placeholder, when the holdings request fails', async () => {
+    let fail = true;
+    const request = jest.fn((url: string) => {
+      if (url === HOLDINGS_URL) {
+        return fail
+          ? respond(500, { message: 'server error' })
+          : respond(200, oneHolding);
+      }
+
+      throw new Error(`unexpected request to ${url}`);
+    });
+
+    await render(request);
+    await act(async () => Promise.resolve());
+
+    expect(container.textContent).toContain('Could not load holdings');
+    expect(container.textContent).not.toContain('No holdings available');
+
+    fail = false;
+
+    const retry = Array.from(container.querySelectorAll('button')).find(
+      (candidate) => candidate.textContent?.includes('Retry')
+    );
+
+    await act(async () => {
+      retry?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Apple Inc. (AAPL · YAHOO)');
+  });
+
   it('does not call the API and shows inline errors for invalid input', async () => {
     const request = jest.fn((url: string) => {
-      if (url === '/api/v1/portfolio/holdings') {
+      if (url === HOLDINGS_URL) {
         return respond(200, oneHolding);
       }
 
@@ -177,7 +231,7 @@ describe('WhatIfSimulatorPage', () => {
 
   it('submits the selected holding and shows the result on success', async () => {
     const request = jest.fn((url: string) => {
-      if (url === '/api/v1/portfolio/holdings') {
+      if (url === HOLDINGS_URL) {
         return respond(200, oneHolding);
       }
 
@@ -215,7 +269,7 @@ describe('WhatIfSimulatorPage', () => {
 
   it('shows a retryable error and succeeds on retry', async () => {
     const request = jest.fn().mockImplementation((url: string) => {
-      if (url === '/api/v1/portfolio/holdings') {
+      if (url === HOLDINGS_URL) {
         return respond(200, oneHolding);
       }
 

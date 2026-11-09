@@ -1,4 +1,5 @@
 import { Button } from '../button/button';
+import type { DashboardCardStatus } from '../dashboard-card/dashboard-card';
 import { designTokens, px } from '../tokens/design-tokens';
 import type {
   WhatIfFormErrors,
@@ -20,10 +21,16 @@ export interface WhatIfSimulatorProps {
   // Defaults to [] so callers that haven't loaded holdings yet (or existing
   // tests written before holding selection replaced free-text symbol entry)
   // don't have to pass an empty array explicitly; the form then shows its
-  // "No holdings available" placeholder.
+  // empty-portfolio placeholder.
   holdings?: WhatIfHoldingOption[];
+  holdingsErrorMessage?: string;
+  // Separate from the holdings fetch's own loading/error (distinct from
+  // "ready" with 0 holdings) so a failed holdings request doesn't look
+  // like an empty portfolio.
+  holdingsStatus?: DashboardCardStatus;
   onChange: (values: WhatIfFormValues) => void;
   onRetry?: () => void;
+  onRetryHoldings?: () => void;
   onSubmit: () => void;
   result?: WhatIfResultSummary;
   status: WhatIfSimulatorStatus;
@@ -42,8 +49,11 @@ export function WhatIfSimulator({
   apiErrorMessage,
   errors,
   holdings = [],
+  holdingsErrorMessage,
+  holdingsStatus,
   onChange,
   onRetry,
+  onRetryHoldings,
   onSubmit,
   result,
   status,
@@ -60,8 +70,11 @@ export function WhatIfSimulator({
       <WhatIfSimulatorForm
         errors={errors}
         holdings={holdings}
+        holdingsErrorMessage={holdingsErrorMessage}
+        holdingsStatus={holdingsStatus}
         isSubmitting={status === 'submitting'}
         onChange={onChange}
+        onRetryHoldings={onRetryHoldings}
         onSubmit={onSubmit}
         values={values}
       />
