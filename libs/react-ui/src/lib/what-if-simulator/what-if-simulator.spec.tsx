@@ -142,4 +142,31 @@ describe('WhatIfSimulator', () => {
 
     expect(html).not.toContain('Scenario:');
   });
+
+  it('passes the given holdings through to the holding selector', () => {
+    const html = renderToStaticMarkup(
+      <WhatIfSimulator
+        holdings={[{ dataSource: 'YAHOO', name: 'Apple Inc.', symbol: 'AAPL' }]}
+        onChange={jest.fn()}
+        onSubmit={jest.fn()}
+        status="idle"
+        values={createEmptyWhatIfFormValues()}
+      />
+    );
+
+    expect(html).toContain('Apple Inc. (AAPL · YAHOO)');
+  });
+
+  it('defaults to no holdings, showing the empty-portfolio placeholder', () => {
+    const html = renderToStaticMarkup(
+      <WhatIfSimulator
+        onChange={jest.fn()}
+        onSubmit={jest.fn()}
+        status="idle"
+        values={createEmptyWhatIfFormValues()}
+      />
+    );
+
+    expect(html).toContain('No holdings available');
+  });
 });

@@ -1,6 +1,10 @@
 import { Button } from '../button/button';
 import { designTokens, px } from '../tokens/design-tokens';
-import type { WhatIfFormErrors, WhatIfFormValues } from './what-if-form.model';
+import type {
+  WhatIfFormErrors,
+  WhatIfFormValues,
+  WhatIfHoldingOption
+} from './what-if-form.model';
 import { WhatIfResultPanel } from './what-if-result-panel';
 import type { WhatIfResultSummary } from './what-if-result-panel';
 import { WhatIfSimulatorForm } from './what-if-simulator-form';
@@ -13,6 +17,11 @@ export interface WhatIfSimulatorProps {
   // validateWhatIfForm() shown inline on the fields themselves.
   apiErrorMessage?: string;
   errors?: WhatIfFormErrors;
+  // Defaults to [] so callers that haven't loaded holdings yet (or existing
+  // tests written before holding selection replaced free-text symbol entry)
+  // don't have to pass an empty array explicitly; the form then shows its
+  // "No holdings available" placeholder.
+  holdings?: WhatIfHoldingOption[];
   onChange: (values: WhatIfFormValues) => void;
   onRetry?: () => void;
   onSubmit: () => void;
@@ -32,6 +41,7 @@ export interface WhatIfSimulatorProps {
 export function WhatIfSimulator({
   apiErrorMessage,
   errors,
+  holdings = [],
   onChange,
   onRetry,
   onSubmit,
@@ -49,6 +59,7 @@ export function WhatIfSimulator({
     >
       <WhatIfSimulatorForm
         errors={errors}
+        holdings={holdings}
         isSubmitting={status === 'submitting'}
         onChange={onChange}
         onSubmit={onSubmit}
