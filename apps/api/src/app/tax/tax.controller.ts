@@ -21,6 +21,8 @@ import { GetRealizedGainsDto } from './get-realized-gains.dto';
 import type { TaxDividendsResponse } from './interfaces/tax-dividends-response.interface';
 import type { TaxLotsResponse } from './interfaces/tax-lots-response.interface';
 import type { TaxRealizedGainsResponse } from './interfaces/tax-realized-gains-response.interface';
+import type { TaxYearlySummaryResponse } from './interfaces/tax-yearly-summary-response.interface';
+import { serializeYearlyTaxSummary } from './tax-yearly-summary.serializer';
 import {
   MAX_TAX_DIVIDEND_YEAR,
   MIN_TAX_DIVIDEND_YEAR,
@@ -32,6 +34,56 @@ export class TaxController {
   private readonly logger = new Logger(TaxController.name);
 
   public constructor(private readonly taxService: TaxService) {}
+
+  /** Authenticated, explicit-year yearly summary; reuse domain calculations. */
+  @Get('yearly-summary')
+  @RequiresScope(scopes.portfolioRead)
+  public async getYearlySummary(
+    @Impersonation() { userId }: ImpersonationContext,
+    @Query('year') year: unknown,
+    @Query('method') method: unknown
+  ): Promise<ApiResponse<TaxYearlySummaryResponse>> {
+    if (
+      typeof year !== 'string' ||
+      !/^\d{4}$/.test(year) ||
+      Number(year) < MIN_TAX_DIVIDEND_YEAR ||
+      Number(year) > MAX_TAX_DIVIDEND_YEAR ||
+      (method !== undefined && method !== 'FIFO' && method !== 'AVERAGE_COST')
+    ) {
+      throw new HttpException(
+        createErrorResponse(
+          'TAX_INVALID_QUERY',
+          'Specify a UTC calendar year between 1970 and 2100 and a supported method.'
+        ),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    const calculationMethod =
+      method === 'AVERAGE_COST' ? 'AVERAGE_COST' : 'FIFO';
+
+    try {
+      const summary = await this.taxService.getYearlySummary(
+        userId,
+        Number(year),
+        calculationMethod
+      );
+
+      return createSuccessResponse(serializeYearlyTaxSummary(summary));
+    } catch (error) {
+      this.logger.error(
+        'Yearly Tax summary query failed',
+        error instanceof Error ? error.stack : String(error)
+      );
+      throw new HttpException(
+        createErrorResponse(
+          'TAX_YEARLY_SUMMARY_FAILED',
+          'Unable to calculate yearly Tax summary.'
+        ),
+        HttpStatus.UNPROCESSABLE_ENTITY
+      );
+    }
+  }
 
   @Get('realized-gains')
   @RequiresScope(scopes.portfolioRead)

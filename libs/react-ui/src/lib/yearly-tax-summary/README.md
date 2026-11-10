@@ -6,29 +6,25 @@ floating-point arithmetic on financial values. `null` means **unavailable**, not
 zero. The screen reports incomplete-history and missing-FX warnings rather than
 presenting partial results as complete.
 
-## Integration blocker (November 9, 2026)
+## Agreed API contract (November 9, 2026)
 
-`TaxController` does **not** expose a yearly-summary HTTP endpoint on `main`.
-The `YearlyTaxSummaryData` interface in this folder is a **proposed serialized
-contract**, not a claim that the endpoint exists. The backend presently returns
-`Big` and `Date` domain values. The eventual API must serialize money as plain
-decimal strings (no JS numbers or exponent notation) and dates as ISO UTC text.
-It must preserve nullable totals and diagnostics.
+The public endpoint is `GET /api/v1/tax/yearly-summary?year=YYYY&method=FIFO|AVERAGE_COST`.
+`year` is required (1970–2100, UTC); `method` defaults to `FIFO`.
+The server converts `Big` amounts using `.toFixed()` (not exponent notation),
+retains `null` as unavailable, emits UTC ISO dates, and echoes year/method.
+Invalid queries return `400 TAX_INVALID_QUERY`; calculation failures return
+`422 TAX_YEARLY_SUMMARY_FAILED` with a generic public message.
 
-`YearlyTaxSummaryScreen` therefore takes a required `load` callback from the
-host; `createYearlyTaxSummaryLoader(authenticatedRequest, buildPath)` uses the
-shared API envelope and authenticated request adapter, but deliberately does
-not specify a URL. Raniya must approve the route, response schema, and
-host-mounted authentication integration before this can be used with live data.
-Only tests use synthetic responses. A passing component test is **not** a live
-integration or demo acceptance check.
+`createYearlyTaxSummaryLoader(authenticatedRequest)` calls that route through
+`requestApi` and the host's authenticated fetch adapter. React never reads
+authentication tokens or recomputes tax amounts.
 
-## Known design assumption
+## Remaining integration work
 
-The year input uses the same 1970–2100 bounds as the existing public dividend
-records endpoint. The yearly service currently validates only integer years;
-confirm the public yearly-summary endpoint's year bounds in its contract before
-merging.
+This route is added by the PR #245 backend change, not yet available on `main`.
+Arthur's shared React host (#227) and Raniya's Portfolio → Tax mount remain
+separate integration dependencies. Use a real authenticated API smoke test and
+UI screenshots before claiming demo acceptance. Mock responses are for tests only.
 
 ## Tests
 

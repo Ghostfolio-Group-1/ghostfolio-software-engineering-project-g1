@@ -1,6 +1,5 @@
 import type { AuthenticatedFetch } from '../data/api-request';
 import { ApiRequestError } from '../data/api-request';
-import type { YearlyCostBasisMethod } from './yearly-tax-summary.client';
 import {
   createYearlyTaxSummaryLoader,
   parseYearlyTaxSummary
@@ -105,32 +104,27 @@ describe('Yearly Tax summary API boundary', () => {
     });
   });
 
-  it('lets the authenticated host supply the exact agreed route and abort signal', async () => {
-    const response = {
-      json: jest
-        .fn()
-        .mockResolvedValue({ data: summary, error: null, meta: {} }),
-      ok: true,
-      status: 200
-    } as unknown as Response;
-    const request = jest.fn().mockResolvedValue(response);
-    const buildPath = jest.fn(
-      ({ year, method }: { year: number; method: YearlyCostBasisMethod }) =>
-        `/test-fixture-only?year=${year}&method=${method}`
-    );
-    const loader = createYearlyTaxSummaryLoader(
-      request as unknown as AuthenticatedFetch,
-      buildPath
-    );
-    const signal = new AbortController().signal;
+  it.each(['FIFO', 'AVERAGE_COST'] as const)(
+    'requests the agreed authenticated route for %s and passes the abort signal',
+    async (method) => {
+      const response = {
+        json: jest
+          .fn()
+          .mockResolvedValue({ data: summary, error: null, meta: {} }),
+        ok: true,
+        status: 200
+      } as unknown as Response;
+      const request = jest.fn().mockResolvedValue(response);
+      const loader = createYearlyTaxSummaryLoader(
+        request as unknown as AuthenticatedFetch
+      );
+      const signal = new AbortController().signal;
 
-    expect(await loader({ method: 'FIFO', signal, year: 2026 })).toEqual(
-      summary
-    );
-    expect(buildPath).toHaveBeenCalledWith({ method: 'FIFO', year: 2026 });
-    expect(request).toHaveBeenCalledWith(
-      '/test-fixture-only?year=2026&method=FIFO',
-      expect.objectContaining({ method: 'GET', signal })
-    );
-  });
+      expect(await loader({ method, signal, year: 2026 })).toEqual(summary);
+      expect(request).toHaveBeenCalledWith(
+        `/api/v1/tax/yearly-summary?year=2026&method=${method}`,
+        expect.objectContaining({ method: 'GET', signal })
+      );
+    }
+  );
 });

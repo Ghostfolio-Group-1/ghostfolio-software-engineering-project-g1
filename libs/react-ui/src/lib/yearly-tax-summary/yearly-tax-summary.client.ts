@@ -35,10 +35,8 @@ export interface YearlyCurrencySummary {
   totalWithholdingTax: string | null;
 }
 
-/**
- * Proposed JSON representation of TaxService.getYearlySummary(). Big values
- * MUST be serialized to non-exponential decimal strings by the API and Date
- * values to ISO UTC strings. This is NOT an existing public HTTP contract.
+/** Agreed HTTP representation of TaxService.getYearlySummary(). Big and Date
+ * values are serialized by the backend; React does not recalculate them.
  */
 export interface YearlyTaxSummaryData {
   baseCurrency: string;
@@ -168,15 +166,14 @@ function invalidResponse(): never {
   );
 }
 
-/**
- * The host owns authentication AND URL construction. There is currently no
- * public yearly-summary endpoint, so this factory deliberately never invents
- * one. Once Raniya agrees on a route, the host can provide its buildPath.
- */
+/** Uses the agreed Tax HTTP route; the host supplies authenticated fetch. */
 export function createYearlyTaxSummaryLoader(
-  request: AuthenticatedFetch,
-  buildPath: (selection: Omit<YearlySummarySelection, 'signal'>) => string
+  request: AuthenticatedFetch
 ): YearlySummaryLoader {
   return ({ method, signal, year }) =>
-    requestApi<unknown>(request, buildPath({ method, year }), signal);
+    requestApi<unknown>(
+      request,
+      `/api/v1/tax/yearly-summary?year=${year}&method=${method}`,
+      signal
+    );
 }
