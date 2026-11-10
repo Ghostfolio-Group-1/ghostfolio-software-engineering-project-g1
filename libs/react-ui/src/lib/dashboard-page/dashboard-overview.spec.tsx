@@ -69,11 +69,15 @@ describe('toDashboardSections', () => {
     expect(html(tax.content)).toContain('1 sale · FIFO');
   });
 
-  it('keeps the charts summary until the charts card lands', () => {
-    expect(toDashboardSections(overview).charts).toEqual({
-      content: '2 data points · latest 2026-04-01',
-      status: 'ready'
-    });
+  it('renders the charts card from the live series', () => {
+    const charts = toDashboardSections(overview).charts;
+
+    expect(charts.status).toBe('ready');
+    expect(html(charts.content)).toContain('4,100.00');
+    expect(html(charts.content)).toContain('Portfolio value on 2026-04-01');
+    expect(html(charts.content)).toContain(
+      '2026-01-05 – 2026-04-01 · 2 points'
+    );
   });
 
   it('turns an unavailable section into a retryable error without server text', () => {

@@ -1,5 +1,7 @@
 import { requestApi } from '../data/api-request';
 import type { AuthenticatedFetch } from '../data/api-request';
+import { DashboardChartsSummary } from './dashboard-charts-summary';
+import type { OverviewChartPoint } from './dashboard-charts-summary';
 import type {
   DashboardSectionKey,
   DashboardSectionView,
@@ -25,7 +27,7 @@ export interface OverviewTaxData {
 
 export interface OverviewChartsData {
   kind: string;
-  points: { date: string; value: number }[];
+  points: OverviewChartPoint[];
 }
 
 export type OverviewSection<T> =
@@ -87,8 +89,8 @@ function toView<T>(
 /**
  * Maps the overview response onto the three dashboard cards. An unavailable
  * section becomes an error card with a generic message (never the server text);
- * the other sections still render. Risk and Tax render their summary cards;
- * the Charts card is completed on Nov 10.
+ * the other sections still render. Each available section renders its summary
+ * card (Risk, Tax, Performance).
  */
 export function toDashboardSections(
   overview: DashboardOverviewData,
@@ -99,10 +101,9 @@ export function toDashboardSections(
       'charts',
       overview.charts,
       (data) => data.points.length === 0,
-      (data) =>
-        `${data.points.length} data points · latest ${
-          data.points[data.points.length - 1].date
-        }`,
+      (data) => (
+        <DashboardChartsSummary kind={data.kind} points={data.points} />
+      ),
       onRetry
     ),
     risk: toView(

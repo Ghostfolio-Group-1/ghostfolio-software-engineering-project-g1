@@ -55,6 +55,17 @@ describe('DashboardPage', () => {
     expect(html.match(/role="alert"/g)).toHaveLength(1);
   });
 
+  it('renders a notice above the cards when one is given', () => {
+    const html = renderToStaticMarkup(
+      <DashboardPage notice={<p>Heads up</p>} />
+    );
+
+    expect(html.indexOf('<p>Heads up</p>')).toBeGreaterThan(-1);
+    expect(html.indexOf('<p>Heads up</p>')).toBeLessThan(
+      html.indexOf('dashboard-grid')
+    );
+  });
+
   it('lays the cards out in a responsive grid', () => {
     const html = renderToStaticMarkup(<DashboardPage title="Overview" />);
 
