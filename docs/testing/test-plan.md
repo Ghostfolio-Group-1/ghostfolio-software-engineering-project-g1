@@ -1,7 +1,7 @@
 # Risk module test plan
 
 Tracking issue: #224. Sprint tickets: #24 (API contract), #26 (dashboard),
-#187 (what-if UI, not yet committed), #188 (indicators).
+#187 (what-if UI, committed Nov 9 as PR #241), #188 (indicators).
 
 Status column: **have** = already covered by an existing spec (verified by
 reading it, not assumed), **gap** = filled in this PR, **deferred** = UI/E2E
@@ -43,6 +43,7 @@ work held until the Nov 10 harness (#68) per the Nov 6 pacing decision.
 | PUT: saves and returns computed buckets                                                     | have                                                            |
 | PUT/DELETE: rejected while impersonating                                                    | have (PUT); **gap**: DELETE not tested for the same 403 — added |
 | DELETE: clears the target, persists the cleared setting                                     | have                                                            |
+| **Gap**: an individual target percentage outside [0, 1] (independent of the sum-to-1 check) | gap — added                                                     |
 
 ### `GET/PUT/DELETE /risk/thresholds[/:ruleKey]`
 
@@ -56,6 +57,8 @@ work held until the Nov 10 harness (#68) per the Nov 6 pacing decision.
 | DELETE: resets to defaults                                                                                     | have        |
 | **Gap**: out-of-order **band** override (e.g. `PortfolioVolatility`, not just the ceiling case already tested) | gap — added |
 | **Gap**: PUT/DELETE rejected while impersonating (only PUT target-allocation has this today)                   | gap — added |
+| **Gap**: PUT body with neither `isActive` nor `thresholds` set → `RISK_THRESHOLD_OUT_OF_RANGE`                 | gap — added |
+| **Gap**: PUT that only toggles `isActive`, without a `thresholds` field                                        | gap — added |
 
 ### `POST /risk/what-if`
 
@@ -75,12 +78,12 @@ work held until the Nov 10 harness (#68) per the Nov 6 pacing decision.
 
 ## UI / Component
 
-| Case                                                                                                                                                                                  | Status                                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `RiskDashboardCard`: loading, error (with/without retry), empty, ready, top concentration, per-category rows, visible severity text, null-score unavailable-reason message + fallback | have                                  |
-| `RiskIndicator`: one test per severity colour, accessible label, visible severity word                                                                                                | have                                  |
-| `risk-dashboard.client.ts`: maps envelope, propagates `ApiRequestError`, missing-data error                                                                                           | have (PR #213)                        |
-| What-if simulator components                                                                                                                                                          | deferred — not committed yet (Nov 10) |
+| Case                                                                                                                                                                                  | Status                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `RiskDashboardCard`: loading, error (with/without retry), empty, ready, top concentration, per-category rows, visible severity text, null-score unavailable-reason message + fallback | have                            |
+| `RiskIndicator`: one test per severity colour, accessible label, visible severity word                                                                                                | have                            |
+| `risk-dashboard.client.ts`: maps envelope, propagates `ApiRequestError`, missing-data error                                                                                           | have (PR #213)                  |
+| What-if simulator components: form, result panel, holding-selector loading/error/empty states, full host (`WhatIfSimulatorPage`) mounted end to end                                   | have (PR #241, committed Nov 9) |
 
 ## Integration (UI ↔ API ↔ service ↔ data)
 

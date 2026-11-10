@@ -41,11 +41,11 @@ wrong assumption about.
 
 ## React components (`libs/react-ui/src/lib/`)
 
-| Folder               | Component(s)                                                                          | Live data source                                               |
-| -------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `risk-dashboard/`    | `RiskDashboardCard`, `risk-dashboard.client.ts`                                       | `GET /risk/score` + `GET /risk/concentration`                  |
-| `risk-indicator/`    | `RiskIndicator`, `formatThresholdRange` (the latter not wired in yet — Nov 23 polish) | n/a (pure presentational)                                      |
-| `what-if-simulator/` | `WhatIfSimulator`, form, result panel, client                                         | `POST /risk/what-if` — **not yet committed**, scheduled Nov 10 |
+| Folder               | Component(s)                                                                          | Live data source                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `risk-dashboard/`    | `RiskDashboardCard`, `risk-dashboard.client.ts`                                       | `GET /risk/score` + `GET /risk/concentration`                                                                    |
+| `risk-indicator/`    | `RiskIndicator`, `formatThresholdRange` (the latter not wired in yet — Nov 23 polish) | n/a (pure presentational)                                                                                        |
+| `what-if-simulator/` | `WhatIfSimulator`, form, result panel, client, `WhatIfSimulatorPage` host             | `POST /risk/what-if` + `GET /portfolio/holdings` — committed Nov 9 (PR #241, approved, not yet merged to `main`) |
 
 Every component has loading/error/empty states and is tested via
 `renderToStaticMarkup`/`act` against `react-dom` directly (the library's
@@ -76,13 +76,11 @@ project's own "don't pad coverage" convention.
    data into a running Postgres instance (`prisma/seed.mts` only seeds
    tags). Building this for real requires `SymbolProfile`/`MarketData` rows
    with `dataSource: MANUAL` so no external price-gathering call is needed
-   — documented and built in this PR. Its severity outcomes are verified
-   against the real `RiskEvaluationService` logic directly (not just
-   asserted), but the script itself still needs running against a real
-   database at least once before the demo, since Docker isn't running in
-   this sandbox (`docker/docker-compose.dev.yml` up, then the seed command
-   documented in `docs/testing/seed-risk-demo-data.md`, including the
-   `ALLOW_RISK_DEMO_SEED=yes` safety opt-in).
+   — documented and built in this PR. Its severity outcomes were verified
+   twice: once against the real `RiskEvaluationService` logic directly, and
+   since then against a real throwaway Postgres + Redis database (Raniya,
+   Nov 7) — idempotence across two runs and the four users' actual Risk API
+   responses, documented in `docs/testing/seed-risk-demo-data.md`.
 2. **Playwright/E2E scope**: per your "work ahead, but hold UI/Playwright"
    decision, this issue does not install Playwright or add
    `data-testid` attributes — deferred to after #68's harness lands.
