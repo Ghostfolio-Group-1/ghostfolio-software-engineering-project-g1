@@ -52,6 +52,13 @@ Each must answer HTTP 200 with `"error":null`. It runs in CI on every PR that ch
 
 The `Demo environment` workflow builds only `linux/amd64`, so it stays within a normal CI run. It is not a required check yet; it becomes one if it stays green through the demo build.
 
+## UI-to-API integration harness
+
+After the smoke test, the same workflow renders the React screens against the
+running API with a shared fixture portfolio (`libs/react-ui/integration/`). Run
+it locally against the demo environment with
+`INTEGRATION_API_URL=http://localhost:3333 npx jest -c libs/react-ui/jest.integration.config.ts`.
+
 ## Before the demo
 
 - [ ] #227 (shared React host) is merged, so the build includes the React screens. demo-smoke.sh only checks the JSON API, not the served frontend.
