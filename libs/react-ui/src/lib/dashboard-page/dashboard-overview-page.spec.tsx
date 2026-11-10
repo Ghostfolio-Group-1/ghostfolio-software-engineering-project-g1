@@ -29,7 +29,14 @@ const overview = {
   tax: {
     data: {
       method: 'FIFO',
-      sales: [{ realizedGainAfterActivityFees: '217.6' }]
+      sales: [
+        {
+          currency: 'USD',
+          realizedGainAfterActivityFees: '217.6',
+          sellActivityId: 'fixture-order-04',
+          sellDate: '2026-03-02T00:00:00.000Z'
+        }
+      ]
     },
     status: 'available'
   }
@@ -85,7 +92,7 @@ describe('DashboardOverviewPage', () => {
 
     const text = container.textContent ?? '';
 
-    expect(text).toContain('1 realized sales (FIFO)');
+    expect(text).toContain('217.6 USD');
     expect(text).toContain('1 data points · latest 2026-04-01');
     expect(text).toContain('The risk section could not be loaded');
     expect(text).not.toContain('holdings down');

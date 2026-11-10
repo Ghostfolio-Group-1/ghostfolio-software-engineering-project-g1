@@ -30,6 +30,7 @@ npm-debug.log
 .cursor/rules/nx-rules.mdc
 .env
 .env.prod
+.env.demo
 .github/instructions/nx.instructions.md
 .mcp.json
 .nx/cache
