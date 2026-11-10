@@ -93,10 +93,43 @@ describe('DashboardOverviewPage', () => {
     const text = container.textContent ?? '';
 
     expect(text).toContain('217.6 USD');
-    expect(text).toContain('1 data points · latest 2026-04-01');
+    expect(text).toContain('Portfolio value on 2026-04-01');
     expect(text).toContain('The risk section could not be loaded');
     expect(text).not.toContain('holdings down');
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
+  });
+
+  it('names the failed section above the cards when one source is down', async () => {
+    await render(
+      jest.fn(() => respond(200, { data: overview, error: null, meta: {} }))
+    );
+
+    const notice = container.querySelector(
+      '[data-testid="dashboard-partial-failure"]'
+    );
+
+    expect(notice?.textContent).toContain(
+      'Portfolio risk could not be loaded.'
+    );
+    expect(notice?.textContent).not.toContain('holdings down');
+  });
+
+  it('shows no partial-failure notice when every section loads', async () => {
+    const healthy = {
+      ...overview,
+      risk: {
+        data: { stock: { buckets: [] } },
+        status: 'available'
+      }
+    };
+
+    await render(
+      jest.fn(() => respond(200, { data: healthy, error: null, meta: {} }))
+    );
+
+    expect(
+      container.querySelector('[data-testid="dashboard-partial-failure"]')
+    ).toBeNull();
   });
 
   it('shows a retryable error in every card when the request fails, and retries', async () => {
@@ -116,6 +149,9 @@ describe('DashboardOverviewPage', () => {
     await render(request);
 
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(3);
+    expect(
+      container.querySelector('[data-testid="dashboard-partial-failure"]')
+    ).toBeNull();
 
     const retry = container.querySelector('button');
 
