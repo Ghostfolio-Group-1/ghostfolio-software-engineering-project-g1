@@ -1,0 +1,75 @@
+{
+  "activities": [
+    {
+      "currency": "USD",
+      "dataSource": "MANUAL",
+      "date": "2025-01-06T00:00:00.000Z",
+      "fee": 1,
+      "quantity": 10,
+      "symbol": "GF_INT_ALPHA",
+      "type": "BUY",
+      "unitPrice": 100
+    },
+    {
+      "currency": "USD",
+      "dataSource": "MANUAL",
+      "date": "2025-01-06T00:00:00.000Z",
+      "fee": 1,
+      "quantity": 5,
+      "symbol": "GF_INT_BETA",
+      "type": "BUY",
+      "unitPrice": 50
+    },
+    {
+      "currency": "USD",
+      "dataSource": "MANUAL",
+      "date": "2025-06-02T00:00:00.000Z",
+      "fee": 1,
+      "quantity": 4,
+      "symbol": "GF_INT_ALPHA",
+      "type": "SELL",
+      "unitPrice": 120
+    },
+    {
+      "currency": "USD",
+      "dataSource": "MANUAL",
+      "date": "2025-07-01T00:00:00.000Z",
+      "fee": 0,
+      "quantity": 6,
+      "symbol": "GF_INT_ALPHA",
+      "type": "DIVIDEND",
+      "unitPrice": 0.5
+    }
+  ],
+  "marketData": {
+    "GF_INT_ALPHA": [
+      {
+        "date": "2025-01-06",
+        "marketPrice": 100
+      },
+      {
+        "date": "2025-06-02",
+        "marketPrice": 120
+      },
+      {
+        "date": "2026-11-09",
+        "marketPrice": 130
+      }
+    ],
+    "GF_INT_BETA": [
+      {
+        "date": "2025-01-06",
+        "marketPrice": 50
+      },
+      {
+        "date": "2026-11-09",
+        "marketPrice": 55
+      }
+    ]
+  },
+  "expected": {
+    "dividendYear": 2025,
+    "realizedGainAfterActivityFees": "78.6",
+    "realizedGainCurrency": "USD"
+  }
+}

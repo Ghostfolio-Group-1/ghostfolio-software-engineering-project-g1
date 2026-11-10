@@ -1,7 +1,8 @@
 name: Demo environment
 
 # Builds the demo image (linux/amd64 only), starts it with Postgres and Redis
-# from docker/docker-compose.demo.yml and runs scripts/demo-smoke.sh against it.
+# from docker/docker-compose.demo.yml, runs scripts/demo-smoke.sh against it and
+# then the UI-to-API integration harness (libs/react-ui/integration).
 on:
   pull_request:
     branches:
@@ -15,6 +16,9 @@ on:
       - 'package-lock.json'
       - 'prisma/**'
       - '.github/workflows/demo-environment.yml'
+      - 'apps/api/**'
+      - 'libs/common/**'
+      - 'libs/react-ui/**'
   push:
     branches:
       - main
@@ -49,6 +53,20 @@ jobs:
 
       - name: Smoke test every Iteration 3 route
         run: ./scripts/demo-smoke.sh http://localhost:3333
+
+      - name: Set up Node.js for the integration harness
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: UI-to-API integration harness
+        env:
+          INTEGRATION_API_URL: http://localhost:3333
+        run: npx jest -c libs/react-ui/jest.integration.config.ts
 
       - name: Show container logs on failure
         if: failure()
