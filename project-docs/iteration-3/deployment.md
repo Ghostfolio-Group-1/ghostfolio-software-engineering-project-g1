@@ -51,3 +51,9 @@ Each must answer HTTP 200 with `"error":null`. It runs in CI on every PR that ch
 ## CI
 
 The `Demo environment` workflow builds only `linux/amd64`, so it stays within a normal CI run. It is not a required check yet; it becomes one if it stays green through the demo build.
+
+## Before the demo
+
+- [ ] #227 (shared React host) is merged, so the build includes the React screens. demo-smoke.sh only checks the JSON API, not the served frontend.
+- [ ] Demo build and smoke test is green on main.
+- [ ] Open the client in a browser and check each React screen renders.

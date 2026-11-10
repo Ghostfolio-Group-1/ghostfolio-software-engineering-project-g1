@@ -41,7 +41,8 @@ jobs:
           cp .env.demo.example .env.demo
           sed -i "s/CHANGE_ME_redis_password/$(openssl rand -hex 16)/" .env.demo
           sed -i "s/CHANGE_ME_postgres_password/$(openssl rand -hex 16)/" .env.demo
-          sed -i "s/CHANGE_ME_random_string/$(openssl rand -hex 32)/g" .env.demo
+          sed -i "s/CHANGE_ME_access_token_salt/$(openssl rand -hex 32)/" .env.demo
+          sed -i "s/CHANGE_ME_jwt_secret_key/$(openssl rand -hex 32)/" .env.demo
 
       - name: Build and start the demo environment
         run: docker compose -f docker/docker-compose.demo.yml up --build -d
