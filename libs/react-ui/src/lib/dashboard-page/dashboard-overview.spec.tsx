@@ -97,6 +97,7 @@ describe('toDashboardSections', () => {
       onRetry,
       status: 'error'
     });
+    expect(JSON.stringify(sections.tax)).not.toContain('internal detail');
     expect(sections.risk.status).toBe('ready');
     expect(sections.charts.status).toBe('ready');
   });
