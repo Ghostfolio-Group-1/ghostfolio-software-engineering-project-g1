@@ -142,6 +142,35 @@ describe('TaxWorkspace', () => {
     ).not.toBeNull();
   });
 
+  it('uses scoped, theme-aware styling and visibly tracks the selected view', async () => {
+    const request = jest.fn(() => new Promise<Response>(() => undefined));
+
+    await render(request as unknown as AuthenticatedFetch);
+
+    const workspace = container.querySelector(
+      '.gf-tax-workspace'
+    ) as HTMLElement;
+
+    expect(workspace).not.toBeNull();
+    expect(workspace.style.getPropertyValue('--gf-tax-primary')).toBe(
+      '#36cfcc'
+    );
+    expect(workspace.querySelector('style')?.textContent).toContain(
+      '.gf-tax-workspace select'
+    );
+    expect(
+      workspace.querySelector('.gf-tax-workspace__tab[aria-pressed="true"]')
+        ?.textContent
+    ).toBe('Tax lots');
+
+    await select('Realized gains');
+
+    expect(
+      workspace.querySelector('.gf-tax-workspace__tab[aria-pressed="true"]')
+        ?.textContent
+    ).toBe('Realized gains');
+  });
+
   it('renders API-driven empty states without preloading all views', async () => {
     const request = jest.fn((url: string) => {
       if (url === '/api/v1/tax/lots') {

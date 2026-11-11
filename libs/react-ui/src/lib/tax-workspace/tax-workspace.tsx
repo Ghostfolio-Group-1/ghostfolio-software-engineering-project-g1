@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 
 import type { AuthenticatedFetch } from '../data/api-request';
 import { DividendWithholdingScreen } from '../dividend-withholding/dividend-withholding-screen';
 import { RealizedGainsScreen } from '../realized-gains/realized-gains-screen';
 import { TaxLotsScreen } from '../tax-lots/tax-lots-table';
+import { useTheme } from '../theme/theme-provider';
 import { YearlyTaxSummaryScreen } from '../yearly-tax-summary/yearly-tax-summary-screen';
 import { createYearlyTaxSummaryLoader } from '../yearly-tax-summary/yearly-tax-summary.client';
+import { taxWorkspaceStyles } from './tax-workspace.styles';
 
 export type TaxWorkspaceView = 'lots' | 'gains' | 'dividends' | 'yearly';
 
@@ -32,6 +35,7 @@ const views: ReadonlyArray<{ id: TaxWorkspaceView; label: string }> = [
  */
 export function TaxWorkspace({ authRevision = 0, request }: TaxWorkspaceProps) {
   const [activeView, setActiveView] = useState<TaxWorkspaceView>('lots');
+  const theme = useTheme();
 
   const loadYearlySummary = useMemo(
     () => createYearlyTaxSummaryLoader(request),
@@ -42,13 +46,31 @@ export function TaxWorkspace({ authRevision = 0, request }: TaxWorkspaceProps) {
     views.find(({ id }) => id === activeView)?.label ?? 'Tax analytics';
 
   return (
-    <section aria-label="Tax analytics workspace">
+    <section
+      aria-label="Tax analytics workspace"
+      className="gf-tax-workspace"
+      style={
+        {
+          '--gf-tax-border': theme.color.border,
+          '--gf-tax-muted': theme.color.textMuted,
+          '--gf-tax-primary': theme.color.primary,
+          '--gf-tax-surface': theme.color.surface,
+          '--gf-tax-text': theme.color.text
+        } as CSSProperties
+      }
+    >
+      <style>{taxWorkspaceStyles}</style>
       <h2>Tax analytics</h2>
 
-      <div aria-label="Tax analytics views" role="group">
+      <div
+        aria-label="Tax analytics views"
+        className="gf-tax-workspace__tabs"
+        role="group"
+      >
         {views.map(({ id, label }) => (
           <button
             aria-pressed={activeView === id}
+            className="gf-tax-workspace__tab"
             key={id}
             onClick={() => setActiveView(id)}
             type="button"
@@ -58,7 +80,10 @@ export function TaxWorkspace({ authRevision = 0, request }: TaxWorkspaceProps) {
         ))}
       </div>
 
-      <section aria-label={`${activeLabel} view`}>
+      <section
+        aria-label={`${activeLabel} view`}
+        className="gf-tax-workspace__view"
+      >
         {activeView === 'lots' ? (
           <TaxLotsScreen key={`lots-${authRevision}`} request={request} />
         ) : null}

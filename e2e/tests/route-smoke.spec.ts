@@ -7,7 +7,7 @@ import type { Page } from '@playwright/test';
 // even though every unit test passes. No seed data needed: each run signs up
 // its own user through the API and signs in through the real header dialog.
 //
-// Add a route here when a new screen is mounted (e.g. Portfolio → Tax, #262).
+// Add a route here when a new screen is mounted.
 const ROUTES = [
   {
     // Unified Dashboard: Risk, Tax and Performance cards (#68)
@@ -19,6 +19,11 @@ const ROUTES = [
     // Risk dashboard (#260)
     path: '/en/risk',
     ready: (page: Page) => page.getByTestId('risk-score-value')
+  },
+  {
+    // Portfolio → Tax workspace (#259)
+    path: '/en/portfolio/tax',
+    ready: (page: Page) => page.getByRole('heading', { name: 'Tax analytics' })
   }
 ];
 
@@ -29,7 +34,9 @@ async function signUpAndSignIn(page: Page) {
 
   expect(response.ok()).toBeTruthy();
 
-  const { accessToken } = (await response.json()) as { accessToken: string };
+  const { accessToken } = (await response.json()) as {
+    accessToken: string;
+  };
 
   await page.goto('/');
   await page.getByRole('button', { name: 'Sign in' }).first().click();
@@ -37,8 +44,11 @@ async function signUpAndSignIn(page: Page) {
   const dialog = page.getByRole('dialog');
 
   await expect(dialog).toBeVisible();
+
   await dialog.getByLabel('Security Token').fill(accessToken);
+
   await dialog.getByRole('button', { name: 'Sign in' }).click();
+
   await expect(dialog).toBeHidden({ timeout: 15000 });
 }
 
@@ -51,6 +61,7 @@ test.describe('Every React route mounts in the production build', () => {
       const errors: string[] = [];
 
       page.on('pageerror', (error) => errors.push(error.message));
+
       page.on('console', (message) => {
         if (message.type() === 'error') {
           errors.push(message.text());
@@ -59,9 +70,14 @@ test.describe('Every React route mounts in the production build', () => {
 
       await page.goto(route.path);
 
-      await expect(route.ready(page)).toBeVisible({ timeout: 20000 });
+      await expect(route.ready(page)).toBeVisible({
+        timeout: 20000
+      });
+
       await expect(page.getByTestId('react-host-error')).toHaveCount(0);
+
       await expect(page.getByText(HOST_FALLBACK)).toHaveCount(0);
+
       expect(errors).toEqual([]);
     });
   }
