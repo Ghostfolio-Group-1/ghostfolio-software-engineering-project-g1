@@ -188,6 +188,11 @@ export class TaxService {
     const dividendRecords = dividendActivities.map((activity) =>
       createDividendRecord(activity)
     );
+    // Preserve the originating SELL identity without reloading or inferring
+    // asset data in the export/presentation layers.
+    const activityById = new Map(
+      investmentActivities.map((activity) => [activity.id, activity])
+    );
 
     let realizedGains: YearlyRealizedGainSource[];
 
@@ -195,13 +200,19 @@ export class TaxService {
       const result = calculator.calculate(investmentActivities);
 
       realizedGains = result.sales.map((sale) =>
-        this.toAverageCostYearlyRealizedGainSource(sale)
+        this.toAverageCostYearlyRealizedGainSource(
+          sale,
+          activityById.get(sale.sellActivityId)
+        )
       );
     } else {
       const result = calculator.calculate(investmentActivities);
 
       realizedGains = result.sales.map((sale) =>
-        this.toFifoYearlyRealizedGainSource(sale)
+        this.toFifoYearlyRealizedGainSource(
+          sale,
+          activityById.get(sale.sellActivityId)
+        )
       );
     }
 
@@ -350,9 +361,17 @@ export class TaxService {
   }
 
   private toAverageCostYearlyRealizedGainSource(
-    sale: AverageCostRealizedGainSale
+    sale: AverageCostRealizedGainSale,
+    sourceActivity:
+      | {
+          accountId: string | null;
+          symbolProfileId: string;
+        }
+      | undefined
   ): YearlyRealizedGainSource {
     return {
+      accountId: sourceActivity?.accountId ?? null,
+      symbolProfileId: sourceActivity?.symbolProfileId ?? null,
       sellActivityId: sale.sellActivityId,
       sellDate: sale.sellDate,
       transactionCurrency: sale.currency,
@@ -372,9 +391,17 @@ export class TaxService {
   }
 
   private toFifoYearlyRealizedGainSource(
-    sale: FifoRealizedGainSale
+    sale: FifoRealizedGainSale,
+    sourceActivity:
+      | {
+          accountId: string | null;
+          symbolProfileId: string;
+        }
+      | undefined
   ): YearlyRealizedGainSource {
     return {
+      accountId: sourceActivity?.accountId ?? null,
+      symbolProfileId: sourceActivity?.symbolProfileId ?? null,
       sellActivityId: sale.sellActivityId,
       sellDate: sale.sellDate,
       transactionCurrency: sale.currency,

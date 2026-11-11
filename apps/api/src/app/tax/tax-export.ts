@@ -87,6 +87,8 @@ export type TaxExportRecordType =
   | 'ERROR';
 
 export interface TaxExportFifoMatch {
+  accountId?: string | null;
+  symbolProfileId?: string | null;
   traceId: string;
 
   buyActivityId: string;
@@ -105,6 +107,8 @@ export interface TaxExportFifoMatch {
 }
 
 export interface TaxExportAverageCostEvent {
+  accountId?: string | null;
+  symbolProfileId?: string | null;
   traceId: string;
 
   sourceActivityId: string;
@@ -412,6 +416,10 @@ export class TaxExport {
           summary
         });
 
+        row.accountId = TaxExport.safeTextOrEmpty(record.accountId ?? null);
+        row.symbolProfileId = TaxExport.safeTextOrEmpty(
+          record.symbolProfileId ?? null
+        );
         row.sellActivityId = TaxExport.safeText(record.sellActivityId);
 
         row.realizedAt = record.sellDate.toISOString();
@@ -528,6 +536,10 @@ export class TaxExport {
             summary
           });
 
+          row.accountId = TaxExport.safeTextOrEmpty(match.accountId ?? null);
+          row.symbolProfileId = TaxExport.safeTextOrEmpty(
+            match.symbolProfileId ?? null
+          );
           row.traceId = TaxExport.safeText(match.traceId);
 
           row.buyActivityId = TaxExport.safeText(match.buyActivityId);
@@ -590,6 +602,10 @@ export class TaxExport {
           summary
         });
 
+        row.accountId = TaxExport.safeTextOrEmpty(event.accountId ?? null);
+        row.symbolProfileId = TaxExport.safeTextOrEmpty(
+          event.symbolProfileId ?? null
+        );
         row.traceId = TaxExport.safeText(event.traceId);
 
         row.sourceActivityId = TaxExport.safeText(event.sourceActivityId);
