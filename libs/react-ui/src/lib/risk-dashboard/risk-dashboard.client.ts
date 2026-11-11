@@ -1,5 +1,5 @@
 import type { AuthenticatedFetch } from '../data/api-request';
-import { requestApi } from '../data/api-request';
+import { ApiRequestError, requestApi } from '../data/api-request';
 import type {
   RiskDashboardSummary,
   RiskDashboardTopConcentration,
@@ -91,4 +91,24 @@ export async function loadRiskDashboardSummary(
   ]);
 
   return { ...score, topConcentration };
+}
+
+// Same idiom as chartSeriesErrorMessage (use-chart-series.ts): map the
+// backend's status/code onto a safe, generic message, never raw server text.
+export function riskDashboardErrorMessage(error: Error | null): string {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 401) {
+      return 'Please sign in to view your risk score';
+    }
+
+    if (error.status === 403) {
+      return 'You do not have access to this risk score';
+    }
+
+    if (error.code === 'RISK_CALC_FAILED') {
+      return 'Unable to calculate your risk score right now';
+    }
+  }
+
+  return 'Risk data is unavailable';
 }
