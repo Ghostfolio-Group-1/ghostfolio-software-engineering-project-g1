@@ -30,7 +30,19 @@
     }
   }
 
-  .introduction {
+  .introduction,
+  .value-chart {
     max-width: 50rem;
+  }
+
+  .overview-stack {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .value-chart {
+    margin-bottom: 1rem;
+    width: 100%;
   }
 }

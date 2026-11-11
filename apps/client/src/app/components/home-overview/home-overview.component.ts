@@ -1,4 +1,8 @@
 import { GfPortfolioPerformanceComponent } from '@ghostfolio/client/components/portfolio-performance/portfolio-performance.component';
+import {
+  GfReactHostComponent,
+  type ReactHostRenderArgs
+} from '@ghostfolio/client/components/react-host/react-host.component';
 import { LayoutService } from '@ghostfolio/client/core/layout.service';
 import { ImpersonationStorageService } from '@ghostfolio/client/services/impersonation-storage.service';
 import { UserService } from '@ghostfolio/client/services/user/user.service';
@@ -38,6 +42,7 @@ import { DeviceDetectorService } from 'ngx-device-detector';
   imports: [
     GfLineChartComponent,
     GfPortfolioPerformanceComponent,
+    GfReactHostComponent,
     MatButtonModule,
     RouterModule
   ],
@@ -52,6 +57,17 @@ export class GfHomeOverviewComponent implements OnInit {
   protected readonly isLoadingPerformance = signal(true);
   protected readonly performance = signal<PortfolioPerformance | null>(null);
   protected readonly performanceLabel = $localize`Performance`;
+
+  protected readonly renderPortfolioChart = async ({
+    createElement,
+    request
+  }: ReactHostRenderArgs) => {
+    const { InteractiveChart } =
+      await import('@ghostfolio/react-ui/chart-series/interactive-chart');
+
+    return createElement(InteractiveChart, { request });
+  };
+
   protected readonly precision = signal(2);
   protected readonly user = signal<User | null>(null);
 
