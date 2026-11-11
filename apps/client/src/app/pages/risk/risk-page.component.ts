@@ -2,12 +2,14 @@ import {
   GfReactHostComponent,
   type ReactHostRenderArgs
 } from '@ghostfolio/client/components/react-host/react-host.component';
+import { ImpersonationStorageService } from '@ghostfolio/client/services/impersonation-storage.service';
 import { UserService } from '@ghostfolio/client/services/user/user.service';
 
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  computed,
   inject,
   signal
 } from '@angular/core';
@@ -18,7 +20,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 // already-merged RiskDashboardCard/loadRiskDashboardSummary
 // (GET /risk/score, /risk/concentration). The What-if simulator (PR #241)
 // joins this page once it merges - not pulled in here to avoid depending
-// on an unmerged branch.
+// on an unmerged branch; see #258 for the tracked follow-up.
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'page' },
@@ -32,6 +34,19 @@ export class GfRiskPageComponent {
     undefined
   );
 
+  protected readonly impersonationId = signal<string | null>(null);
+
+  // gf-react-host only re-renders its tree when colorScheme changes (its own
+  // ngAfterViewInit effect tracks nothing else), so neither it nor
+  // useApiData refetches on impersonation start/stop by itself. Tharun's
+  // review on #260: the previous user's risk data would stay on screen.
+  // Keying the @for in the template on this forces Angular to fully
+  // destroy and recreate <gf-react-host>, which reruns renderRiskDashboard
+  // and therefore refetches via useApiData's mount-time fetch.
+  protected readonly renderKey = computed(
+    () => `${this.colorScheme() ?? 'LIGHT'}:${this.impersonationId() ?? ''}`
+  );
+
   protected readonly renderRiskDashboard = async ({
     createElement,
     request
@@ -43,6 +58,9 @@ export class GfRiskPageComponent {
   };
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly impersonationStorageService = inject(
+    ImpersonationStorageService
+  );
   private readonly userService = inject(UserService);
 
   public constructor() {
@@ -50,6 +68,13 @@ export class GfRiskPageComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((state) => {
         this.colorScheme.set(state?.user?.settings?.colorScheme);
+      });
+
+    this.impersonationStorageService
+      .onChangeHasImpersonation()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((impersonationId) => {
+        this.impersonationId.set(impersonationId);
       });
   }
 }
