@@ -1,5 +1,8 @@
+import { ActivitiesService } from '@ghostfolio/api/app/activities/activities.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
 import { ImpersonationService } from '@ghostfolio/api/services/impersonation/impersonation.service';
+import { MarketDataService } from '@ghostfolio/api/services/market-data/market-data.service';
+import { SymbolProfileService } from '@ghostfolio/api/services/symbol-profile/symbol-profile.service';
 import {
   E2E_NO_LOGIN,
   E2E_NO_SCOPES,
@@ -19,11 +22,30 @@ import request from 'supertest';
 
 import { ChartsApi } from './charts-api';
 import { ChartsController } from './charts.controller';
+import { benchmarkComparisonResponseSchema } from './contracts/benchmark-comparison.schema';
 import {
   chartSeriesResponseSchema,
   chartsErrorResponseSchema
 } from './contracts/chart-series.schema';
 import { drawdownResponseSchema } from './contracts/drawdown.schema';
+import { returnComparisonResponseSchema } from './contracts/return-comparison.schema';
+
+const chartProviders = (getPerformance: jest.Mock) => [
+  ChartsApi,
+  {
+    provide: ActivitiesService,
+    useValue: {
+      getActivities: jest.fn().mockResolvedValue({ activities: [] })
+    }
+  },
+  { provide: ImpersonationService, useValue: {} },
+  { provide: MarketDataService, useValue: { getRange: jest.fn() } },
+  { provide: PortfolioService, useValue: { getPerformance } },
+  {
+    provide: SymbolProfileService,
+    useValue: { getSymbolProfiles: jest.fn() }
+  }
+];
 
 // performanceHistoryFixture, first activity 2026-01-05:
 //   date        netWorth  totalInvestment
@@ -47,11 +69,7 @@ describe('GET /api/v1/charts/series (end to end)', () => {
       withE2eUser(
         Test.createTestingModule({
           controllers: [ChartsController],
-          providers: [
-            ChartsApi,
-            { provide: ImpersonationService, useValue: {} },
-            { provide: PortfolioService, useValue: { getPerformance } }
-          ]
+          providers: chartProviders(getPerformance)
         }),
         { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
       )
@@ -219,11 +237,7 @@ describe('GET /api/v1/charts/drawdown (end to end)', () => {
       withE2eUser(
         Test.createTestingModule({
           controllers: [ChartsController],
-          providers: [
-            ChartsApi,
-            { provide: ImpersonationService, useValue: {} },
-            { provide: PortfolioService, useValue: { getPerformance } }
-          ]
+          providers: chartProviders(getPerformance)
         }),
         { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
       )
@@ -344,5 +358,155 @@ describe('GET /api/v1/charts/drawdown (end to end)', () => {
       .expect(403);
 
     expect(getPerformance).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/v1/charts/benchmark-comparison (end to end)', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(benchmarkComparisonResponseSchema);
+  const validateError = ajv.compile(chartsErrorResponseSchema);
+  const getPerformance = jest.fn().mockResolvedValue({
+    chart: performanceHistoryFixture,
+    dateOfFirstActivity: new Date(2026, 0, 5)
+  });
+  const getSymbolProfiles = jest.fn();
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [ChartsController],
+          providers: [
+            ChartsApi,
+            {
+              provide: ActivitiesService,
+              useValue: {
+                getActivities: jest.fn().mockResolvedValue({ activities: [] })
+              }
+            },
+            { provide: ImpersonationService, useValue: {} },
+            {
+              provide: MarketDataService,
+              useValue: {
+                getRange: jest.fn().mockResolvedValue([
+                  { date: new Date(2026, 0, 5), marketPrice: 100 },
+                  { date: new Date(2026, 3, 1), marketPrice: 110 }
+                ])
+              }
+            },
+            { provide: PortfolioService, useValue: { getPerformance } },
+            { provide: SymbolProfileService, useValue: { getSymbolProfiles } }
+          ]
+        }),
+        { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    getSymbolProfiles.mockReset();
+    getSymbolProfiles.mockResolvedValue([
+      { dataSource: 'YAHOO', symbol: 'SPY' }
+    ]);
+  });
+
+  it('overlays an indexed benchmark series on the portfolio', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/benchmark-comparison')
+      .query({
+        benchmark: 'SPY',
+        endDate: '2026-04-01',
+        startDate: '2026-01-05'
+      })
+      .expect(200);
+
+    expect(validateResponse(response.body)).toBe(true);
+    expect(response.body.data.benchmarkSymbol).toBe('SPY');
+    expect(response.body.data.points[0]).toMatchObject({
+      benchmarkReturn: 100,
+      portfolioReturn: 100
+    });
+    expect(response.body.data.points.at(-1).benchmarkReturn).toBeCloseTo(
+      110,
+      6
+    );
+  });
+
+  it('returns 404 CHARTS_BENCHMARK_NOT_FOUND for an unknown symbol', async () => {
+    getSymbolProfiles.mockResolvedValue([]);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/benchmark-comparison')
+      .query({ benchmark: 'MISSING', range: '1y' })
+      .expect(404);
+
+    expect(validateError(response.body)).toBe(true);
+    expect(response.body.error.code).toBe('CHARTS_BENCHMARK_NOT_FOUND');
+  });
+});
+
+describe('GET /api/v1/charts/return-comparison (end to end)', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(returnComparisonResponseSchema);
+  const validateError = ajv.compile(chartsErrorResponseSchema);
+  const getPerformance = jest.fn().mockResolvedValue({
+    chart: performanceHistoryFixture,
+    dateOfFirstActivity: new Date(2026, 0, 5)
+  });
+
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    app = await createE2eApp(
+      withE2eUser(
+        Test.createTestingModule({
+          controllers: [ChartsController],
+          providers: chartProviders(getPerformance)
+        }),
+        { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }
+      )
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('keeps price and total return equal when the portfolio pays no dividend', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/return-comparison')
+      .query({ endDate: '2026-04-01', startDate: '2026-01-05' })
+      .expect(200);
+
+    expect(validateResponse(response.body)).toBe(true);
+    expect(response.body.data.points.length).toBeGreaterThan(1);
+    expect(response.body.data.points[0]).toMatchObject({
+      priceReturn: 100,
+      totalReturn: 100
+    });
+
+    for (const point of response.body.data.points) {
+      expect(point.totalReturn).toBe(point.priceReturn);
+    }
+  });
+
+  it('returns 404 CHARTS_SYMBOL_NOT_FOUND for a symbol that is not held', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/charts/return-comparison')
+      .query({
+        endDate: '2026-04-01',
+        startDate: '2026-01-05',
+        symbol: 'NOTHELD'
+      })
+      .expect(404);
+
+    expect(validateError(response.body)).toBe(true);
+    expect(response.body.error.code).toBe('CHARTS_SYMBOL_NOT_FOUND');
   });
 });
