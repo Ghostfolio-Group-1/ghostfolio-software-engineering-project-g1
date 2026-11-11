@@ -36,15 +36,21 @@ export class GfRiskPageComponent {
 
   protected readonly impersonationId = signal<string | null>(null);
 
+  protected readonly userId = signal<string | undefined>(undefined);
+
   // gf-react-host only re-renders its tree when colorScheme changes (its own
   // ngAfterViewInit effect tracks nothing else), so neither it nor
-  // useApiData refetches on impersonation start/stop by itself. Tharun's
-  // review on #260: the previous user's risk data would stay on screen.
+  // useApiData refetches on identity changes by itself. Tharun's review on
+  // #260: the previous user's risk data would stay on screen across an
+  // impersonation change, and (second round) across a user change that
+  // leaves colorScheme/impersonation untouched (e.g. signing in as a
+  // different user with the same theme, no impersonation either way).
   // Keying the @for in the template on this forces Angular to fully
   // destroy and recreate <gf-react-host>, which reruns renderRiskDashboard
   // and therefore refetches via useApiData's mount-time fetch.
   protected readonly renderKey = computed(
-    () => `${this.colorScheme() ?? 'LIGHT'}:${this.impersonationId() ?? ''}`
+    () =>
+      `${this.colorScheme() ?? 'LIGHT'}:${this.impersonationId() ?? ''}:${this.userId() ?? ''}`
   );
 
   protected readonly renderRiskDashboard = async ({
@@ -68,6 +74,7 @@ export class GfRiskPageComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((state) => {
         this.colorScheme.set(state?.user?.settings?.colorScheme);
+        this.userId.set(state?.user?.id);
       });
 
     this.impersonationStorageService

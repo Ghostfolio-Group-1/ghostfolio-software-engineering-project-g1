@@ -20,7 +20,9 @@ jest.mock('@ghostfolio/react-ui/risk-dashboard/risk-dashboard-page', () => ({
 
 describe('GfRiskPageComponent', () => {
   let fixture: ComponentFixture<GfRiskPageComponent>;
-  let stateChanged: Subject<{ user?: { settings?: { colorScheme?: string } } }>;
+  let stateChanged: Subject<{
+    user?: { id?: string; settings?: { colorScheme?: string } };
+  }>;
   let impersonationChanged: Subject<string | null>;
 
   beforeEach(async () => {
@@ -103,5 +105,29 @@ describe('GfRiskPageComponent', () => {
     const hostAfter = fixture.nativeElement.querySelector('gf-react-host');
 
     expect(hostAfter).toBe(hostBefore);
+  });
+
+  // Tharun's second-round review on #260: colorScheme and impersonation id
+  // alone miss the case of switching to a different signed-in user who
+  // happens to share the same theme and the same (lack of) impersonation -
+  // the host must still remount so the new user's risk data loads.
+  it('remounts the host when the signed-in user changes, even with the same colorScheme and no impersonation', () => {
+    fixture.detectChanges();
+    stateChanged.next({
+      user: { id: 'user-1', settings: { colorScheme: 'DARK' } }
+    });
+    fixture.detectChanges();
+
+    const hostBefore = fixture.nativeElement.querySelector('gf-react-host');
+
+    stateChanged.next({
+      user: { id: 'user-2', settings: { colorScheme: 'DARK' } }
+    });
+    fixture.detectChanges();
+
+    const hostAfter = fixture.nativeElement.querySelector('gf-react-host');
+
+    expect(hostAfter).not.toBeNull();
+    expect(hostAfter).not.toBe(hostBefore);
   });
 });
