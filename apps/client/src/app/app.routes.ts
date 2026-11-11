@@ -101,6 +101,15 @@ export const routes: Routes = [
   {
     canActivate: [AuthGuard],
     loadComponent: () =>
+      import('./pages/dashboard/dashboard-page.component').then(
+        (c) => c.GfDashboardPageComponent
+      ),
+    path: internalRoutes.dashboard.path,
+    title: internalRoutes.dashboard.title
+  },
+  {
+    canActivate: [AuthGuard],
+    loadComponent: () =>
       import('./pages/risk/risk-page.component').then(
         (c) => c.GfRiskPageComponent
       ),
