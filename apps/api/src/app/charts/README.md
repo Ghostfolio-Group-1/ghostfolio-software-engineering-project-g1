@@ -23,15 +23,15 @@ The charts backend currently supports:
 - shared time-range presets and custom `startDate` / `endDate` windows;
 - server-side granularity (`daily` up to 2 years, `weekly` beyond);
 - portfolio value / invested capital / cash series via `GET /charts/series`;
+- investment drawdown via `GET /charts/drawdown`;
+- benchmark overlay via `GET /charts/benchmark-comparison`;
+- total return versus price return via `GET /charts/return-comparison`;
 - shared `{ data, meta, error }` envelopes and `CHARTS_*` error codes.
 
 Not implemented on `main` yet:
 
-- investment drawdown (`GET /charts/drawdown`) — planned in PR #167;
-- total-return vs price-return comparison;
-- benchmark comparison (open PR #160);
 - contribution / waterfall;
-- Iteration 3 React chart UI.
+- a saved default benchmark.
 
 ## Architecture
 
@@ -195,8 +195,8 @@ and in `project-docs/iteration-2/charts-decision-record.md` (CD-1 / CD-4).
 
 ### Unimplemented chart types
 
-Drawdown (#167), return comparison, benchmark comparison (#160), and waterfall
-remain unimplemented on `main`. They are not exposed by this controller today.
+Waterfall remains unimplemented on `main`. Benchmark comparison and total return
+versus price return are served by this controller.
 
 ### Series path vs Iteration 1 toggle spec
 

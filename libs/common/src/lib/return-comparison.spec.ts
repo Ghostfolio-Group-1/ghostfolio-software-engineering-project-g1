@@ -1,0 +1,268 @@
+import {
+  activitiesToObservations,
+  ReturnComparisonSymbolNotFoundError,
+  toReturnComparison
+} from './return-comparison';
+
+describe('return comparison', () => {
+  it('indexes both series to 100 and adds dividends only to total return', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          {
+            date: '2026-02-01',
+            dividend: 10,
+            symbol: 'AAPL',
+            value: 110
+          },
+          { date: '2026-03-01', symbol: 'AAPL', value: 120 }
+        ],
+        startDate: '2026-01-01',
+        symbol: 'AAPL'
+      })
+    ).toEqual({
+      endDate: '2026-03-01',
+      granularity: 'daily',
+      points: [
+        { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+        { date: '2026-02-01', priceReturn: 110, totalReturn: 120 },
+        { date: '2026-03-01', priceReturn: 120, totalReturn: 130.909091 }
+      ],
+      startDate: '2026-01-01'
+    });
+  });
+
+  it('keeps price return and total return equal when there are no dividends', () => {
+    const comparison = toReturnComparison({
+      endDate: '2026-02-01',
+      observations: [
+        { date: '2026-01-01', value: 50 },
+        { date: '2026-02-01', value: 75 }
+      ],
+      startDate: '2026-01-01'
+    });
+
+    expect(comparison.points).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-02-01', priceReturn: 150, totalReturn: 150 }
+    ]);
+  });
+
+  it('starts both series at 100 on the first date the holding exists in the range', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-06-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 80 },
+          { date: '2026-03-01', symbol: 'MSFT', value: 40 },
+          { date: '2026-04-01', dividend: 4, symbol: 'MSFT', value: 44 }
+        ],
+        startDate: '2026-01-01',
+        symbol: 'MSFT'
+      }).points
+    ).toEqual([
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-04-01', priceReturn: 110, totalReturn: 120 }
+    ]);
+  });
+
+  it('holds both series flat after the holding is sold', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-06-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', sold: true, symbol: 'AAPL', value: 120 },
+          { date: '2026-04-01', symbol: 'AAPL', value: 0 }
+        ],
+        startDate: '2026-01-01',
+        symbol: 'AAPL'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-01', priceReturn: 120, totalReturn: 120 },
+      { date: '2026-04-01', priceReturn: 120, totalReturn: 120 },
+      { date: '2026-06-01', priceReturn: 120, totalReturn: 120 }
+    ]);
+  });
+
+  it('does not count a holding bought during the range as a return', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', symbol: 'MSFT', value: 40 }
+        ],
+        startDate: '2026-01-01'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 }
+    ]);
+  });
+
+  it('does not count a partial sale of the requested symbol as a loss', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', flow: -40, symbol: 'AAPL', value: 60 }
+        ],
+        startDate: '2026-01-01',
+        symbol: 'AAPL'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 }
+    ]);
+  });
+
+  it('does not count a partial sale as a loss when the cash flow is known', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-03-01', flow: -40, symbol: 'AAPL', value: 60 }
+        ],
+        startDate: '2026-01-01'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 }
+    ]);
+  });
+
+  it('aggregates every holding when no symbol is requested', () => {
+    expect(
+      toReturnComparison({
+        endDate: '2026-02-01',
+        observations: [
+          { date: '2026-01-01', symbol: 'AAPL', value: 100 },
+          { date: '2026-01-01', symbol: 'MSFT', value: 100 },
+          { date: '2026-02-01', dividend: 10, symbol: 'AAPL', value: 110 },
+          { date: '2026-02-01', symbol: 'MSFT', value: 100 }
+        ],
+        startDate: '2026-01-01'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-02-01', priceReturn: 105, totalReturn: 110 }
+    ]);
+  });
+
+  it('rejects a symbol that is not held in the range', () => {
+    expect(() => {
+      toReturnComparison({
+        endDate: '2026-06-01',
+        observations: [{ date: '2026-01-01', symbol: 'AAPL', value: 100 }],
+        startDate: '2026-01-01',
+        symbol: 'MSFT'
+      });
+    }).toThrow(ReturnComparisonSymbolNotFoundError);
+  });
+
+  it('builds portfolio observations where a dividend lifts only total return', () => {
+    const observations = activitiesToObservations({
+      activities: [
+        {
+          date: '2026-02-01',
+          quantity: 1,
+          symbol: 'AAPL',
+          type: 'DIVIDEND',
+          valueInBaseCurrency: 10
+        }
+      ],
+      history: [
+        { date: '2026-01-01', valueWithCurrencyEffect: 100 },
+        { date: '2026-02-01', valueWithCurrencyEffect: 110 },
+        { date: '2026-03-01', valueWithCurrencyEffect: 120 }
+      ]
+    });
+
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations,
+        startDate: '2026-01-01'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-02-01', priceReturn: 110, totalReturn: 120 },
+      { date: '2026-03-01', priceReturn: 120, totalReturn: 130.909091 }
+    ]);
+  });
+
+  it('does not count a purchase as a portfolio gain', () => {
+    const observations = activitiesToObservations({
+      activities: [
+        {
+          date: '2026-03-01',
+          quantity: 1,
+          symbol: 'MSFT',
+          type: 'BUY',
+          valueInBaseCurrency: 40
+        }
+      ],
+      history: [
+        { date: '2026-01-01', netWorth: 100 },
+        { date: '2026-03-01', netWorth: 140 }
+      ]
+    });
+
+    expect(
+      toReturnComparison({
+        endDate: '2026-03-01',
+        observations,
+        startDate: '2026-01-01'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 }
+    ]);
+  });
+
+  it('indexes a holding from its market price and adds its dividend', () => {
+    const observations = activitiesToObservations({
+      activities: [
+        {
+          date: '2026-01-01',
+          quantity: 1,
+          symbol: 'AAPL',
+          type: 'BUY',
+          valueInBaseCurrency: 100
+        },
+        {
+          date: '2026-02-01',
+          quantity: 1,
+          symbol: 'AAPL',
+          type: 'DIVIDEND',
+          valueInBaseCurrency: 10
+        }
+      ],
+      history: [],
+      prices: [
+        { date: '2026-01-01', marketPrice: 100 },
+        { date: '2026-02-01', marketPrice: 110 }
+      ],
+      symbol: 'AAPL'
+    });
+
+    expect(
+      toReturnComparison({
+        endDate: '2026-02-01',
+        observations,
+        startDate: '2026-01-01',
+        symbol: 'AAPL'
+      }).points
+    ).toEqual([
+      { date: '2026-01-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-02-01', priceReturn: 110, totalReturn: 120 }
+    ]);
+  });
+});

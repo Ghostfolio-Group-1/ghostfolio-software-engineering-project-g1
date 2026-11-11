@@ -1,10 +1,15 @@
 import {
+  BenchmarkPricePoint,
+  toBenchmarkComparisonResponse
+} from '@ghostfolio/common/benchmark-comparison';
+import {
   InvalidTimeRangeError,
   resolveTimeRange
 } from '@ghostfolio/common/calculation-helper';
 import { toChartSeriesResponse } from '@ghostfolio/common/chart-series';
 import { toDrawdownResponse } from '@ghostfolio/common/drawdown';
 import { DATE_FORMAT } from '@ghostfolio/common/helper';
+import { BenchmarkComparisonResponse } from '@ghostfolio/common/interfaces/benchmark-comparison-response.interface';
 import {
   CHART_SERIES_KINDS,
   ChartSeriesKind,
@@ -12,14 +17,26 @@ import {
 } from '@ghostfolio/common/interfaces/chart-series-response.interface';
 import { DrawdownResponse } from '@ghostfolio/common/interfaces/drawdown-response.interface';
 import { HistoricalDataItem } from '@ghostfolio/common/interfaces/historical-data-item.interface';
+import { ReturnComparisonResponse } from '@ghostfolio/common/interfaces/return-comparison-response.interface';
+import {
+  ReturnComparisonObservation,
+  ReturnComparisonSymbolNotFoundError,
+  toReturnComparison
+} from '@ghostfolio/common/return-comparison';
 import {
   TIME_RANGE_PRESETS,
   TimeRangePreset,
   TimeRangeSelection
 } from '@ghostfolio/common/types/time-range-selection.type';
 
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { format } from 'date-fns';
+
+interface RangeQuery {
+  endDate?: string;
+  range?: string;
+  startDate?: string;
+}
 
 export interface ChartSeriesRequest {
   earliestActivityDate?: string;
@@ -31,13 +48,25 @@ export interface ChartSeriesRequest {
   startDate?: string;
 }
 
-export interface DrawdownRequest {
+export interface BenchmarkComparisonRequest extends RangeQuery {
+  benchmarkHistory?: BenchmarkPricePoint[];
+  benchmarkSymbol: string;
   earliestActivityDate?: string;
-  endDate?: string;
+  now?: Date;
+  portfolioHistory?: HistoricalDataItem[];
+}
+
+export interface ReturnComparisonRequest extends RangeQuery {
+  earliestActivityDate?: string;
+  now?: Date;
+  observations?: ReturnComparisonObservation[];
+  symbol?: string;
+}
+
+export interface DrawdownRequest extends RangeQuery {
+  earliestActivityDate?: string;
   history?: HistoricalDataItem[];
   now?: Date;
-  range?: string;
-  startDate?: string;
 }
 
 export class ChartsApi {
@@ -78,6 +107,107 @@ export class ChartsApi {
       kind,
       startDate: window.startDate
     });
+  }
+
+  public getBenchmarkComparison(
+    request: BenchmarkComparisonRequest
+  ): BenchmarkComparisonResponse {
+    const benchmarkSymbol = request.benchmarkSymbol?.trim();
+
+    if (!benchmarkSymbol) {
+      throw new BadRequestException('benchmark is required');
+    }
+
+    const now = request.now instanceof Date ? request.now : new Date();
+    const selection = this.readSelection(request);
+    const emptyHistory = {
+      benchmarkHistory: request.benchmarkHistory ?? [],
+      benchmarkSymbol,
+      portfolioHistory: [] as HistoricalDataItem[]
+    };
+
+    if (
+      selection.mode === 'custom' &&
+      request.earliestActivityDate &&
+      selection.endDate < request.earliestActivityDate
+    ) {
+      return toBenchmarkComparisonResponse({
+        ...emptyHistory,
+        endDate: selection.endDate,
+        startDate: selection.startDate
+      });
+    }
+
+    const window = this.resolveWindow({
+      earliestActivityDate: request.earliestActivityDate,
+      now,
+      selection
+    });
+
+    if (window.empty) {
+      return toBenchmarkComparisonResponse({
+        ...emptyHistory,
+        endDate: window.endDate,
+        startDate: window.startDate
+      });
+    }
+
+    return toBenchmarkComparisonResponse({
+      benchmarkHistory: request.benchmarkHistory ?? [],
+      benchmarkSymbol,
+      endDate: window.endDate,
+      portfolioHistory: request.portfolioHistory ?? [],
+      startDate: window.startDate
+    });
+  }
+
+  public getReturnComparison(
+    request: ReturnComparisonRequest = {}
+  ): ReturnComparisonResponse {
+    const now = request.now instanceof Date ? request.now : new Date();
+    const selection = this.readSelection(request);
+    const symbol = request.symbol?.trim() || undefined;
+
+    if (
+      selection.mode === 'custom' &&
+      request.earliestActivityDate &&
+      selection.endDate < request.earliestActivityDate
+    ) {
+      return toReturnComparison({
+        endDate: selection.endDate,
+        observations: [],
+        startDate: selection.startDate
+      });
+    }
+
+    const window = this.resolveWindow({
+      earliestActivityDate: request.earliestActivityDate,
+      now,
+      selection
+    });
+
+    if (window.empty) {
+      return toReturnComparison({
+        endDate: window.endDate,
+        observations: [],
+        startDate: window.startDate
+      });
+    }
+
+    try {
+      return toReturnComparison({
+        endDate: window.endDate,
+        observations: request.observations ?? [],
+        startDate: window.startDate,
+        symbol
+      });
+    } catch (error) {
+      if (error instanceof ReturnComparisonSymbolNotFoundError) {
+        throw new NotFoundException(error.message);
+      }
+
+      throw error;
+    }
   }
 
   public getDrawdown(request: DrawdownRequest = {}): DrawdownResponse {
@@ -149,7 +279,7 @@ export class ChartsApi {
     return kind;
   }
 
-  private readSelection(request: ChartSeriesRequest): TimeRangeSelection {
+  private readSelection(request: RangeQuery): TimeRangeSelection {
     const hasRange = request.range !== undefined && request.range !== '';
     const hasStart =
       request.startDate !== undefined && request.startDate !== '';

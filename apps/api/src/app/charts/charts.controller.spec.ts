@@ -1,5 +1,8 @@
+import { ActivitiesService } from '@ghostfolio/api/app/activities/activities.service';
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
 import { ImpersonationService } from '@ghostfolio/api/services/impersonation/impersonation.service';
+import { MarketDataService } from '@ghostfolio/api/services/market-data/market-data.service';
+import { SymbolProfileService } from '@ghostfolio/api/services/symbol-profile/symbol-profile.service';
 import type { ImpersonationContext } from '@ghostfolio/common/types';
 
 import { HttpException } from '@nestjs/common';
@@ -8,11 +11,32 @@ import Ajv from 'ajv';
 
 import { ChartsApi } from './charts-api';
 import { ChartsController } from './charts.controller';
+import { benchmarkComparisonResponseSchema } from './contracts/benchmark-comparison.schema';
 import {
   chartSeriesResponseSchema,
   chartsErrorResponseSchema
 } from './contracts/chart-series.schema';
 import { drawdownResponseSchema } from './contracts/drawdown.schema';
+import { returnComparisonResponseSchema } from './contracts/return-comparison.schema';
+
+function chartProviders(getPerformance: jest.Mock) {
+  return [
+    ChartsApi,
+    {
+      provide: ActivitiesService,
+      useValue: {
+        getActivities: jest.fn().mockResolvedValue({ activities: [] })
+      }
+    },
+    { provide: ImpersonationService, useValue: {} },
+    { provide: MarketDataService, useValue: { getRange: jest.fn() } },
+    { provide: PortfolioService, useValue: { getPerformance } },
+    {
+      provide: SymbolProfileService,
+      useValue: { getSymbolProfiles: jest.fn() }
+    }
+  ];
+}
 
 const history = [
   {
@@ -52,11 +76,7 @@ describe('ChartsController contract: GET /charts/series', () => {
 
     const moduleRef = await Test.createTestingModule({
       controllers: [ChartsController],
-      providers: [
-        ChartsApi,
-        { provide: ImpersonationService, useValue: {} },
-        { provide: PortfolioService, useValue: { getPerformance } }
-      ]
+      providers: chartProviders(getPerformance)
     }).compile();
 
     controller = moduleRef.get(ChartsController);
@@ -172,6 +192,265 @@ describe('ChartsController contract: GET /charts/series', () => {
   });
 });
 
+describe('ChartsController contract: GET /charts/benchmark-comparison', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(benchmarkComparisonResponseSchema);
+  const validateError = ajv.compile(chartsErrorResponseSchema);
+  const context = { userId: 'user-1' } as unknown as ImpersonationContext;
+
+  let controller: ChartsController;
+  let getPerformance: jest.Mock;
+  let getRange: jest.Mock;
+  let getSymbolProfiles: jest.Mock;
+
+  beforeEach(async () => {
+    getPerformance = jest.fn().mockResolvedValue({
+      chart: history,
+      dateOfFirstActivity: new Date(2026, 2, 1)
+    });
+    getRange = jest.fn().mockResolvedValue([
+      { date: new Date(2026, 2, 1), marketPrice: 100 },
+      { date: new Date(2026, 2, 2), marketPrice: 110 },
+      { date: new Date(2026, 2, 3), marketPrice: 105 }
+    ]);
+    getSymbolProfiles = jest
+      .fn()
+      .mockResolvedValue([{ symbol: 'SPY', dataSource: 'YAHOO' }]);
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ChartsController],
+      providers: [
+        ChartsApi,
+        {
+          provide: ActivitiesService,
+          useValue: {
+            getActivities: jest.fn().mockResolvedValue({ activities: [] })
+          }
+        },
+        { provide: ImpersonationService, useValue: {} },
+        { provide: MarketDataService, useValue: { getRange } },
+        { provide: PortfolioService, useValue: { getPerformance } },
+        { provide: SymbolProfileService, useValue: { getSymbolProfiles } }
+      ]
+    }).compile();
+
+    controller = moduleRef.get(ChartsController);
+  });
+
+  it('is routed at /charts/benchmark-comparison', () => {
+    expect(
+      Reflect.getMetadata(
+        'path',
+        ChartsController.prototype.getBenchmarkComparison
+      )
+    ).toBe('benchmark-comparison');
+  });
+
+  it('returns indexed portfolio and benchmark series in the contract envelope', async () => {
+    const response = await controller.getBenchmarkComparison(
+      context,
+      'SPY',
+      undefined,
+      '2026-03-03',
+      undefined,
+      '2026-03-01'
+    );
+
+    validateResponse(response);
+
+    expect(validateResponse.errors ?? []).toEqual([]);
+    expect(getSymbolProfiles).toHaveBeenCalledWith([
+      { dataSource: 'YAHOO', symbol: 'SPY' }
+    ]);
+    expect(response.data).toEqual({
+      benchmarkAvailableFrom: '2026-03-01',
+      benchmarkSymbol: 'SPY',
+      endDate: '2026-03-03',
+      granularity: 'daily',
+      startDate: '2026-03-01',
+      points: [
+        {
+          date: '2026-03-01',
+          portfolioReturn: 100,
+          benchmarkReturn: 100
+        },
+        {
+          date: '2026-03-02',
+          portfolioReturn: (1100 / 1000) * 100,
+          benchmarkReturn: (110 / 100) * 100
+        },
+        {
+          date: '2026-03-03',
+          portfolioReturn: (1050 / 1000) * 100,
+          benchmarkReturn: (105 / 100) * 100
+        }
+      ]
+    });
+  });
+
+  it('rejects a missing benchmark as CHARTS_INVALID_QUERY', async () => {
+    const exception = await controller
+      .getBenchmarkComparison(
+        context,
+        undefined,
+        undefined,
+        '2026-03-03',
+        undefined,
+        '2026-03-01'
+      )
+      .then(
+        () => {
+          throw new Error('Expected the request to be rejected');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(400);
+    expect(validateError(exception.getResponse())).toBe(true);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'CHARTS_INVALID_QUERY' }
+    });
+  });
+
+  it('returns 404 CHARTS_BENCHMARK_NOT_FOUND when the symbol is unknown', async () => {
+    getSymbolProfiles.mockResolvedValue([]);
+
+    const exception = await controller
+      .getBenchmarkComparison(
+        context,
+        'MISSING',
+        undefined,
+        '2026-03-03',
+        undefined,
+        '2026-03-01'
+      )
+      .then(
+        () => {
+          throw new Error('Expected the request to be rejected');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(404);
+    expect(validateError(exception.getResponse())).toBe(true);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'CHARTS_BENCHMARK_NOT_FOUND' }
+    });
+  });
+});
+
+describe('ChartsController contract: GET /charts/return-comparison', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(returnComparisonResponseSchema);
+  const validateError = ajv.compile(chartsErrorResponseSchema);
+  const context = {
+    userId: 'user-1',
+    userSettings: { baseCurrency: 'USD' }
+  } as unknown as ImpersonationContext;
+
+  let controller: ChartsController;
+  let getActivities: jest.Mock;
+  let getRange: jest.Mock;
+
+  beforeEach(async () => {
+    getActivities = jest.fn().mockResolvedValue({ activities: [] });
+    getRange = jest.fn().mockResolvedValue([]);
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ChartsController],
+      providers: [
+        ChartsApi,
+        { provide: ActivitiesService, useValue: { getActivities } },
+        { provide: ImpersonationService, useValue: {} },
+        { provide: MarketDataService, useValue: { getRange } },
+        {
+          provide: PortfolioService,
+          useValue: {
+            getPerformance: jest.fn().mockResolvedValue({
+              chart: history,
+              dateOfFirstActivity: new Date(2026, 2, 1)
+            })
+          }
+        },
+        {
+          provide: SymbolProfileService,
+          useValue: { getSymbolProfiles: jest.fn() }
+        }
+      ]
+    }).compile();
+
+    controller = moduleRef.get(ChartsController);
+  });
+
+  it('is routed at /charts/return-comparison', () => {
+    expect(
+      Reflect.getMetadata(
+        'path',
+        ChartsController.prototype.getReturnComparison
+      )
+    ).toBe('return-comparison');
+  });
+
+  it('adds a dividend only to total return', async () => {
+    getActivities.mockResolvedValue({
+      activities: [
+        {
+          assetProfile: {
+            currency: 'USD',
+            dataSource: 'YAHOO',
+            symbol: 'AAPL'
+          },
+          date: new Date(2026, 2, 2),
+          quantity: 1,
+          type: 'DIVIDEND',
+          valueInBaseCurrency: 50
+        }
+      ]
+    });
+
+    const response = await controller.getReturnComparison(
+      context,
+      '2026-03-03',
+      undefined,
+      '2026-03-01'
+    );
+
+    validateResponse(response);
+
+    expect(validateResponse.errors ?? []).toEqual([]);
+    expect(getRange).not.toHaveBeenCalled();
+    expect(response.data.points).toEqual([
+      { date: '2026-03-01', priceReturn: 100, totalReturn: 100 },
+      { date: '2026-03-02', priceReturn: 110, totalReturn: 115 },
+      { date: '2026-03-03', priceReturn: 105, totalReturn: 109.772727 }
+    ]);
+  });
+
+  it('returns 404 CHARTS_SYMBOL_NOT_FOUND when the holding is absent', async () => {
+    const exception = await controller
+      .getReturnComparison(
+        context,
+        '2026-03-03',
+        undefined,
+        '2026-03-01',
+        'MSFT'
+      )
+      .then(
+        () => {
+          throw new Error('Expected the request to be rejected');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(404);
+    expect(validateError(exception.getResponse())).toBe(true);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'CHARTS_SYMBOL_NOT_FOUND' }
+    });
+    expect(JSON.stringify(exception.getResponse())).not.toContain('stack');
+  });
+});
+
 describe('ChartsController contract: GET /charts/drawdown', () => {
   const ajv = new Ajv({ allErrors: true });
   const validateResponse = ajv.compile(drawdownResponseSchema);
@@ -189,11 +468,7 @@ describe('ChartsController contract: GET /charts/drawdown', () => {
 
     const moduleRef = await Test.createTestingModule({
       controllers: [ChartsController],
-      providers: [
-        ChartsApi,
-        { provide: ImpersonationService, useValue: {} },
-        { provide: PortfolioService, useValue: { getPerformance } }
-      ]
+      providers: chartProviders(getPerformance)
     }).compile();
 
     controller = moduleRef.get(ChartsController);
