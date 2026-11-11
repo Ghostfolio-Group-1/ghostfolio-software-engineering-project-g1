@@ -133,6 +133,10 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
       const { darkTheme, lightTheme } =
         await import('@ghostfolio/react-ui/theme/theme');
 
+      if (this.destroyed || generation !== this.renderGeneration) {
+        return;
+      }
+
       const node = await this.renderReact()({
         createElement,
         request: this.request
