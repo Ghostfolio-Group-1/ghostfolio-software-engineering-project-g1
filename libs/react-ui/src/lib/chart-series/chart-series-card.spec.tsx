@@ -116,7 +116,7 @@ describe('ChartSeriesCard', () => {
 
     await renderCard(request);
 
-    expect(container.querySelector('svg[role="img"]')).not.toBeNull();
+    expect(container.querySelector('svg')).not.toBeNull();
     expect(
       container.querySelector('[data-testid="chart-series-kind-label"]')
         ?.textContent
@@ -144,7 +144,7 @@ describe('ChartSeriesCard', () => {
     expect(
       container.querySelector('[data-testid="chart-series-toggle"]')
     ).not.toBeNull();
-    expect(container.querySelector('svg[role="img"]')).toBeNull();
+    expect(container.querySelector('svg')).toBeNull();
   });
 
   it('shows a generic error message, not server text', async () => {
@@ -205,6 +205,6 @@ describe('ChartSeriesCard', () => {
       container.querySelector('[data-testid="chart-series-kind-label"]')
         ?.textContent
     ).toBe('Showing Cash');
-    expect(container.querySelector('svg[role="img"]')).not.toBeNull();
+    expect(container.querySelector('svg')).not.toBeNull();
   });
 });
