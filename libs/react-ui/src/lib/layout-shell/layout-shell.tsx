@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { useTheme } from '../theme/theme-provider';
 import { designTokens, px } from '../tokens/design-tokens';
 
 export interface LayoutShellProps {
@@ -8,11 +9,15 @@ export interface LayoutShellProps {
 }
 
 export function LayoutShell({ children, title }: LayoutShellProps) {
+  const theme = useTheme();
+
+  // The shell sits inside the Ghostfolio page, so it lets the host background
+  // show through and takes its text colour from the active theme.
   return (
     <div
       style={{
-        backgroundColor: designTokens.color.background,
-        color: designTokens.color.text,
+        backgroundColor: 'transparent',
+        color: theme.color.text,
         fontFamily: designTokens.fontFamily,
         minHeight: '100vh'
       }}
