@@ -22,7 +22,9 @@ import {
   input,
   untracked
 } from '@angular/core';
+import { createElement } from 'react';
 import type { ReactNode } from 'react';
+import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 
 export interface ReactHostRenderArgs {
@@ -120,21 +122,16 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
     const generation = ++this.renderGeneration;
 
     try {
-      const [
-        { createElement },
-        { createRoot },
-        { ThemeProvider },
-        { darkTheme, lightTheme }
-      ] = await Promise.all([
-        import('react'),
-        import('react-dom/client'),
-        import('@ghostfolio/react-ui/theme/theme-provider'),
-        import('@ghostfolio/react-ui/theme/theme')
-      ]);
-
-      if (this.destroyed || generation !== this.renderGeneration) {
-        return;
-      }
+      // react-ui stays a dynamic import (Nx enforces it lazy-loaded here).
+      // react/react-dom are static above: esbuild wraps them as CommonJS,
+      // and a *dynamic* import() of a CJS chunk returns the raw require()
+      // wrapper, not named exports - createElement/createRoot would be
+      // undefined at runtime. A static import gets bundler-synthesized
+      // named bindings instead, which actually works.
+      const { ThemeProvider } =
+        await import('@ghostfolio/react-ui/theme/theme-provider');
+      const { darkTheme, lightTheme } =
+        await import('@ghostfolio/react-ui/theme/theme');
 
       const node = await this.renderReact()({
         createElement,
