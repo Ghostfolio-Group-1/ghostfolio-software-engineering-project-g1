@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 
+import { darkTheme } from '../theme/theme';
+import type { Theme } from '../theme/theme';
 import { ThemeProvider } from '../theme/theme-provider';
 import { WaterfallCard } from './waterfall-card';
 import type { WaterfallData, WaterfallFetch } from './waterfall.client';
@@ -76,11 +78,12 @@ describe('WaterfallCard', () => {
     request: WaterfallFetch,
     range: { range: string } | { endDate: string; startDate: string } = {
       range: '1y'
-    }
+    },
+    theme?: Theme
   ) {
     await act(async () => {
       root.render(
-        <ThemeProvider>
+        <ThemeProvider theme={theme}>
           <WaterfallCard range={range} request={request} />
         </ThemeProvider>
       );
@@ -193,5 +196,27 @@ describe('WaterfallCard', () => {
       '/api/v1/charts/waterfall?startDate=2026-01-01&endDate=2026-06-01',
       expect.objectContaining({ method: 'GET' })
     );
+  });
+
+  it('keeps unselected breakdown toggle readable under darkTheme', async () => {
+    const request = jest.fn().mockResolvedValue(apiResponse(waterfall));
+
+    await render(
+      request as unknown as WaterfallFetch,
+      { range: '1y' },
+      darkTheme
+    );
+
+    const unselected = Array.from(container.querySelectorAll('button')).find(
+      (button) =>
+        button.textContent === 'By holding' &&
+        button.getAttribute('aria-pressed') === 'false'
+    );
+
+    expect(unselected).toBeDefined();
+    expect(unselected?.style.color).not.toBe(unselected?.style.background);
+    // Regression: light surface (#fafafa) + dark text was white-on-white.
+    expect(unselected?.style.background).not.toBe('#fafafa');
+    expect(unselected?.style.background).not.toBe('rgb(250, 250, 250)');
   });
 });

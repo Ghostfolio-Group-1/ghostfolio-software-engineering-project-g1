@@ -50,10 +50,11 @@ const valueFormat = new Intl.NumberFormat('en-US', {
 function categoryColor(
   category: WaterfallCategory | undefined,
   kind: WaterfallBar['kind'],
-  primary: string
+  primary: string,
+  textMuted: string
 ): string {
   if (kind === 'start' || kind === 'end') {
-    return designTokens.color.textMuted;
+    return textMuted;
   }
 
   switch (category) {
@@ -109,7 +110,7 @@ function WaterfallChart({
       width="100%"
     >
       <line
-        stroke={designTokens.color.border}
+        stroke={theme.color.border}
         strokeWidth={1}
         x1={0}
         x2={CHART_WIDTH}
@@ -121,7 +122,12 @@ function WaterfallChart({
         const yTop = toY(bar.y1);
         const yBottom = toY(bar.y0);
         const height = Math.max(yBottom - yTop, 1);
-        const fill = categoryColor(bar.category, bar.kind, theme.color.primary);
+        const fill = categoryColor(
+          bar.category,
+          bar.kind,
+          theme.color.primary,
+          theme.color.textMuted
+        );
         const label = bar.holdingSymbol
           ? `${bar.label} (${bar.holdingSymbol})`
           : bar.label;
@@ -260,16 +266,12 @@ function BreakdownToggle({
             key={option}
             onClick={() => onChange(option)}
             style={{
-              background: selected
-                ? theme.color.primary
-                : designTokens.color.surface,
+              background: selected ? theme.color.primary : theme.color.surface,
               border: `1px solid ${
-                selected ? theme.color.primary : designTokens.color.border
+                selected ? theme.color.primary : theme.color.border
               }`,
               borderRadius: px(designTokens.borderRadius.sm),
-              color: selected
-                ? designTokens.color.background
-                : theme.color.text,
+              color: selected ? theme.color.primaryText : theme.color.text,
               cursor: 'pointer',
               fontFamily: designTokens.fontFamily,
               fontSize: px(designTokens.fontSize.sm),
