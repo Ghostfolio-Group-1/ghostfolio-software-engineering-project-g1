@@ -383,13 +383,14 @@ function buildRichOrders(): RichOrder[] {
       });
     }
 
-    // DIVIDEND on every other symbol - quantity mirrors shares held at the
-    // time (the first BUY), unitPrice is the per-share dividend amount.
+    // DIVIDEND on every other symbol, dated after both BUYs (2 years ago and
+    // 1 year ago) - quantity mirrors shares actually held at the time (both
+    // purchases combined), unitPrice is the per-share dividend amount.
     if (i % 2 === 0) {
       orders.push({
         date: monthsBefore(PRICE_DATE, 6),
         fee: 0,
-        quantity: buyQuantity1,
+        quantity: buyQuantity1 + buyQuantity2,
         symbolId: symbol.id,
         type: 'DIVIDEND',
         unitPrice: Math.round((0.4 + (i % 6) * 0.25) * 100) / 100

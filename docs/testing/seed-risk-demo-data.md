@@ -10,13 +10,13 @@ each user's orders if a script revision changes their holdings — any order
 left over from a previous revision's holding count is deleted.
 
 **Verified against a real throwaway Postgres + Redis database** (idempotence
-across two runs, and the four users' actual Risk API responses) — see the
-"balanced" row below for what that verification caught: single-stock and
-country land GREEN, not YELLOW, and only currency lands YELLOW.
+across two runs, and the four calibrated users' actual Risk API responses) —
+see the "balanced" row below for what that verification caught: single-stock
+and country land GREEN, not YELLOW, and only currency lands YELLOW.
 
 ## Safety
 
-This script writes four fixed, publicly-documented login tokens into
+This script writes five fixed, publicly-documented login tokens into
 whatever database `DATABASE_URL` points at. It refuses to run unless
 `ALLOW_RISK_DEMO_SEED=yes` is set, so it fails safely by default instead of
 accidentally reaching production or a shared environment — see "How to run
@@ -28,13 +28,13 @@ Every symbol uses `dataSource: MANUAL` with its own `MarketData` row set
 directly, so nothing needs a live price-gathering call to show real
 numbers.
 
-| User id                       | Login token              | Demonstrates                                                                                                                                                                                                                                            |
-| ----------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `demo-risk-user-concentrated` | `demo-risk-concentrated` | RED concentration — one stock is ~90% of holdings, plus the warnings it produces                                                                                                                                                                        |
-| `demo-risk-user-balanced`     | `demo-risk-balanced`     | No RED anywhere — score 80 / grade B; single-stock and country sit at GREEN, currency sits at YELLOW (see "A note on currency conversion" below)                                                                                                        |
-| `demo-risk-user-empty`        | `demo-risk-empty`        | Empty portfolio — every rule `NO_DATA`, score `null`, `unavailableReason: NO_ACTIVE_RULES`                                                                                                                                                              |
-| `demo-risk-user-target`       | `demo-risk-target`       | A target allocation is configured (50% EQUITY / 50% FIXED_INCOME) and visibly deviated from, since every holding is EQUITY — exercises `TargetAllocationDeviation`                                                                                      |
-| `demo-risk-user-rich`         | `demo-risk-rich`         | A large, varied portfolio (50 symbols, ~140 BUY/SELL/DIVIDEND orders across 8 countries/currencies and 10 sectors) — not calibrated to any particular severity, just enough volume to visually verify the Risk, Tax and Dashboard screens aren't sparse |
+| User id                       | Login token              | Demonstrates                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `demo-risk-user-concentrated` | `demo-risk-concentrated` | RED concentration — one stock is ~90% of holdings, plus the warnings it produces                                                                                                                                                                                                                                                                                                                                                                                      |
+| `demo-risk-user-balanced`     | `demo-risk-balanced`     | No RED anywhere — score 80 / grade B; single-stock and country sit at GREEN, currency sits at YELLOW (see "A note on currency conversion" below)                                                                                                                                                                                                                                                                                                                      |
+| `demo-risk-user-empty`        | `demo-risk-empty`        | Empty portfolio — every rule `NO_DATA`, score `null`, `unavailableReason: NO_ACTIVE_RULES`                                                                                                                                                                                                                                                                                                                                                                            |
+| `demo-risk-user-target`       | `demo-risk-target`       | A target allocation is configured (50% EQUITY / 50% FIXED_INCOME) and visibly deviated from, since every holding is EQUITY — exercises `TargetAllocationDeviation`                                                                                                                                                                                                                                                                                                    |
+| `demo-risk-user-rich`         | `demo-risk-rich`         | A large, varied portfolio (50 symbols, ~140 BUY/SELL/DIVIDEND orders across 8 countries, 7 currencies — Germany and France both use EUR — and 10 sectors) — not calibrated to any particular severity, just enough volume to visually verify the Risk, Tax and Dashboard screens aren't sparse. Dividend records don't set an explicit withholding amount, so the Tax dividend-withholding view will show those as unavailable for this user — intentional, not a bug |
 
 ## How to run it
 
@@ -79,7 +79,7 @@ throws clearly if `ACCESS_TOKEN_SALT` isn't set when it runs.
 ## Cleanup
 
 There's no separate reset script — re-running the seed script is
-idempotent and safe. To remove the demo data entirely, delete the four
+idempotent and safe. To remove the demo data entirely, delete the five
 users by id (cascades to their accounts/orders/settings per the schema's
 `onDelete: Cascade`):
 
