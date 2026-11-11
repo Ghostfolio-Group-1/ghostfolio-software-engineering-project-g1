@@ -1,4 +1,4 @@
-﻿import {
+import {
   GfReactHostComponent,
   type ReactHostRenderArgs
 } from '@ghostfolio/client/components/react-host/react-host.component';
@@ -45,7 +45,7 @@ class TestReactHostComponent {
 describe('GfTaxPageComponent', () => {
   let fixture: ComponentFixture<InstanceType<typeof GfTaxPageComponent>>;
   let userChanges: Subject<{
-    user?: { settings?: { colorScheme?: ColorScheme } };
+    user?: { id?: string; settings?: { colorScheme?: ColorScheme } };
   }>;
   let impersonationChanges: BehaviorSubject<string | null>;
 
@@ -144,5 +144,47 @@ describe('GfTaxPageComponent', () => {
 
     expect(getHost()).not.toBe(originalHost);
     expect(getHost().colorScheme()).toBe(DEFAULT_COLOR_SCHEME);
+  });
+
+  it('does not recreate the host on unrelated user state emissions', () => {
+    userChanges.next({
+      user: { id: 'user-1', settings: { colorScheme: 'DARK' } }
+    });
+    fixture.detectChanges();
+    const originalHost = getHost();
+
+    userChanges.next({
+      user: { id: 'user-1', settings: { colorScheme: 'DARK' } }
+    });
+    fixture.detectChanges();
+
+    expect(getHost()).toBe(originalHost);
+  });
+
+  it('recreates the host when the signed-in user changes with the same theme', () => {
+    userChanges.next({
+      user: { id: 'user-1', settings: { colorScheme: 'DARK' } }
+    });
+    fixture.detectChanges();
+    const originalHost = getHost();
+
+    userChanges.next({
+      user: { id: 'user-2', settings: { colorScheme: 'DARK' } }
+    });
+    fixture.detectChanges();
+
+    expect(getHost()).not.toBe(originalHost);
+    expect(getHost().colorScheme()).toBe('DARK');
+  });
+
+  it('does not recreate the host when the impersonation ID is unchanged', () => {
+    impersonationChanges.next('another-user');
+    fixture.detectChanges();
+    const originalHost = getHost();
+
+    impersonationChanges.next('another-user');
+    fixture.detectChanges();
+
+    expect(getHost()).toBe(originalHost);
   });
 });

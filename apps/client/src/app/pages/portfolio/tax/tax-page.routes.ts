@@ -1,4 +1,4 @@
-﻿import { AuthGuard } from '@ghostfolio/client/core/auth.guard';
+import { AuthGuard } from '@ghostfolio/client/core/auth.guard';
 
 import { Routes } from '@angular/router';
 

@@ -1,4 +1,4 @@
-﻿import {
+import {
   GfReactHostComponent,
   type ReactHostRenderArgs
 } from '@ghostfolio/client/components/react-host/react-host.component';
@@ -11,6 +11,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  computed,
   inject,
   signal
 } from '@angular/core';
@@ -22,7 +23,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   selector: 'gf-tax-page',
   template: `
     <main aria-label="Tax analytics">
-      @for (revision of [authRevision()]; track revision) {
+      @for (key of [renderKey()]; track key) {
         <gf-react-host
           [colorScheme]="colorScheme()"
           [renderReact]="renderTaxWorkspace"
@@ -32,8 +33,17 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   `
 })
 export class GfTaxPageComponent {
-  protected readonly authRevision = signal(0);
   protected readonly colorScheme = signal<ColorScheme>(DEFAULT_COLOR_SCHEME);
+  protected readonly impersonationId = signal<string | null>(null);
+  protected readonly userId = signal<string | undefined>(undefined);
+
+  // Match the Risk page: remount only when authentication identity, theme,
+  // or impersonation actually changes. A generic stateChanged event must
+  // not reset the active Tax view or trigger extra live API requests.
+  protected readonly renderKey = computed(
+    () =>
+      `${this.colorScheme()}:${this.impersonationId() ?? ''}:${this.userId() ?? ''}`
+  );
 
   protected readonly renderTaxWorkspace = async ({
     createElement,
@@ -59,14 +69,14 @@ export class GfTaxPageComponent {
           state?.user?.settings?.colorScheme ?? DEFAULT_COLOR_SCHEME
         );
 
-        this.authRevision.update((revision) => revision + 1);
+        this.userId.set(state?.user?.id);
       });
 
     this.impersonationStorageService
       .onChangeHasImpersonation()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.authRevision.update((revision) => revision + 1);
+      .subscribe((impersonationId) => {
+        this.impersonationId.set(impersonationId);
       });
   }
 }
