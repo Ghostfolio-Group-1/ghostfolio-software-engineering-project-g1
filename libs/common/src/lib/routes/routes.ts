@@ -134,6 +134,11 @@ export const internalRoutes = {
     routerLink: ['/auth'],
     title: $localize`Sign in`
   },
+  dashboard: {
+    path: 'dashboard',
+    routerLink: ['/dashboard'],
+    title: $localize`Dashboard`
+  },
   home: {
     path: 'home',
     routerLink: ['/home'],

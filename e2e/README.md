@@ -63,3 +63,16 @@ for the balanced user). Screenshots are taken at every step except
 immediately after typing the token (the field can render it as plain
 text): landing page, sign-in dialog, signed in, risk page loading, risk
 page loaded.
+
+## Route smoke test (every React route, runs in CI)
+
+`tests/route-smoke.spec.ts` signs up a fresh user (no seed data), signs in
+through the header dialog and opens every route that mounts a React screen
+through `gf-react-host` (`/en/dashboard`, `/en/risk`). It fails if a screen
+never appears, if the host fallback ("This section could not be loaded")
+shows, or if the browser logs any error. Because it runs against the
+production build in the `Demo environment` workflow, it catches the #264
+class of bug that unit tests cannot (#266). Add a route to `ROUTES` when a
+new screen is mounted.
+
+Run only this file locally: `npx playwright test -c e2e/playwright.config.ts route-smoke`.
