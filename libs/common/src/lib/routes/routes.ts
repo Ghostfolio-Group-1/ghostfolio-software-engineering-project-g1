@@ -232,6 +232,11 @@ export const internalRoutes = {
     },
     title: $localize`Portfolio`
   },
+  risk: {
+    path: 'risk',
+    routerLink: ['/risk'],
+    title: $localize`Risk`
+  },
   webauthn: {
     excludeFromAssistant: true,
     path: 'webauthn',

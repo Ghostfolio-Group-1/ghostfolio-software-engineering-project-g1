@@ -99,6 +99,15 @@ export const routes: Routes = [
       import('./pages/portfolio/portfolio-page.routes').then((m) => m.routes)
   },
   {
+    canActivate: [AuthGuard],
+    loadComponent: () =>
+      import('./pages/risk/risk-page.component').then(
+        (c) => c.GfRiskPageComponent
+      ),
+    path: internalRoutes.risk.path,
+    title: internalRoutes.risk.title
+  },
+  {
     path: publicRoutes.pricing.path,
     loadChildren: () =>
       import('./pages/pricing/pricing-page.routes').then((m) => m.routes)
