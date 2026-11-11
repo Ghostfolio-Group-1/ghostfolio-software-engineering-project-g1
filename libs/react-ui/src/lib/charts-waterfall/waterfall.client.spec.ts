@@ -72,10 +72,7 @@ describe('fetchWaterfall', () => {
       status: 200
     });
 
-    await fetchWaterfall(
-      { breakdown: 'holding', range: '1y' },
-      request as unknown as typeof fetch
-    );
+    await fetchWaterfall({ breakdown: 'holding', range: '1y' }, request);
 
     expect(request).toHaveBeenCalledWith(
       '/api/v1/charts/waterfall?range=1y&breakdown=holding',
@@ -94,8 +91,8 @@ describe('fetchWaterfall', () => {
       status: 200
     });
 
-    await expect(
-      fetchWaterfall({ range: 'ytd' }, request as unknown as typeof fetch)
-    ).rejects.toThrow('Invalid waterfall API response');
+    await expect(fetchWaterfall({ range: 'ytd' }, request)).rejects.toThrow(
+      'Invalid waterfall API response'
+    );
   });
 });
