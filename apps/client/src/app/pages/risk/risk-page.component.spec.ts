@@ -14,8 +14,8 @@ jest.mock('@ghostfolio/client/services/user/user.service', () => ({
   UserService: class {}
 }));
 
-jest.mock('@ghostfolio/react-ui/risk-dashboard/risk-dashboard-page', () => ({
-  RiskDashboardPage: 'gf-mock-risk-dashboard-page'
+jest.mock('@ghostfolio/react-ui/risk-dashboard/risk-page', () => ({
+  RiskPage: 'gf-mock-risk-page'
 }));
 
 describe('GfRiskPageComponent', () => {
@@ -56,21 +56,20 @@ describe('GfRiskPageComponent', () => {
     expect(fixture.componentInstance['colorScheme']()).toBe('DARK');
   });
 
-  it('renders RiskDashboardPage through the host, passing the request through', async () => {
+  it('renders RiskPage through the host, passing the request through', async () => {
     fixture.detectChanges();
 
     const fakeCreateElement = jest.fn().mockReturnValue('rendered');
     const fakeRequest = jest.fn();
 
-    const node = await fixture.componentInstance['renderRiskDashboard']({
+    const node = await fixture.componentInstance['renderRiskPage']({
       createElement: fakeCreateElement,
       request: fakeRequest
     } as unknown as ReactHostRenderArgs);
 
-    expect(fakeCreateElement).toHaveBeenCalledWith(
-      'gf-mock-risk-dashboard-page',
-      { request: fakeRequest }
-    );
+    expect(fakeCreateElement).toHaveBeenCalledWith('gf-mock-risk-page', {
+      request: fakeRequest
+    });
     expect(node).toBe('rendered');
   });
 

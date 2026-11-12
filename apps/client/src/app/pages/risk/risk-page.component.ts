@@ -18,9 +18,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 // Issue #258 (Nov 10): standalone Risk route, same gf-react-host pattern
 // Arthur's #257 already uses for the portfolio chart. Mounts the
 // already-merged RiskDashboardCard/loadRiskDashboardSummary
-// (GET /risk/score, /risk/concentration). The What-if simulator (PR #241)
-// joins this page once it merges - not pulled in here to avoid depending
-// on an unmerged branch; see #258 for the tracked follow-up.
+// (GET /risk/score, /risk/concentration), and, per issue #261, the
+// What-if simulator (PR #241) alongside it through the same gf-react-host.
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'page' },
@@ -53,14 +52,14 @@ export class GfRiskPageComponent {
       `${this.colorScheme() ?? 'LIGHT'}:${this.impersonationId() ?? ''}:${this.userId() ?? ''}`
   );
 
-  protected readonly renderRiskDashboard = async ({
+  protected readonly renderRiskPage = async ({
     createElement,
     request
   }: ReactHostRenderArgs) => {
-    const { RiskDashboardPage } =
-      await import('@ghostfolio/react-ui/risk-dashboard/risk-dashboard-page');
+    const { RiskPage } =
+      await import('@ghostfolio/react-ui/risk-dashboard/risk-page');
 
-    return createElement(RiskDashboardPage, { request });
+    return createElement(RiskPage, { request });
   };
 
   private readonly destroyRef = inject(DestroyRef);
