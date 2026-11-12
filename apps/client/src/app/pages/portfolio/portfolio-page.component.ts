@@ -15,6 +15,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { addIcons } from 'ionicons';
 import {
+  alertCircleOutline,
   analyticsOutline,
   calculatorOutline,
   pieChartOutline,
@@ -68,6 +69,11 @@ export class PortfolioPageComponent {
               routerLink: internalRoutes.portfolio.subRoutes.fire.routerLink
             },
             {
+              iconName: 'alert-circle-outline',
+              label: internalRoutes.portfolio.subRoutes.risk.title,
+              routerLink: internalRoutes.portfolio.subRoutes.risk.routerLink
+            },
+            {
               iconName: 'receipt-outline',
               label: internalRoutes.portfolio.subRoutes.tax.title,
               routerLink: internalRoutes.portfolio.subRoutes.tax.routerLink
@@ -85,6 +91,7 @@ export class PortfolioPageComponent {
       });
 
     addIcons({
+      alertCircleOutline,
       analyticsOutline,
       calculatorOutline,
       pieChartOutline,

@@ -30,6 +30,15 @@ export const routes: Routes = [
           import('./fire/fire-page.routes').then((m) => m.routes)
       },
       {
+        canActivate: [AuthGuard],
+        loadComponent: () =>
+          import('../risk/risk-page.component').then(
+            (c) => c.GfRiskPageComponent
+          ),
+        path: internalRoutes.portfolio.subRoutes.risk.path,
+        title: internalRoutes.portfolio.subRoutes.risk.title
+      },
+      {
         path: internalRoutes.portfolio.subRoutes.tax.path,
         loadChildren: () =>
           import('./tax/tax-page.routes').then((m) => m.routes)

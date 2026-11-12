@@ -224,6 +224,11 @@ export const internalRoutes = {
         routerLink: ['/portfolio', 'fire'],
         title: 'FIRE'
       },
+      risk: {
+        path: 'risk',
+        routerLink: ['/portfolio', 'risk'],
+        title: $localize`Risk`
+      },
       tax: {
         path: 'tax',
         routerLink: ['/portfolio', 'tax'],
