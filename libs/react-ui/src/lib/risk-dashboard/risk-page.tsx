@@ -1,4 +1,5 @@
 import type { AuthenticatedFetch } from '../data/api-request';
+import { RiskThresholdsPage } from '../risk-thresholds/risk-thresholds-page';
 import { RiskWarningsPage } from '../risk-warnings/risk-warnings-page';
 import { TargetAllocationPage } from '../target-allocation/target-allocation-page';
 import { designTokens, px } from '../tokens/design-tokens';
@@ -10,11 +11,12 @@ export interface RiskPageProps {
   request: AuthenticatedFetch;
 }
 
-// Issue #261: mounts the What-if simulator, the Warnings list and the
-// Target allocation editor alongside the already-mounted Risk dashboard,
-// through the same gf-react-host (GfRiskPageComponent renders this one
-// component rather than RiskDashboardPage directly). Each section owns
-// its own data fetching/state - this is purely layout.
+// Issue #261: mounts the What-if simulator, the Warnings list, the Target
+// allocation editor and the Thresholds editor alongside the
+// already-mounted Risk dashboard, through the same gf-react-host
+// (GfRiskPageComponent renders this one component rather than
+// RiskDashboardPage directly). Each section owns its own data
+// fetching/state - this is purely layout.
 export function RiskPage({ request }: RiskPageProps) {
   return (
     <div>
@@ -24,6 +26,9 @@ export function RiskPage({ request }: RiskPageProps) {
       </div>
       <div style={{ marginTop: px(designTokens.spacing.lg) }}>
         <TargetAllocationPage request={request} />
+      </div>
+      <div style={{ marginTop: px(designTokens.spacing.lg) }}>
+        <RiskThresholdsPage request={request} />
       </div>
       <div style={{ marginTop: px(designTokens.spacing.lg) }}>
         <WhatIfSimulatorPage request={request} />
