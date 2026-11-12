@@ -64,6 +64,43 @@ describe('validateTargetAllocationForm', () => {
     );
   });
 
+  it('rejects a blank percentage instead of treating it as 0%', () => {
+    const values = {
+      ...validValues,
+      rows: [
+        { key: 'EQUITY', percentage: '100' },
+        { key: 'FIXED_INCOME', percentage: '' }
+      ]
+    };
+
+    expect(validateTargetAllocationForm(values).rows).toBe(
+      'Every row needs a percentage.'
+    );
+  });
+
+  it('rejects a whitespace-only percentage', () => {
+    const values = {
+      ...validValues,
+      rows: [{ key: 'EQUITY', percentage: '   ' }]
+    };
+
+    expect(validateTargetAllocationForm(values).rows).toBe(
+      'Every row needs a percentage.'
+    );
+  });
+
+  it('accepts an intentionally entered 0% row', () => {
+    const values = {
+      ...validValues,
+      rows: [
+        { key: 'EQUITY', percentage: '100' },
+        { key: 'FIXED_INCOME', percentage: '0' }
+      ]
+    };
+
+    expect(validateTargetAllocationForm(values)).toEqual({});
+  });
+
   it('rejects a percentage outside 0-100', () => {
     const values = {
       ...validValues,

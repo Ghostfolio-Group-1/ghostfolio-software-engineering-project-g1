@@ -30,8 +30,12 @@ const GENERIC_TARGET_ALLOCATION_ERROR_MESSAGE =
 // The 3 codes target-allocation.mapper.ts#validateTargetAllocationInput
 // sends deliberately safe, user-actionable message text for - same
 // allowlist idiom as what-if-simulator.client.ts's
-// SAFE_TO_DISPLAY_ERROR_CODES.
+// SAFE_TO_DISPLAY_ERROR_CODES. RISK_FORBIDDEN (risk.controller.ts's
+// rejectIfNoSettingsPermission/rejectIfImpersonating) is included too, so
+// a DEMO user (portfolio:read but not updateUserSettings) sees why their
+// save/clear was rejected instead of a generic failure message.
 const SAFE_TO_DISPLAY_ERROR_CODES = new Set([
+  'RISK_FORBIDDEN',
   'RISK_TARGET_DUPLICATE_KEY',
   'RISK_TARGET_INVALID_KEY',
   'RISK_TARGET_INVALID_SUM'

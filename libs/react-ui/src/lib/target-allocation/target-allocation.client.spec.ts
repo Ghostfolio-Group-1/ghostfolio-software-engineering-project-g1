@@ -92,6 +92,29 @@ describe('updateTargetAllocation', () => {
     ).rejects.toThrow('Target percentages must add up to 100%.');
   });
 
+  it('surfaces RISK_FORBIDDEN so a DEMO user sees why the save was rejected', async () => {
+    const request = jest.fn().mockResolvedValue(
+      httpResponse(
+        {
+          data: null,
+          error: {
+            code: 'RISK_FORBIDDEN',
+            message: 'You do not have permission to change risk settings.'
+          },
+          meta: {}
+        },
+        403
+      )
+    );
+
+    await expect(
+      updateTargetAllocation(request, {
+        groupBy: 'assetClass',
+        targets: []
+      })
+    ).rejects.toThrow('You do not have permission to change risk settings.');
+  });
+
   it('falls back to a generic message for an unlisted error code', async () => {
     const request = jest.fn().mockResolvedValue(
       httpResponse(

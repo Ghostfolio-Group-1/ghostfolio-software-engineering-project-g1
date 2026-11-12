@@ -84,6 +84,28 @@ describe('updateRiskThreshold', () => {
     ).rejects.toThrow('max (0.3) must be less than redMax (0.25).');
   });
 
+  it('surfaces RISK_FORBIDDEN so a DEMO user sees why the save was rejected', async () => {
+    const request = jest.fn().mockResolvedValue(
+      httpResponse(
+        {
+          data: null,
+          error: {
+            code: 'RISK_FORBIDDEN',
+            message: 'You do not have permission to change risk settings.'
+          },
+          meta: {}
+        },
+        403
+      )
+    );
+
+    await expect(
+      updateRiskThreshold(request, 'SingleStockConcentration', {
+        isActive: false
+      })
+    ).rejects.toThrow('You do not have permission to change risk settings.');
+  });
+
   it('falls back to a generic message for an unlisted error code', async () => {
     const request = jest.fn().mockResolvedValue(
       httpResponse(

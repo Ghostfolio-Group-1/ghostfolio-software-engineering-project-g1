@@ -64,7 +64,13 @@ export function validateTargetAllocationForm(
     return { rows: 'Each key may only appear once.' };
   }
 
-  const percentages = values.rows.map((row) => Number(row.percentage.trim()));
+  const rawPercentages = values.rows.map((row) => row.percentage.trim());
+
+  if (rawPercentages.some((raw) => raw === '')) {
+    return { rows: 'Every row needs a percentage.' };
+  }
+
+  const percentages = rawPercentages.map((raw) => Number(raw));
 
   if (percentages.some((percentage) => Number.isNaN(percentage))) {
     return { rows: 'Every row needs a percentage.' };
