@@ -1,5 +1,6 @@
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
 import { DATE_FORMAT } from '@ghostfolio/common/helper';
+import { RuleSettings } from '@ghostfolio/common/interfaces/x-ray-rules-settings.interface';
 
 import { Injectable, Logger } from '@nestjs/common';
 import { format, isValid } from 'date-fns';
@@ -10,6 +11,7 @@ import {
   parseConcentrationLimit,
   toRiskConcentrationResponse
 } from '../risk/risk-concentration.mapper';
+import { ThresholdEngineService } from '../risk/threshold-engine.service';
 import { TaxService } from '../tax/tax.service';
 import type {
   DashboardOverviewResponse,
@@ -39,19 +41,22 @@ export class DashboardOverview {
     private readonly chartsApi: ChartsApi,
     private readonly exposureService: ExposureService,
     private readonly portfolioService: PortfolioService,
-    private readonly taxService: TaxService
+    private readonly taxService: TaxService,
+    private readonly thresholdEngineService: ThresholdEngineService
   ) {}
 
   public async getOverview({
     baseCurrency,
-    userId
+    userId,
+    xRayRules
   }: {
     baseCurrency: string;
     userId: string;
+    xRayRules?: Record<string, RuleSettings>;
   }): Promise<DashboardOverviewResponse> {
     const [risk, tax, charts] = await Promise.all([
       this.loadSection('risk', () => {
-        return this.getRisk({ baseCurrency, userId });
+        return this.getRisk({ baseCurrency, userId, xRayRules });
       }),
       this.loadSection('tax', () => {
         return this.taxService.getFifoRealizedGains(userId);
@@ -88,10 +93,12 @@ export class DashboardOverview {
 
   private async getRisk({
     baseCurrency,
-    userId
+    userId,
+    xRayRules
   }: {
     baseCurrency: string;
     userId: string;
+    xRayRules?: Record<string, RuleSettings>;
   }) {
     const limit = parseConcentrationLimit(undefined);
 
@@ -106,7 +113,13 @@ export class DashboardOverview {
 
     const summary = this.exposureService.getRiskSummary(holdings, baseCurrency);
 
-    return toRiskConcentrationResponse({ holdings, limit, summary });
+    return toRiskConcentrationResponse({
+      holdings,
+      limit,
+      summary,
+      xRayRules,
+      thresholdEngineService: this.thresholdEngineService
+    });
   }
 
   private async getCharts(userId: string) {

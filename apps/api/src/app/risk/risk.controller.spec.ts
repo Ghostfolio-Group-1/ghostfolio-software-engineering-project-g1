@@ -124,10 +124,13 @@ describe('RiskController contract: GET /risk/concentration', () => {
       'AMZN'
     ]);
     expect(data.stock.buckets[0].percentage).toBe(0.333);
+    // #240: severity now comes from the threshold engine - 0.48 is under
+    // CountryConcentration's default 0.5 thresholdMax, so GREEN, not the
+    // old hardcoded NO_DATA placeholder.
     expect(data.country.buckets[0]).toEqual({
       name: 'US',
       percentage: 0.48,
-      severity: 'NO_DATA',
+      severity: 'GREEN',
       value: 'US'
     });
   });
