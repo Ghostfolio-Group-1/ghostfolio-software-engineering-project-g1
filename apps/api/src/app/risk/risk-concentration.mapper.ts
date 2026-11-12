@@ -12,6 +12,7 @@ import { toRiskThresholds } from './risk-score.mapper';
 import { ThresholdEngineService } from './threshold-engine.service';
 import {
   getThresholdDefault,
+  mergeThresholds,
   WarningThresholds
 } from './warning-threshold.model';
 
@@ -138,6 +139,13 @@ function toGroup({
       }
     : undefined;
   const definition = getThresholdDefault(ruleKey);
+  // The returned thresholds must be the ones severity was actually computed
+  // against - raw defaults would make an override-driven GREEN/YELLOW/RED
+  // look inconsistent with the boundaries shown alongside it (review
+  // feedback on #281).
+  const effectiveThresholds = definition
+    ? mergeThresholds(definition.defaults, overrides)
+    : null;
 
   return {
     buckets: [...buckets]
@@ -158,6 +166,8 @@ function toGroup({
           value: key
         };
       }),
-    thresholds: definition ? toRiskThresholds(definition.defaults) : null
+    thresholds: effectiveThresholds
+      ? toRiskThresholds(effectiveThresholds)
+      : null
   };
 }
