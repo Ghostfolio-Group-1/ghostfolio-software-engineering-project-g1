@@ -177,7 +177,14 @@ export class RiskController {
     );
 
     return createSuccessResponse(
-      toRiskConcentrationResponse({ holdings, limit, summary })
+      toRiskConcentrationResponse({
+        holdings,
+        limit,
+        summary,
+        thresholdEngineService: this.thresholdEngineService,
+        xRayRules: userSettings.xRayRules as
+          Record<string, RuleSettings> | undefined
+      })
     );
   }
 

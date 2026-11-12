@@ -24,6 +24,7 @@ import request from 'supertest';
 
 import { ChartsApi } from '../charts/charts-api';
 import { ExposureService } from '../risk/exposure.service';
+import { ThresholdEngineService } from '../risk/threshold-engine.service';
 import { TaxDataService } from '../tax/tax-data.service';
 import { TaxService } from '../tax/tax.service';
 import {
@@ -78,7 +79,8 @@ describe('GET /api/v1/dashboard/overview (end to end)', () => {
               provide: PortfolioService,
               useValue: { getHoldings, getPerformance }
             },
-            { provide: PrismaService, useValue: { order: { findMany } } }
+            { provide: PrismaService, useValue: { order: { findMany } } },
+            ThresholdEngineService
           ]
         }),
         { baseCurrency: FIXTURE_BASE_CURRENCY, userId: FIXTURE_USER_ID }

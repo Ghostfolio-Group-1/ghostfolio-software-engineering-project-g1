@@ -14,6 +14,7 @@ import {
   parseConcentrationLimit,
   toRiskConcentrationResponse
 } from '../risk/risk-concentration.mapper';
+import { ThresholdEngineService } from '../risk/threshold-engine.service';
 import { TaxService } from '../tax/tax.service';
 import { DASHBOARD_CHART_RANGE, DashboardOverview } from './dashboard-overview';
 
@@ -48,6 +49,7 @@ describe('DashboardOverview.getOverview', () => {
   let getSeries: jest.Mock;
   let loggerError: jest.SpyInstance;
   let overview: DashboardOverview;
+  let thresholdEngineService: ThresholdEngineService;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -65,11 +67,14 @@ describe('DashboardOverview.getOverview', () => {
     getRiskSummary = jest.fn().mockReturnValue(summary);
     getSeries = jest.fn().mockReturnValue(chartsSection);
 
+    thresholdEngineService = new ThresholdEngineService();
+
     overview = new DashboardOverview(
       { getSeries } as unknown as ChartsApi,
       { getRiskSummary } as unknown as ExposureService,
       { getHoldings, getPerformance } as unknown as PortfolioService,
-      { getFifoRealizedGains } as unknown as TaxService
+      { getFifoRealizedGains } as unknown as TaxService,
+      thresholdEngineService
     );
   });
 
@@ -103,7 +108,9 @@ describe('DashboardOverview.getOverview', () => {
     expect(toRiskConcentrationResponse).toHaveBeenCalledWith({
       holdings: holdingsFixture,
       limit: 5,
-      summary
+      summary,
+      thresholdEngineService,
+      xRayRules: undefined
     });
   });
 

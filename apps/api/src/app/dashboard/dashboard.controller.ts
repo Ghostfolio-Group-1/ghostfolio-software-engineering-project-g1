@@ -5,6 +5,7 @@ import {
   createSuccessResponse
 } from '@ghostfolio/common/api-conventions';
 import type { ApiResponse } from '@ghostfolio/common/api-conventions';
+import type { RuleSettings } from '@ghostfolio/common/interfaces/x-ray-rules-settings.interface';
 import { scopes } from '@ghostfolio/common/scopes';
 import type { ImpersonationContext } from '@ghostfolio/common/types';
 
@@ -36,7 +37,9 @@ export class DashboardController {
       return createSuccessResponse(
         await this.dashboardOverview.getOverview({
           baseCurrency: userSettings.baseCurrency,
-          userId
+          userId,
+          xRayRules: userSettings.xRayRules as
+            Record<string, RuleSettings> | undefined
         })
       );
     } catch (error) {

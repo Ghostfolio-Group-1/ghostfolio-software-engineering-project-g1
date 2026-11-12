@@ -21,7 +21,7 @@ import { WhatIfService } from './what-if.service';
 
 @Module({
   controllers: [RiskController],
-  exports: [ExposureService],
+  exports: [ExposureService, ThresholdEngineService],
   imports: [
     AccountModule,
     ConfigurationModule,
