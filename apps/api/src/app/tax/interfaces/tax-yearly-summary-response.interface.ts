@@ -34,6 +34,8 @@ export interface TaxYearlyDividendRecordResponse {
 }
 
 export interface TaxYearlyRealizedGainResponse {
+  accountId: string | null;
+  symbolProfileId: string | null;
   sellActivityId: string;
   sellDate: string;
   transactionCurrency: string | null;

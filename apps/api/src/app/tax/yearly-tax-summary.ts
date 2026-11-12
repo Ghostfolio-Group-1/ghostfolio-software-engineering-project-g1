@@ -17,6 +17,9 @@ export const PARTIAL_REALIZED_GAIN_RESULT =
   'PARTIAL_REALIZED_GAIN_RESULT' as const;
 
 export interface YearlyRealizedGainSource {
+  /** Source SELL identity. Optional for legacy synthetic test fixtures. */
+  accountId?: string | null;
+  symbolProfileId?: string | null;
   sellActivityId: string;
   sellDate: Date;
   transactionCurrency: string | null;

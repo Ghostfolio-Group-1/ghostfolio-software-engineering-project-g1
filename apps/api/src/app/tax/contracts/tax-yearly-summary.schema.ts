@@ -59,6 +59,8 @@ const dividendRecord = record({
 });
 
 const realizedGain = record({
+  accountId: nullableString,
+  symbolProfileId: nullableString,
   sellActivityId: { type: 'string', minLength: 1 },
   sellDate: isoUtc,
   transactionCurrency: nullableString,

@@ -71,6 +71,8 @@ export function serializeYearlyTaxSummary(
       activityFeeBaseCurrency: decimalOrNull(dividend.activityFeeBaseCurrency)
     })),
     realizedGains: summary.realizedGains.map((gain) => ({
+      accountId: gain.accountId ?? null,
+      symbolProfileId: gain.symbolProfileId ?? null,
       sellActivityId: gain.sellActivityId,
       sellDate: gain.sellDate.toISOString(),
       transactionCurrency: gain.transactionCurrency,

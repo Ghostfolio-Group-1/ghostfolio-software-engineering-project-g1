@@ -71,6 +71,8 @@ const summaryFixture: YearlyTaxSummary = {
   ],
   realizedGains: [
     {
+      accountId: 'account-1',
+      symbolProfileId: 'asset-1',
       sellActivityId: 'sell-1',
       sellDate: new Date('2026-06-02T00:00:00.000Z'),
       transactionCurrency: 'USD',
@@ -177,6 +179,8 @@ describe('GET /api/v1/tax/yearly-summary (end to end)', () => {
       ],
       realizedGains: [
         {
+          accountId: 'account-1',
+          symbolProfileId: 'asset-1',
           sellDate: '2026-06-02T00:00:00.000Z',
           grossRealizedGain: '20.1',
           totalActivityFees: '0.4',

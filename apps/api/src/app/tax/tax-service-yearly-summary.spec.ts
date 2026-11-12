@@ -109,6 +109,10 @@ describe('TaxService yearly tax summary', () => {
     );
 
     expect(summary.method).toBe('FIFO');
+    expect(summary.realizedGains[0]).toMatchObject({
+      accountId: 'account-1',
+      symbolProfileId: 'symbol-1'
+    });
 
     expect(summary.dividendCount).toBe(1);
     expect(summary.disposalCount).toBe(1);
@@ -179,6 +183,10 @@ describe('TaxService yearly tax summary', () => {
     );
 
     expect(summary.method).toBe('AVERAGE_COST');
+    expect(summary.realizedGains[0]).toMatchObject({
+      accountId: 'account-2',
+      symbolProfileId: 'symbol-1'
+    });
 
     expect(summary.grossProceedsBaseCurrency?.toString()).toBe('150');
     expect(summary.grossCostBasisBaseCurrency?.toString()).toBe('75');
@@ -247,5 +255,88 @@ describe('TaxService yearly tax summary', () => {
     expect(taxDataService.getFifoRealizedGainActivities).not.toHaveBeenCalled();
 
     expect(taxDataService.getDividendActivities).not.toHaveBeenCalled();
+  });
+
+  it('preserves distinct asset identities for two yearly FIFO sales', async () => {
+    taxDataService.getFifoRealizedGainActivities.mockResolvedValue([
+      {
+        accountId: 'account-1',
+        currency: 'USD',
+        date: new Date('2024-01-01T00:00:00.000Z'),
+        fee: 0,
+        id: 'buy-asset-a',
+        quantity: 10,
+        symbolProfileId: 'asset-a',
+        type: ActivityType.BUY,
+        unitPrice: 10,
+        userId: 'user-1'
+      },
+      {
+        accountId: 'account-2',
+        currency: 'USD',
+        date: new Date('2024-02-01T00:00:00.000Z'),
+        fee: 0,
+        id: 'buy-asset-b',
+        quantity: 5,
+        symbolProfileId: 'asset-b',
+        type: ActivityType.BUY,
+        unitPrice: 40,
+        userId: 'user-1'
+      },
+      {
+        accountId: 'account-1',
+        currency: 'USD',
+        date: new Date('2026-06-01T00:00:00.000Z'),
+        fee: 0,
+        id: 'sell-asset-a',
+        quantity: 4,
+        symbolProfileId: 'asset-a',
+        type: ActivityType.SELL,
+        unitPrice: 20,
+        userId: 'user-1'
+      },
+      {
+        accountId: 'account-2',
+        currency: 'USD',
+        date: new Date('2026-07-01T00:00:00.000Z'),
+        fee: 0,
+        id: 'sell-asset-b',
+        quantity: 2,
+        symbolProfileId: 'asset-b',
+        type: ActivityType.SELL,
+        unitPrice: 50,
+        userId: 'user-1'
+      }
+    ]);
+
+    const summary = await service.getYearlySummary('user-1', 2026, 'FIFO');
+
+    expect(summary.disposalCount).toBe(2);
+    expect(summary.realizedGains).toHaveLength(2);
+    expect(
+      summary.realizedGains.map((gain) => ({
+        sellActivityId: gain.sellActivityId,
+        accountId: gain.accountId,
+        symbolProfileId: gain.symbolProfileId
+      }))
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          sellActivityId: 'sell-asset-a',
+          accountId: 'account-1',
+          symbolProfileId: 'asset-a'
+        },
+        {
+          sellActivityId: 'sell-asset-b',
+          accountId: 'account-2',
+          symbolProfileId: 'asset-b'
+        }
+      ])
+    );
+
+    expect(summary.grossProceedsBaseCurrency?.toString()).toBe('180');
+    expect(summary.grossCostBasisBaseCurrency?.toString()).toBe('120');
+    expect(summary.grossRealizedGainBaseCurrency?.toString()).toBe('60');
+    expect(summary.isComplete).toBe(true);
   });
 });

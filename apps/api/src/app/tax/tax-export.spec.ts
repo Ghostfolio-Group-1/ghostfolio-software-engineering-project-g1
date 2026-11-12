@@ -50,6 +50,80 @@ describe('TaxExport', () => {
     expect(result.content.replace(/\r\n/g, '')).not.toContain('\n');
   });
 
+  it('preserves authoritative asset identity on realized gain and FIFO trace rows', () => {
+    const base = createCompleteFifoSummary();
+    const summary: YearlyTaxSummary = {
+      ...base,
+      realizedGains: base.realizedGains.map((sale) => ({
+        ...sale,
+        accountId: 'account-2',
+        symbolProfileId: 'asset-7'
+      }))
+    };
+    const existingTrace = createFifoTrace();
+    if (existingTrace.method !== 'FIFO') {
+      throw new Error('Expected FIFO trace fixture');
+    }
+    const trace: TaxExportTrace = {
+      method: 'FIFO',
+      matches: existingTrace.matches.map((match) => ({
+        ...match,
+        accountId: 'account-2',
+        symbolProfileId: 'asset-7'
+      }))
+    };
+    const rows = parseCsv(
+      TaxExport.generate({
+        generatedAt: GENERATED_AT,
+        summary,
+        trace
+      }).content
+    );
+    const gain = rows.find((row) => row.recordType === 'REALIZED_GAIN');
+    const matches = rows.filter((row) => row.recordType === 'FIFO_MATCH');
+    expect(gain?.accountId).toBe('account-2');
+    expect(gain?.symbolProfileId).toBe('asset-7');
+    expect(matches.length).toBeGreaterThan(0);
+    expect(
+      matches.every(
+        (row) =>
+          row.accountId === 'account-2' && row.symbolProfileId === 'asset-7'
+      )
+    ).toBe(true);
+  });
+
+  it('keeps missing asset identity empty without inferring it from trace IDs', () => {
+    const base = createCompleteFifoSummary();
+    const summary: YearlyTaxSummary = {
+      ...base,
+      realizedGains: base.realizedGains.map((sale) => ({
+        ...sale,
+        accountId: null,
+        symbolProfileId: null
+      }))
+    };
+
+    // The existing FIFO trace fixture intentionally omits identity fields.
+    const rows = parseCsv(
+      TaxExport.generate({
+        generatedAt: GENERATED_AT,
+        summary,
+        trace: createFifoTrace()
+      }).content
+    );
+
+    const gain = getRow(rows, 'REALIZED_GAIN');
+    const match = getRow(rows, 'FIFO_MATCH');
+
+    expect(gain.accountId).toBe('');
+    expect(gain.symbolProfileId).toBe('');
+    expect(match.accountId).toBe('');
+    expect(match.symbolProfileId).toBe('');
+
+    expect(gain.grossRealizedGainBaseCurrency).toBe('40');
+    expect(match.grossRealizedGainBaseCurrency).toBe('40');
+  });
+
   it('uses the fixed CSV column order', () => {
     const result = TaxExport.generate({
       generatedAt: GENERATED_AT,
@@ -559,6 +633,8 @@ describe('TaxExport', () => {
       method: 'AVERAGE_COST',
       events: [
         {
+          accountId: 'account-2',
+          symbolProfileId: 'asset-7',
           traceId: 'average-buy-1',
           sourceActivityId: 'buy-1',
           sellActivityId: null,
@@ -570,6 +646,8 @@ describe('TaxExport', () => {
           averageGrossUnitCostAfter: new Big(10)
         },
         {
+          accountId: 'account-2',
+          symbolProfileId: 'asset-7',
           traceId: 'average-sell-1',
           sourceActivityId: 'sell-1',
           sellActivityId: 'sell-1',
@@ -604,6 +682,8 @@ describe('TaxExport', () => {
       'buy-1'
     );
 
+    expect(buyEvent.accountId).toBe('account-2');
+    expect(buyEvent.symbolProfileId).toBe('asset-7');
     expect(buyEvent.sellActivityId).toBe('');
     expect(buyEvent.quantity).toBe('10');
     expect(buyEvent.poolQuantityBefore).toBe('0');
@@ -618,6 +698,8 @@ describe('TaxExport', () => {
       'sell-1'
     );
 
+    expect(sellEvent.accountId).toBe('account-2');
+    expect(sellEvent.symbolProfileId).toBe('asset-7');
     expect(sellEvent.sellActivityId).toBe('sell-1');
     expect(sellEvent.quantity).toBe('4');
     expect(sellEvent.poolQuantityBefore).toBe('10');
