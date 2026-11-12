@@ -1,5 +1,7 @@
 import { PortfolioService } from '@ghostfolio/api/app/portfolio/portfolio.service';
 import { ImpersonationService } from '@ghostfolio/api/services/impersonation/impersonation.service';
+import { MarketDataService } from '@ghostfolio/api/services/market-data/market-data.service';
+import { SymbolProfileService } from '@ghostfolio/api/services/symbol-profile/symbol-profile.service';
 import type { ImpersonationContext } from '@ghostfolio/common/types';
 
 import { HttpException } from '@nestjs/common';
@@ -8,6 +10,7 @@ import Ajv from 'ajv';
 
 import { ChartsApi } from './charts-api';
 import { ChartsController } from './charts.controller';
+import { benchmarkComparisonResponseSchema } from './contracts/benchmark-comparison.schema';
 import {
   chartSeriesResponseSchema,
   chartsErrorResponseSchema
@@ -55,7 +58,12 @@ describe('ChartsController contract: GET /charts/series', () => {
       providers: [
         ChartsApi,
         { provide: ImpersonationService, useValue: {} },
-        { provide: PortfolioService, useValue: { getPerformance } }
+        { provide: MarketDataService, useValue: { getRange: jest.fn() } },
+        { provide: PortfolioService, useValue: { getPerformance } },
+        {
+          provide: SymbolProfileService,
+          useValue: { getSymbolProfiles: jest.fn() }
+        }
       ]
     }).compile();
 
@@ -172,6 +180,150 @@ describe('ChartsController contract: GET /charts/series', () => {
   });
 });
 
+describe('ChartsController contract: GET /charts/benchmark-comparison', () => {
+  const ajv = new Ajv({ allErrors: true });
+  const validateResponse = ajv.compile(benchmarkComparisonResponseSchema);
+  const validateError = ajv.compile(chartsErrorResponseSchema);
+  const context = { userId: 'user-1' } as unknown as ImpersonationContext;
+
+  let controller: ChartsController;
+  let getPerformance: jest.Mock;
+  let getRange: jest.Mock;
+  let getSymbolProfiles: jest.Mock;
+
+  beforeEach(async () => {
+    getPerformance = jest.fn().mockResolvedValue({
+      chart: history,
+      dateOfFirstActivity: new Date(2026, 2, 1)
+    });
+    getRange = jest.fn().mockResolvedValue([
+      { date: new Date(2026, 2, 1), marketPrice: 100 },
+      { date: new Date(2026, 2, 2), marketPrice: 110 },
+      { date: new Date(2026, 2, 3), marketPrice: 105 }
+    ]);
+    getSymbolProfiles = jest
+      .fn()
+      .mockResolvedValue([{ symbol: 'SPY', dataSource: 'YAHOO' }]);
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ChartsController],
+      providers: [
+        ChartsApi,
+        { provide: ImpersonationService, useValue: {} },
+        { provide: MarketDataService, useValue: { getRange } },
+        { provide: PortfolioService, useValue: { getPerformance } },
+        {
+          provide: SymbolProfileService,
+          useValue: { getSymbolProfiles }
+        }
+      ]
+    }).compile();
+
+    controller = moduleRef.get(ChartsController);
+  });
+
+  it('is routed at /charts/benchmark-comparison', () => {
+    expect(
+      Reflect.getMetadata(
+        'path',
+        ChartsController.prototype.getBenchmarkComparison
+      )
+    ).toBe('benchmark-comparison');
+  });
+
+  it('returns indexed portfolio and benchmark series in the contract envelope', async () => {
+    const response = await controller.getBenchmarkComparison(
+      context,
+      'SPY',
+      undefined,
+      '2026-03-03',
+      undefined,
+      '2026-03-01'
+    );
+
+    validateResponse(response);
+
+    expect(validateResponse.errors ?? []).toEqual([]);
+    expect(getSymbolProfiles).toHaveBeenCalledWith([
+      { dataSource: 'YAHOO', symbol: 'SPY' }
+    ]);
+    expect(response.data).toEqual({
+      benchmarkAvailableFrom: '2026-03-01',
+      benchmarkSymbol: 'SPY',
+      endDate: '2026-03-03',
+      granularity: 'daily',
+      startDate: '2026-03-01',
+      points: [
+        {
+          date: '2026-03-01',
+          portfolioReturn: 100,
+          benchmarkReturn: 100
+        },
+        {
+          date: '2026-03-02',
+          portfolioReturn: (1100 / 1000) * 100,
+          benchmarkReturn: (110 / 100) * 100
+        },
+        {
+          date: '2026-03-03',
+          portfolioReturn: (1050 / 1000) * 100,
+          benchmarkReturn: (105 / 100) * 100
+        }
+      ]
+    });
+  });
+
+  it('rejects a missing benchmark as CHARTS_INVALID_QUERY', async () => {
+    const exception = await controller
+      .getBenchmarkComparison(
+        context,
+        undefined,
+        undefined,
+        '2026-03-03',
+        undefined,
+        '2026-03-01'
+      )
+      .then(
+        () => {
+          throw new Error('Expected the request to be rejected');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(400);
+    expect(validateError(exception.getResponse())).toBe(true);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'CHARTS_INVALID_QUERY' }
+    });
+  });
+
+  it('returns 404 CHARTS_BENCHMARK_NOT_FOUND when the symbol is unknown', async () => {
+    getSymbolProfiles.mockResolvedValue([]);
+
+    const exception = await controller
+      .getBenchmarkComparison(
+        context,
+        'MISSING',
+        undefined,
+        '2026-03-03',
+        undefined,
+        '2026-03-01'
+      )
+      .then(
+        () => {
+          throw new Error('Expected the request to be rejected');
+        },
+        (error: HttpException) => error
+      );
+
+    expect(exception.getStatus()).toBe(404);
+    expect(validateError(exception.getResponse())).toBe(true);
+    expect(exception.getResponse()).toMatchObject({
+      error: { code: 'CHARTS_BENCHMARK_NOT_FOUND' }
+    });
+  });
+});
+
 describe('ChartsController contract: GET /charts/drawdown', () => {
   const ajv = new Ajv({ allErrors: true });
   const validateResponse = ajv.compile(drawdownResponseSchema);
@@ -192,7 +344,12 @@ describe('ChartsController contract: GET /charts/drawdown', () => {
       providers: [
         ChartsApi,
         { provide: ImpersonationService, useValue: {} },
-        { provide: PortfolioService, useValue: { getPerformance } }
+        { provide: MarketDataService, useValue: { getRange: jest.fn() } },
+        { provide: PortfolioService, useValue: { getPerformance } },
+        {
+          provide: SymbolProfileService,
+          useValue: { getSymbolProfiles: jest.fn() }
+        }
       ]
     }).compile();
 
