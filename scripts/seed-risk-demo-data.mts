@@ -266,8 +266,240 @@ const SEED_USERS: SeedUser[] = [
   }
 ];
 
+// A 5th demo user with a large, varied order history (~140 orders across 50
+// symbols: 2 BUYs each, a partial SELL on roughly a third, a DIVIDEND on
+// roughly half) so screens that look sparse with only the 4 calibrated
+// users above have enough volume to visually verify layout/scrolling/
+// pagination. Deliberately kept separate from SYMBOLS/SEED_USERS above:
+// those 4 accounts are calibrated to land on exact Risk severity
+// boundaries (see e.g. the "balanced" comment), and mixing more holdings
+// into them would risk shifting those boundaries and breaking the
+// Playwright assertions that depend on them.
+const RICH_COUNTRIES: { country: string; currency: string }[] = [
+  { country: 'US', currency: 'USD' },
+  { country: 'DE', currency: 'EUR' },
+  { country: 'FR', currency: 'EUR' },
+  { country: 'GB', currency: 'GBP' },
+  { country: 'JP', currency: 'JPY' },
+  { country: 'CA', currency: 'CAD' },
+  { country: 'AU', currency: 'AUD' },
+  { country: 'IN', currency: 'INR' }
+];
+
+const RICH_SECTORS: string[] = [
+  'Technology',
+  'Healthcare',
+  'Financials',
+  'Consumer Staples',
+  'Energy',
+  'Materials',
+  'Utilities',
+  'Industrials',
+  'Consumer Discretionary',
+  'Communication Services'
+];
+
+const RICH_SYMBOL_COUNT = 50;
+
+const RICH_SYMBOLS: SeedSymbol[] = Array.from(
+  { length: RICH_SYMBOL_COUNT },
+  (_, i) => {
+    const location = RICH_COUNTRIES[i % RICH_COUNTRIES.length];
+    const label = String(i + 1).padStart(3, '0');
+
+    return {
+      id: `demo-rich-sym-${label}`,
+      country: location.country,
+      currency: location.currency,
+      name: `Demo Rich Co. ${label}`,
+      price: 20 + ((i * 13) % 480),
+      sector: RICH_SECTORS[i % RICH_SECTORS.length],
+      symbol: `DEMO-RICH-${label}`
+    };
+  }
+);
+
+const ALL_SYMBOLS: SeedSymbol[] = [...SYMBOLS, ...RICH_SYMBOLS];
+
+function yearsBefore(date: Date, years: number): Date {
+  const result = new Date(date);
+  result.setUTCFullYear(result.getUTCFullYear() - years);
+  return result;
+}
+
+function monthsBefore(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setUTCMonth(result.getUTCMonth() - months);
+  return result;
+}
+
+interface RichOrder {
+  date: Date;
+  fee: number;
+  quantity: number;
+  symbolId: string;
+  type: 'BUY' | 'DIVIDEND' | 'SELL';
+  unitPrice: number;
+}
+
+const RICH_USER_ID = 'demo-risk-user-rich';
+const RICH_ACCESS_TOKEN = 'demo-risk-rich';
+
+function buildRichOrders(): RichOrder[] {
+  const orders: RichOrder[] = [];
+
+  RICH_SYMBOLS.forEach((symbol, i) => {
+    const buyQuantity1 = 5 + (i % 10) * 3;
+    const buyQuantity2 = Math.floor(buyQuantity1 / 2) + 1;
+
+    orders.push({
+      date: yearsBefore(PRICE_DATE, 2),
+      fee: 0,
+      quantity: buyQuantity1,
+      symbolId: symbol.id,
+      type: 'BUY',
+      unitPrice: Math.round(symbol.price * 0.85 * 100) / 100
+    });
+
+    orders.push({
+      date: yearsBefore(PRICE_DATE, 1),
+      fee: 0,
+      quantity: buyQuantity2,
+      symbolId: symbol.id,
+      type: 'BUY',
+      unitPrice: Math.round(symbol.price * 0.95 * 100) / 100
+    });
+
+    // Partial SELL on every 3rd symbol - always less than the combined BUY
+    // quantity above, so FIFO never has to consume more than was bought.
+    if (i % 3 === 0) {
+      orders.push({
+        date: monthsBefore(PRICE_DATE, 3),
+        fee: 0,
+        quantity: Math.floor((buyQuantity1 + buyQuantity2) / 4) + 1,
+        symbolId: symbol.id,
+        type: 'SELL',
+        unitPrice: Math.round(symbol.price * 1.05 * 100) / 100
+      });
+    }
+
+    // DIVIDEND on every other symbol, dated after both BUYs (2 years ago and
+    // 1 year ago) - quantity mirrors shares actually held at the time (both
+    // purchases combined), unitPrice is the per-share dividend amount.
+    if (i % 2 === 0) {
+      orders.push({
+        date: monthsBefore(PRICE_DATE, 6),
+        fee: 0,
+        quantity: buyQuantity1 + buyQuantity2,
+        symbolId: symbol.id,
+        type: 'DIVIDEND',
+        unitPrice: Math.round((0.4 + (i % 6) * 0.25) * 100) / 100
+      });
+    }
+  });
+
+  return orders;
+}
+
+async function seedRichUser() {
+  const symbolById = new Map(RICH_SYMBOLS.map((symbol) => [symbol.id, symbol]));
+  const accountId = `${RICH_USER_ID}-account`;
+  const hashedAccessToken = hashAccessToken(RICH_ACCESS_TOKEN);
+
+  await prisma.user.upsert({
+    create: {
+      id: RICH_USER_ID,
+      accessToken: hashedAccessToken,
+      provider: 'ANONYMOUS',
+      role: 'DEMO'
+    },
+    update: { accessToken: hashedAccessToken },
+    where: { id: RICH_USER_ID }
+  });
+
+  await prisma.account.upsert({
+    create: {
+      id: accountId,
+      currency: 'USD',
+      name: 'Demo account',
+      userId: RICH_USER_ID
+    },
+    update: {},
+    where: { id_userId: { id: accountId, userId: RICH_USER_ID } }
+  });
+
+  await prisma.accountBalance.upsert({
+    create: {
+      accountId,
+      date: PRICE_DATE,
+      userId: RICH_USER_ID,
+      value: 2500
+    },
+    update: { value: 2500 },
+    where: { accountId_date: { accountId, date: PRICE_DATE } }
+  });
+
+  const richOrders = buildRichOrders();
+  const currentOrderIds: string[] = [];
+
+  for (const [index, order] of richOrders.entries()) {
+    const symbol = symbolById.get(order.symbolId);
+
+    if (!symbol) {
+      throw new Error(`Unknown rich seed symbol id: ${order.symbolId}`);
+    }
+
+    const orderId = `${RICH_USER_ID}-order-${index + 1}`;
+    currentOrderIds.push(orderId);
+
+    await prisma.order.upsert({
+      create: {
+        id: orderId,
+        accountId,
+        accountUserId: RICH_USER_ID,
+        currency: symbol.currency,
+        date: order.date,
+        fee: order.fee,
+        quantity: order.quantity,
+        symbolProfileId: symbol.id,
+        type: order.type,
+        unitPrice: order.unitPrice,
+        userId: RICH_USER_ID
+      },
+      update: {
+        accountId,
+        currency: symbol.currency,
+        date: order.date,
+        fee: order.fee,
+        quantity: order.quantity,
+        symbolProfileId: symbol.id,
+        type: order.type,
+        unitPrice: order.unitPrice
+      },
+      where: { id: orderId }
+    });
+  }
+
+  await prisma.order.deleteMany({
+    where: {
+      accountUserId: RICH_USER_ID,
+      id: { notIn: currentOrderIds, startsWith: `${RICH_USER_ID}-order-` }
+    }
+  });
+
+  await prisma.settings.upsert({
+    create: { settings: { baseCurrency: 'USD' }, userId: RICH_USER_ID },
+    update: { settings: { baseCurrency: 'USD' } },
+    where: { userId: RICH_USER_ID }
+  });
+
+  console.log(
+    `Seeded ${RICH_USER_ID} (login token: ${RICH_ACCESS_TOKEN}) - large portfolio: ${RICH_SYMBOLS.length} symbols, ${richOrders.length} orders (BUY/SELL/DIVIDEND), for visually verifying screens aren't sparse`
+  );
+}
+
 async function seedSymbols() {
-  for (const symbol of SYMBOLS) {
+  for (const symbol of ALL_SYMBOLS) {
     await prisma.symbolProfile.upsert({
       create: {
         id: symbol.id,
@@ -450,8 +682,10 @@ async function main() {
     await seedUser(user);
   }
 
+  await seedRichUser();
+
   console.log(
-    `\nDone. ${SEED_USERS.length} demo users seeded. See docs/testing/seed-risk-demo-data.md for how to impersonate each one and what it shows.`
+    `\nDone. ${SEED_USERS.length + 1} demo users seeded. See docs/testing/seed-risk-demo-data.md for how to impersonate each one and what it shows.`
   );
 }
 
