@@ -41,14 +41,14 @@ wrong assumption about.
 
 ## React components (`libs/react-ui/src/lib/`)
 
-| Folder               | Component(s)                                                                          | Live data source                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `risk-dashboard/`    | `RiskDashboardCard`, `risk-dashboard.client.ts`                                       | `GET /risk/score` + `GET /risk/concentration`                                     |
-| `risk-indicator/`    | `RiskIndicator`, `formatThresholdRange` (the latter not wired in yet — Nov 23 polish) | n/a (pure presentational)                                                         |
-| `what-if-simulator/` | `WhatIfSimulator`, form, result panel, client, `WhatIfSimulatorPage` host             | `POST /risk/what-if` + `GET /portfolio/holdings` — merged to `main` (PR #241)     |
-| `risk-warnings/`     | `RiskWarningsList`, client, `RiskWarningsPage` host                                   | `GET /risk/warnings` — merged to `main` (PR #282, Nov 12)                         |
-| `target-allocation/` | `TargetAllocationEditor`, form, client, `TargetAllocationPage` host                   | `GET/PUT/DELETE /risk/target-allocation` — merged to `main` (PR #282, Nov 12)     |
-| `risk-thresholds/`   | `RiskThresholdsList`, row, row-form model, client, `RiskThresholdsPage` host          | `GET/PUT/DELETE /risk/thresholds[/:ruleKey]` — merged to `main` (PR #282, Nov 12) |
+| Folder               | Component(s)                                                                          | Live data source                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `risk-dashboard/`    | `RiskDashboardCard`, `risk-dashboard.client.ts`                                       | `GET /risk/score` + `GET /risk/concentration`                                                          |
+| `risk-indicator/`    | `RiskIndicator`, `formatThresholdRange` (the latter not wired in yet — Nov 23 polish) | n/a (pure presentational)                                                                              |
+| `what-if-simulator/` | `WhatIfSimulator`, form, result panel, client, `WhatIfSimulatorPage` host             | `POST /risk/what-if` + `GET /portfolio/holdings` — merged to `main` (PR #282; #241 itself stayed open) |
+| `risk-warnings/`     | `RiskWarningsList`, client, `RiskWarningsPage` host                                   | `GET /risk/warnings` — merged to `main` (PR #282, Nov 12)                                              |
+| `target-allocation/` | `TargetAllocationEditor`, form, client, `TargetAllocationPage` host                   | `GET/PUT/DELETE /risk/target-allocation` — merged to `main` (PR #282, Nov 12)                          |
+| `risk-thresholds/`   | `RiskThresholdsList`, row, row-form model, client, `RiskThresholdsPage` host          | `GET/PUT/DELETE /risk/thresholds[/:ruleKey]` — merged to `main` (PR #282, Nov 12)                      |
 
 Every component has loading/error/empty states and is tested via
 `renderToStaticMarkup`/`act` against `react-dom` directly (the library's
