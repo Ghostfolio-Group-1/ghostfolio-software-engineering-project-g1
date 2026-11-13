@@ -41,16 +41,38 @@ wrong assumption about.
 
 ## React components (`libs/react-ui/src/lib/`)
 
-| Folder               | Component(s)                                                                          | Live data source                                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `risk-dashboard/`    | `RiskDashboardCard`, `risk-dashboard.client.ts`                                       | `GET /risk/score` + `GET /risk/concentration`                                                                    |
-| `risk-indicator/`    | `RiskIndicator`, `formatThresholdRange` (the latter not wired in yet — Nov 23 polish) | n/a (pure presentational)                                                                                        |
-| `what-if-simulator/` | `WhatIfSimulator`, form, result panel, client, `WhatIfSimulatorPage` host             | `POST /risk/what-if` + `GET /portfolio/holdings` — committed Nov 9 (PR #241, approved, not yet merged to `main`) |
+| Folder               | Component(s)                                                                          | Live data source                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `risk-dashboard/`    | `RiskDashboardCard`, `risk-dashboard.client.ts`                                       | `GET /risk/score` + `GET /risk/concentration`                                     |
+| `risk-indicator/`    | `RiskIndicator`, `formatThresholdRange` (the latter not wired in yet — Nov 23 polish) | n/a (pure presentational)                                                         |
+| `what-if-simulator/` | `WhatIfSimulator`, form, result panel, client, `WhatIfSimulatorPage` host             | `POST /risk/what-if` + `GET /portfolio/holdings` — merged to `main` (PR #241)     |
+| `risk-warnings/`     | `RiskWarningsList`, client, `RiskWarningsPage` host                                   | `GET /risk/warnings` — merged to `main` (PR #282, Nov 12)                         |
+| `target-allocation/` | `TargetAllocationEditor`, form, client, `TargetAllocationPage` host                   | `GET/PUT/DELETE /risk/target-allocation` — merged to `main` (PR #282, Nov 12)     |
+| `risk-thresholds/`   | `RiskThresholdsList`, row, row-form model, client, `RiskThresholdsPage` host          | `GET/PUT/DELETE /risk/thresholds[/:ruleKey]` — merged to `main` (PR #282, Nov 12) |
 
 Every component has loading/error/empty states and is tested via
 `renderToStaticMarkup`/`act` against `react-dom` directly (the library's
 Jest `testEnvironment` is `node`, not `jsdom` — see the correction requested
-on PR #221).
+on PR #221). The three Nov 12 folders use the `createRoot`/`act`/jsdom
+pattern instead (per-file `/** @jest-environment jsdom */`), same as
+`WhatIfSimulatorPage`, since each owns a live `useApiData` fetch.
+
+## Week 2 check (Fri Nov 13, #285)
+
+Reviewed the three Nov 12 screens (`risk-warnings/`, `target-allocation/`,
+`risk-thresholds/`) against the page-level pattern `RiskWarningsPage`
+already had (an initial-GET-failure test with retry) and found two real
+gaps, both coverage-only — the implementations already handled both paths
+correctly via `useApiData`'s `status`/`error` and each page's own
+`*ErrorMessage()` mapper:
+
+- `TargetAllocationPage` had no test for the initial GET failing, and no
+  test for a save (PUT) being rejected server-side (e.g. `RISK_FORBIDDEN`
+  for a DEMO user) and showing below the form.
+- `RiskThresholdsPage` had no test for the initial GET failing.
+
+All three added in #285. No production code changed — see the test-plan.md
+entries for the exact cases.
 
 ## External dependencies
 
