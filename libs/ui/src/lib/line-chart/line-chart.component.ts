@@ -62,6 +62,8 @@ export class GfLineChartComponent
   @Input() isAnimated = false;
   @Input() label: string;
   @Input() locale = getLocale();
+  /** When false, the canvas fills its parent instead of locking to aspectRatio. */
+  @Input() maintainAspectRatio = true;
   @Input() showGradient = false;
   @Input() showLegend = false;
   @Input() showLoader = true;
@@ -198,6 +200,8 @@ export class GfLineChartComponent
           options: {
             animations: this.isAnimated ? animations : undefined,
             aspectRatio: 16 / 9,
+            maintainAspectRatio: this.maintainAspectRatio,
+            responsive: true,
             elements: {
               point: {
                 hoverBackgroundColor: getBackgroundColor(this.colorScheme),

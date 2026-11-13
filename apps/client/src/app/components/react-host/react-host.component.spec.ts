@@ -35,6 +35,7 @@ describe('GfReactHostComponent', () => {
     impersonationId = null;
     token = null;
     capturedRequest = undefined;
+    document.body.classList.remove('theme-dark', 'theme-light');
     fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200
