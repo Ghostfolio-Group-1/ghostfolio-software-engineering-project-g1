@@ -3,7 +3,6 @@ import {
   type ReactHostRenderArgs
 } from '@ghostfolio/client/components/react-host/react-host.component';
 import { ImpersonationStorageService } from '@ghostfolio/client/services/impersonation-storage.service';
-import { DEFAULT_COLOR_SCHEME } from '@ghostfolio/common/config';
 import type { ColorScheme } from '@ghostfolio/common/types';
 
 import { Component, input } from '@angular/core';
@@ -96,7 +95,7 @@ describe('GfTaxPageComponent', () => {
       fixture.nativeElement.querySelector('main[aria-label="Tax analytics"]')
     ).not.toBeNull();
 
-    expect(getHost().colorScheme()).toBe(DEFAULT_COLOR_SCHEME);
+    expect(getHost().colorScheme()).toBeUndefined();
     expect(typeof getHost().renderReact()).toBe('function');
   });
 
@@ -133,7 +132,7 @@ describe('GfTaxPageComponent', () => {
     fixture.detectChanges();
 
     expect(getHost()).not.toBe(authenticatedHost);
-    expect(getHost().colorScheme()).toBe(DEFAULT_COLOR_SCHEME);
+    expect(getHost().colorScheme()).toBeUndefined();
   });
 
   it('recreates the host when impersonation changes', () => {
@@ -143,7 +142,7 @@ describe('GfTaxPageComponent', () => {
     fixture.detectChanges();
 
     expect(getHost()).not.toBe(originalHost);
-    expect(getHost().colorScheme()).toBe(DEFAULT_COLOR_SCHEME);
+    expect(getHost().colorScheme()).toBeUndefined();
   });
 
   it('does not recreate the host on unrelated user state emissions', () => {

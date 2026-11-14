@@ -9,6 +9,11 @@ export interface ChartPoint {
 }
 
 export interface ChartWrapperProps {
+  /**
+   * When true, draw only the SVG (no Card surface). Used on Overview so the
+   * React series does not paint a light/dark box over the page background.
+   */
+  embedded?: boolean;
   height?: number;
   points: ChartPoint[];
   title: string;
@@ -49,6 +54,7 @@ function round(value: number): number {
 }
 
 export function ChartWrapper({
+  embedded = false,
   height = 160,
   points,
   title,
@@ -56,27 +62,37 @@ export function ChartWrapper({
 }: ChartWrapperProps) {
   const theme = useTheme();
 
-  return (
-    <Card title={title}>
-      {points.length === 0 ? (
-        <p style={{ color: theme.color.textMuted, margin: 0 }}>
-          No data for this range
-        </p>
-      ) : (
-        <svg
-          aria-label={title}
-          role="img"
-          viewBox={`0 0 ${width} ${height}`}
-          width="100%"
-        >
-          <path
-            d={toPath(points, width, height)}
-            fill="none"
-            stroke={theme.color.primary}
-            strokeWidth={2}
-          />
-        </svg>
-      )}
-    </Card>
-  );
+  const body =
+    points.length === 0 ? (
+      <p style={{ color: theme.color.textMuted, margin: 0 }}>
+        No data for this range
+      </p>
+    ) : (
+      <svg
+        aria-label={title}
+        role="img"
+        viewBox={`0 0 ${width} ${height}`}
+        width="100%"
+      >
+        <path
+          d={toPath(points, width, height)}
+          fill="none"
+          stroke={theme.color.primary}
+          strokeWidth={2}
+        />
+      </svg>
+    );
+
+  if (embedded) {
+    return (
+      <div
+        data-testid="chart-wrapper-embedded"
+        style={{ marginInline: 'auto', maxWidth: '100%', width: '100%' }}
+      >
+        {body}
+      </div>
+    );
+  }
+
+  return <Card title={title}>{body}</Card>;
 }

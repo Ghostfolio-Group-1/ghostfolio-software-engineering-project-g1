@@ -25,6 +25,8 @@ export type ChartSeriesRangeSelection =
   { range: string } | { endDate: string; startDate: string };
 
 export interface ChartSeriesCardProps {
+  /** Skip ChartWrapper Card chrome when embedding in an existing page shell. */
+  embedded?: boolean;
   /** Shared time-range only — this card does not invent a second range control. */
   range: ChartSeriesRangeSelection;
   /** Host authenticated fetch — required (no native-fetch default). */
@@ -40,6 +42,7 @@ export interface ChartSeriesCardProps {
  * Ready series render through the shared ChartWrapper.
  */
 export function ChartSeriesCard({
+  embedded = false,
   initialKind = 'portfolioValue',
   range,
   request,
@@ -56,20 +59,23 @@ export function ChartSeriesCard({
 
   return (
     <div data-testid="chart-series-card">
-      <SeriesKindToggle kind={kind} onChange={setKind} />
+      <SeriesKindToggle centered={embedded} kind={kind} onChange={setKind} />
       <div style={{ marginTop: px(designTokens.spacing.sm) }}>
         {status === 'ready' && data ? (
           <div>
-            <p
-              data-testid="chart-series-kind-label"
-              style={{
-                color: theme.color.textMuted,
-                margin: `0 0 ${px(designTokens.spacing.sm)} 0`
-              }}
-            >
-              Showing {seriesLabel}
-            </p>
+            {!embedded ? (
+              <p
+                data-testid="chart-series-kind-label"
+                style={{
+                  color: theme.color.textMuted,
+                  margin: `0 0 ${px(designTokens.spacing.sm)} 0`
+                }}
+              >
+                Showing {seriesLabel}
+              </p>
+            ) : null}
             <ChartWrapper
+              embedded={embedded}
               points={data.points}
               title={`${title} — ${seriesLabel}`}
             />
@@ -89,9 +95,11 @@ export function ChartSeriesCard({
 }
 
 function SeriesKindToggle({
+  centered = false,
   kind,
   onChange
 }: {
+  centered?: boolean;
   kind: ChartSeriesKind;
   onChange: (kind: ChartSeriesKind) => void;
 }) {
@@ -104,7 +112,8 @@ function SeriesKindToggle({
       style={{
         display: 'flex',
         flexWrap: 'wrap',
-        gap: px(designTokens.spacing.xs)
+        gap: px(designTokens.spacing.xs),
+        justifyContent: centered ? 'center' : 'flex-start'
       }}
     >
       {CHART_SERIES_KINDS.map((option) => {
