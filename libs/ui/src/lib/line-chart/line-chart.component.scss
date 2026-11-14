@@ -5,3 +5,16 @@
     height: 100%;
   }
 }
+
+// Overview is the only caller that turns maintainAspectRatio off. Analysis,
+// benchmark, account, and holding-detail charts keep Chart.js sizing.
+:host(.fill-container) {
+  height: 100%;
+  width: 100%;
+
+  canvas {
+    display: block;
+    height: 100% !important;
+    width: 100% !important;
+  }
+}

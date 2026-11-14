@@ -35,6 +35,7 @@ describe('GfReactHostComponent', () => {
     impersonationId = null;
     token = null;
     capturedRequest = undefined;
+    document.body.classList.remove('theme-dark', 'theme-light');
     fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200
@@ -158,5 +159,88 @@ describe('GfReactHostComponent', () => {
     expect(
       document.querySelector('[data-testid="react-host-ready"]')
     ).toBeNull();
+  });
+
+  describe('system color scheme listener', () => {
+    const originalMatchMedia = window.matchMedia;
+
+    afterEach(() => {
+      window.matchMedia = originalMatchMedia;
+    });
+
+    function installMatchMedia(): {
+      addEventListener: jest.Mock;
+      removeEventListener: jest.Mock;
+    } {
+      const query = {
+        addEventListener: jest.fn(),
+        matches: false,
+        removeEventListener: jest.fn()
+      };
+
+      window.matchMedia = jest
+        .fn()
+        .mockReturnValue(query) as typeof window.matchMedia;
+
+      return query;
+    }
+
+    it('adds a matchMedia listener when the scheme is unset', async () => {
+      const query = installMatchMedia();
+
+      fixture.componentRef.setInput('colorScheme', null);
+      await settleHost();
+
+      expect(window.matchMedia).toHaveBeenCalledWith(
+        '(prefers-color-scheme: dark)'
+      );
+      expect(query.addEventListener).toHaveBeenCalledTimes(1);
+      expect(query.addEventListener).toHaveBeenCalledWith(
+        'change',
+        expect.any(Function)
+      );
+      expect(query.removeEventListener).not.toHaveBeenCalled();
+    });
+
+    it('removes the listener when the scheme becomes DARK', async () => {
+      const query = installMatchMedia();
+
+      fixture.componentRef.setInput('colorScheme', null);
+      await settleHost();
+
+      const handler = query.addEventListener.mock.calls[0][1];
+
+      fixture.componentRef.setInput('colorScheme', 'DARK');
+      await settleHost();
+
+      expect(query.removeEventListener).toHaveBeenCalledWith('change', handler);
+    });
+
+    it('removes the listener when the scheme becomes LIGHT', async () => {
+      const query = installMatchMedia();
+
+      fixture.componentRef.setInput('colorScheme', undefined);
+      await settleHost();
+
+      const handler = query.addEventListener.mock.calls[0][1];
+
+      fixture.componentRef.setInput('colorScheme', 'LIGHT');
+      await settleHost();
+
+      expect(query.removeEventListener).toHaveBeenCalledWith('change', handler);
+    });
+
+    it('removes the listener on destroy', async () => {
+      const query = installMatchMedia();
+
+      fixture.componentRef.setInput('colorScheme', null);
+      await settleHost();
+
+      const handler = query.addEventListener.mock.calls[0][1];
+
+      fixture.destroy();
+
+      expect(query.removeEventListener).toHaveBeenCalledWith('change', handler);
+    });
   });
 });
