@@ -16,6 +16,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DeviceDetectorService } from 'ngx-device-detector';
 import { EMPTY, Observable, of, Subject } from 'rxjs';
@@ -48,6 +49,7 @@ export class GfActivityDialogHostComponent implements OnDestroy, OnInit {
   private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly snackBar = inject(MatSnackBar);
   private readonly userService = inject(UserService);
 
   public ngOnInit() {
@@ -207,7 +209,13 @@ export class GfActivityDialogHostComponent implements OnDestroy, OnInit {
           : this.dataService.postActivity(result as CreateOrderDto);
 
         request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-          error: () => {
+          error: (error) => {
+            const message = error?.error?.message;
+            const text = Array.isArray(message)
+              ? message.join(' ')
+              : (message ?? $localize`Could not save activity.`);
+
+            this.snackBar.open(String(text), undefined, { duration: 6000 });
             this.navigateBack();
           },
           next: () => {
