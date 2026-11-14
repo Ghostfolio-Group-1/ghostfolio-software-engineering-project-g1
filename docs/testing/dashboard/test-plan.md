@@ -97,16 +97,17 @@ issue.
 
 ## Integration (UI ↔ API ↔ service ↔ data)
 
-| Case                                                                                             | Status               |
-| ------------------------------------------------------------------------------------------------ | -------------------- |
-| Every Iteration 3 route returns 200 with `error: null` on the demo stack (`demo-smoke.sh`)       | have (#239)          |
-| Dashboard overview renders on the running API: all cards settle, no error, exact realized gain   | have (harness, #251) |
-| Risk card: live score and concentration parse; grade renders                                     | have (harness)       |
-| Tax lots and Dividends screens settle into a table on live data                                  | have (harness)       |
-| Dashboard overview with one source down on the running API (e.g. tax failing) → notice + 2 cards | gap — Nov 18         |
-| Harness covers Realized gains and Yearly summary                                                 | gap — Nov 18         |
-| Harness covers the Charts series chart and the What-if simulator (mounted in #282)               | gap — Nov 18         |
-| Fixture sets an asset class so Risk stock buckets can be asserted (#272)                         | gap — Nov 18         |
+| Case                                                                                                                                                                                                                         | Status               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| Core read routes return 200 with `error: null` on the demo stack (`demo-smoke.sh`): dashboard overview, risk score + concentration, tax realized gains + lots, charts series + drawdown (7 of the 12 Iteration 3 GET routes) | have (#239)          |
+| Remaining GET routes added to `demo-smoke.sh`: `/tax/dividends`, `/tax/yearly-summary`, `/risk/warnings`, `/risk/target-allocation`, `/risk/thresholds` (write routes stay out: they change data)                            | gap — Nov 18         |
+| Dashboard overview renders on the running API: all cards settle, no error, exact realized gain                                                                                                                               | have (harness, #251) |
+| Risk card: live score and concentration parse; grade renders                                                                                                                                                                 | have (harness)       |
+| Tax lots and Dividends screens settle into a table on live data                                                                                                                                                              | have (harness)       |
+| Dashboard overview with one source down on the running API (e.g. tax failing) → notice + 2 cards                                                                                                                             | gap — Nov 18         |
+| Harness covers Realized gains and Yearly summary                                                                                                                                                                             | gap — Nov 18         |
+| Harness covers the Charts series chart and the What-if simulator (mounted in #282)                                                                                                                                           | gap — Nov 18         |
+| Fixture sets an asset class so Risk stock buckets can be asserted (#272)                                                                                                                                                     | gap — Nov 18         |
 
 ## End-to-end (browser)
 

@@ -46,8 +46,12 @@ decimal percentages. Every Iteration 3 route uses them.
 | `table/`                                                 | `Table`: decimal strings rendered as given, numeric columns right-aligned                                                                                                     | n/a                              |
 | `card/`, `button/`, `layout-shell/`, `theme/`, `tokens/` | Primitives and design tokens; light and dark themes. `LayoutShell` takes its text colour from the active theme and leaves the host background (#274)                          | n/a                              |
 
-React never calculates financial values: the Tax card sums decimal strings
-exactly with Big for display only; the Charts card shows API values as sent.
+All financial calculations (FIFO lots, realized gains, risk scores, performance)
+are backend-owned. React does one display aggregation: the Dashboard Tax card
+adds up the per-sale realized-gain decimal strings the API returns, using Big
+for exact decimal addition (no rounding; mixed currencies are refused, not
+converted). It does not recompute any gain. The Charts card shows API values
+as sent.
 
 ## Integration harness (`libs/react-ui/integration/`)
 
@@ -73,16 +77,16 @@ data-provider call is needed.
 
 ## Existing coverage (counted on `main` at `024cc19`, Nov 13)
 
-| Area                                     | Spec files | Tests    |
-| ---------------------------------------- | ---------- | -------- |
-| Dashboard API (service, controller, e2e) | 3          | 23       |
-| Shared API conventions                   | 1          | 5        |
-| Shared React primitives                  | 8          | 36       |
-| Data layer                               | 2          | 11       |
-| Dashboard page and cards                 | 7          | 40       |
-| UI-to-API integration harness            | 1          | 4        |
-| Demo smoke test (API routes)             | 1 script   | 7 routes |
-| Browser route smoke (Playwright)         | 1          | 3 routes |
+| Area                                     | Spec files | Tests              |
+| ---------------------------------------- | ---------- | ------------------ |
+| Dashboard API (service, controller, e2e) | 3          | 23                 |
+| Shared API conventions                   | 1          | 5                  |
+| Shared React primitives                  | 8          | 36                 |
+| Data layer                               | 2          | 11                 |
+| Dashboard page and cards                 | 7          | 40                 |
+| UI-to-API integration harness            | 1          | 4                  |
+| Demo smoke test (API routes)             | 1 script   | 7 of 12 GET routes |
+| Browser route smoke (Playwright)         | 1          | 3 routes           |
 
 The whole `react-ui` unit run is 60 suites / 428 tests. This is not a
 green-field area; the plan targets the gaps below rather than re-testing what
