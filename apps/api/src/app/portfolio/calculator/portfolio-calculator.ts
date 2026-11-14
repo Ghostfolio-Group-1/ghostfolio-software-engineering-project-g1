@@ -1,3 +1,4 @@
+import { carryForwardMarketPricesToEndDate } from '@ghostfolio/api/app/portfolio/calculator/carry-forward-market-prices';
 import { CurrentRateService } from '@ghostfolio/api/app/portfolio/current-rate.service';
 import { PortfolioSnapshotComputationError } from '@ghostfolio/api/app/portfolio/errors/portfolio-snapshot-computation.error';
 import { PortfolioCalculatorPosition } from '@ghostfolio/api/app/portfolio/interfaces/portfolio-calculator-position.interface';
@@ -309,6 +310,29 @@ export abstract class PortfolioCalculator {
     }
 
     const endDateString = format(this.endDate, DATE_FORMAT);
+
+    // Yahoo (and others) often have no bar for "today" yet when the API
+    // clock is already on the next UTC calendar day. Without a price on
+    // endDateString, ROAI treats holdings as errors and Overview shows 0.
+    // The warning names every stale fill so a carried-forward price stays
+    // visible instead of looking like a real end-date close.
+    const carriedForwardMarketPrices = carryForwardMarketPricesToEndDate({
+      endDateString,
+      marketSymbolMap,
+      assetProfileIdentifiers: dataGatheringItems.map((item) => {
+        return getAssetProfileIdentifier(item);
+      })
+    });
+
+    if (carriedForwardMarketPrices.length > 0) {
+      this.logger.warn(
+        `Carried forward ${carriedForwardMarketPrices.length} missing end-date market price(s) onto ${endDateString} (stale): ${carriedForwardMarketPrices
+          .map(({ assetProfileIdentifier, fromDate }) => {
+            return `${assetProfileIdentifier} from ${fromDate}`;
+          })
+          .join(', ')}`
+      );
+    }
 
     const daysInMarket = differenceInDays(this.endDate, this.startDate);
 
