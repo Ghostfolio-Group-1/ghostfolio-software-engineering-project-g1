@@ -1,9 +1,9 @@
 # Iteration 3 Tax module — Evidence-based test plan
 
-**Owner:** Tharun Swaminathan  
-**Reviewer:** Arthur (independent review); Raniya for shared harness, authentication, and cross-owner contracts  
-**Issue:** [#232](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/232)  
-**Inspected baseline:** `024cc195d` on November 13, 2026  
+**Owner:** Tharun Swaminathan
+**Reviewer:** Arthur (independent review); Raniya for shared harness, authentication, and cross-owner contracts
+**Issue:** [#232](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/232)
+**Inspected baseline:** `024cc195d` on November 13, 2026
 **Status:** **Proposed**. These are planned checks and coverage mappings, not assertions that tests were executed or that the instructor accepted the November 12 demo.
 
 ## Ground rules

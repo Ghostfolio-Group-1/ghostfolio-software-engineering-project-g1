@@ -1,8 +1,8 @@
 # Tax module — Test coverage inventory and gap analysis
 
-**Issue:** [#232](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/232)  
-**Baseline:** `main` commit `024cc195d` on November 13, 2026  
-**Method:** Read the checked-in test files and their named assertions; compare to current Tax service/React/API contracts. No tests were executed as part of this document's preparation.  
+**Issue:** [#232](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/232)
+**Baseline:** `main` commit `024cc195d` on November 13, 2026
+**Method:** Read the checked-in test files and their named assertions; compare to current Tax service/React/API contracts. No tests were executed as part of this document's preparation.
 **Interpretation:** **Covered in source** means the scenario has a test definition, not that it passed on the audit date.
 
 ## Tax architecture to preserve
