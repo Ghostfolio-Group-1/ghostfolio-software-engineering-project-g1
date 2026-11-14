@@ -247,6 +247,36 @@
         </div>
       </mat-form-field>
     </div>
+    <div
+      class="mb-3"
+      [class.d-none]="activityForm.get('type')?.value !== 'DIVIDEND'"
+    >
+      <mat-form-field appearance="outline" class="w-100">
+        <mat-label i18n>Withholding tax</mat-label>
+        <input formControlName="withholdingTax" matInput type="number" />
+        <div
+          class="ml-2"
+          matTextSuffix
+          [class.d-none]="!activityForm.get('currency')?.value"
+        >
+          {{ activityForm.get('currencyOfUnitPrice')?.value }}
+        </div>
+        <mat-hint i18n
+          >Leave empty if unknown. Cannot exceed the dividend amount ({{
+            total
+          }}).</mat-hint
+        >
+        @if (
+          activityForm
+            .get('withholdingTax')
+            ?.hasError('withholdingExceedsGross')
+        ) {
+          <mat-error i18n
+            >Withholding tax cannot exceed the gross dividend.</mat-error
+          >
+        }
+      </mat-form-field>
+    </div>
     <div class="mb-3">
       <mat-form-field appearance="outline" class="w-100">
         <mat-label i18n>Note</mat-label>

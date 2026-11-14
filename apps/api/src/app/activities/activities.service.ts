@@ -634,7 +634,19 @@ export class ActivitiesService {
     ];
 
     if (sortColumn) {
-      orderBy = [{ [sortColumn]: sortDirection }];
+      // Keep unknown withholding (null) at the end so rows with a real amount
+      // surface when sorting this column.
+      orderBy =
+        sortColumn === 'withholdingTax'
+          ? [
+              {
+                withholdingTax: {
+                  sort: sortDirection ?? 'asc',
+                  nulls: 'last'
+                }
+              }
+            ]
+          : [{ [sortColumn]: sortDirection }];
     }
 
     const where = this.getWhereClause({
