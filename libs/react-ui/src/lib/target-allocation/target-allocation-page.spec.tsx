@@ -170,6 +170,103 @@ describe('TargetAllocationPage', () => {
     );
   });
 
+  it('shows a generic error message and retries on request when the initial GET fails', async () => {
+    let shouldFail = true;
+    const request = jest.fn().mockImplementation(() => {
+      if (shouldFail) {
+        return Promise.resolve(
+          httpResponse(
+            {
+              data: null,
+              error: { code: 'RISK_CALC_FAILED', message: 'boom' },
+              meta: {}
+            },
+            500
+          )
+        );
+      }
+
+      return Promise.resolve(httpResponse(okEnvelope(unset)));
+    });
+
+    await render(request as unknown as AuthenticatedFetch);
+
+    expect(container.textContent).toContain(
+      'Target allocation is unavailable right now'
+    );
+    expect(container.textContent).not.toContain('boom');
+
+    shouldFail = false;
+    const retry = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Try again'
+    );
+
+    await act(async () => {
+      retry?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain(
+      'No target allocation configured yet.'
+    );
+  });
+
+  it('shows the server error message below the form when a save is rejected', async () => {
+    const request = jest
+      .fn()
+      .mockImplementation((_url: string, init?: RequestInit) => {
+        if (init?.method === 'PUT') {
+          return Promise.resolve(
+            httpResponse(
+              {
+                data: null,
+                error: {
+                  code: 'RISK_FORBIDDEN',
+                  message: 'You do not have permission to change risk settings.'
+                },
+                meta: {}
+              },
+              403
+            )
+          );
+        }
+
+        return Promise.resolve(httpResponse(okEnvelope(unset)));
+      });
+
+    await render(request as unknown as AuthenticatedFetch);
+
+    const keyInput = container.querySelector(
+      '[aria-label="Key"]'
+    ) as HTMLInputElement;
+    const percentageInput = container.querySelector(
+      '[aria-label="Percentage"]'
+    ) as HTMLInputElement;
+
+    await act(async () => {
+      setNativeValue(keyInput, 'EQUITY');
+      keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+      setNativeValue(percentageInput, '100');
+      percentageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const submit = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Save target allocation'
+    );
+
+    await act(async () => {
+      submit?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain(
+      'You do not have permission to change risk settings.'
+    );
+    // The unset state is still shown - the rejected save must not be treated
+    // as if it succeeded.
+    expect(container.textContent).toContain(
+      'No target allocation configured yet.'
+    );
+  });
+
   it('DELETEs on clear and shows the unset state again', async () => {
     let current = set;
     const request = jest

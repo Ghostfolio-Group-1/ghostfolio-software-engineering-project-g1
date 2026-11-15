@@ -72,6 +72,44 @@ describe('RiskThresholdsPage', () => {
     expect(container.textContent).toContain('Single stock concentration');
   });
 
+  it('shows a generic error message and retries on request when the initial GET fails', async () => {
+    let shouldFail = true;
+    const request = jest.fn().mockImplementation(() => {
+      if (shouldFail) {
+        return Promise.resolve(
+          httpResponse(
+            {
+              data: null,
+              error: { code: 'RISK_CALC_FAILED', message: 'boom' },
+              meta: {}
+            },
+            500
+          )
+        );
+      }
+
+      return Promise.resolve(httpResponse(okEnvelope([defaultItem])));
+    });
+
+    await render(request as unknown as AuthenticatedFetch);
+
+    expect(container.textContent).toContain(
+      'Risk thresholds are unavailable right now'
+    );
+    expect(container.textContent).not.toContain('boom');
+
+    shouldFail = false;
+    const retry = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Try again'
+    );
+
+    await act(async () => {
+      retry?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('Single stock concentration');
+  });
+
   it('PUTs the edited thresholds for the row that was saved', async () => {
     let current = [defaultItem];
     const request = jest

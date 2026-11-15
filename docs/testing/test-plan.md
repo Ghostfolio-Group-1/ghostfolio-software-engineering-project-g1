@@ -78,12 +78,15 @@ work held until the Nov 10 harness (#68) per the Nov 6 pacing decision.
 
 ## UI / Component
 
-| Case                                                                                                                                                                                  | Status                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `RiskDashboardCard`: loading, error (with/without retry), empty, ready, top concentration, per-category rows, visible severity text, null-score unavailable-reason message + fallback | have                            |
-| `RiskIndicator`: one test per severity colour, accessible label, visible severity word                                                                                                | have                            |
-| `risk-dashboard.client.ts`: maps envelope, propagates `ApiRequestError`, missing-data error                                                                                           | have (PR #213)                  |
-| What-if simulator components: form, result panel, holding-selector loading/error/empty states, full host (`WhatIfSimulatorPage`) mounted end to end                                   | have (PR #241, committed Nov 9) |
+| Case                                                                                                                                                                                                                         | Status                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `RiskDashboardCard`: loading, error (with/without retry), empty, ready, top concentration, per-category rows, visible severity text, null-score unavailable-reason message + fallback                                        | have                                                          |
+| `RiskIndicator`: one test per severity colour, accessible label, visible severity word                                                                                                                                       | have                                                          |
+| `risk-dashboard.client.ts`: maps envelope, propagates `ApiRequestError`, missing-data error                                                                                                                                  | have (PR #213)                                                |
+| What-if simulator components: form, result panel, holding-selector loading/error/empty states, full host (`WhatIfSimulatorPage`) mounted end to end                                                                          | have (PR #241, committed Nov 9)                               |
+| `RiskWarningsPage`: live list, empty state, initial-GET error + retry                                                                                                                                                        | have (PR #282, committed Nov 12)                              |
+| `TargetAllocationPage`: seeds form from existing targets, unset state, PUT/save, client-side validation error, DELETE/clear, **initial-GET error + retry**, **save-rejected server error (`RISK_FORBIDDEN`) below the form** | have (PR #282 + #285: the two bold cases were the Nov 13 gap) |
+| `RiskThresholdsPage`: renders all rules, PUT/save, DELETE/reset, row-level save error, **initial-GET error + retry**                                                                                                         | have (PR #282 + #285: the bold case was the Nov 13 gap)       |
 
 ## Integration (UI ↔ API ↔ service ↔ data)
 
