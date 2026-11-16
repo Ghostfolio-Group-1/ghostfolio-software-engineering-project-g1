@@ -98,4 +98,61 @@ describe('requestApi', () => {
 
     expect(error.code).toBe('INVALID_RESPONSE');
   });
+
+  it('gives a generic message on 403 and keeps the backend code, never the server text', async () => {
+    const { request } = mockFetch(
+      {
+        data: null,
+        error: {
+          code: 'RISK_FORBIDDEN',
+          message: 'User 42 lacks portfolio:read on account abc'
+        },
+        meta: {}
+      },
+      403
+    );
+
+    const error = await rejection(requestApi(request, '/api/v1/risk/score'));
+
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error.status).toBe(403);
+    expect(error.code).toBe('RISK_FORBIDDEN');
+    expect(error.message).toBe('Unable to load data');
+    expect(error.message).not.toContain('portfolio:read');
+  });
+
+  it('gives a generic message on a 5xx JSON body that is not an envelope', async () => {
+    const { request } = mockFetch(
+      {
+        message: 'connect ECONNREFUSED 10.0.0.5:5432',
+        statusCode: 500
+      },
+      500
+    );
+
+    const error = await rejection(
+      requestApi(request, '/api/v1/dashboard/overview')
+    );
+
+    expect(error.status).toBe(500);
+    expect(error.code).toBe('REQUEST_FAILED');
+    expect(error.message).toBe('Unable to load data');
+    expect(error.message).not.toContain('ECONNREFUSED');
+  });
+
+  it('treats a 2xx error envelope as a failure', async () => {
+    const { request } = mockFetch(
+      {
+        data: { score: 72 },
+        error: { code: 'TAX_INVALID_QUERY', message: 'year must be 4 digits' },
+        meta: {}
+      },
+      200
+    );
+
+    const error = await rejection(requestApi(request, '/api/v1/tax/lots'));
+
+    expect(error.code).toBe('TAX_INVALID_QUERY');
+    expect(error.message).toBe('Unable to load data');
+  });
 });

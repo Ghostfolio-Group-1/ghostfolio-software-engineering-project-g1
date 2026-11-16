@@ -16,7 +16,11 @@ import {
 } from '../risk/risk-concentration.mapper';
 import { ThresholdEngineService } from '../risk/threshold-engine.service';
 import { TaxService } from '../tax/tax.service';
-import { DASHBOARD_CHART_RANGE, DashboardOverview } from './dashboard-overview';
+import {
+  DASHBOARD_CHART_RANGE,
+  DASHBOARD_SECTION_ERROR_CODES,
+  DashboardOverview
+} from './dashboard-overview';
 
 const mockRiskSection = { section: 'risk' };
 
@@ -236,5 +240,19 @@ describe('DashboardOverview.getOverview', () => {
     expect(getHoldings).not.toHaveBeenCalled();
     expect(result.tax.status).toBe('available');
     expect(result.charts.status).toBe('available');
+  });
+});
+
+describe('Dashboard overview constants', () => {
+  it('shows one year of performance on the dashboard', () => {
+    expect(DASHBOARD_CHART_RANGE).toBe('1y');
+  });
+
+  it('has one DASHBOARD_ code per section and no other sections', () => {
+    expect(DASHBOARD_SECTION_ERROR_CODES).toEqual({
+      charts: 'DASHBOARD_CHARTS_UNAVAILABLE',
+      risk: 'DASHBOARD_RISK_UNAVAILABLE',
+      tax: 'DASHBOARD_TAX_UNAVAILABLE'
+    });
   });
 });
