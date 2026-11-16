@@ -439,6 +439,153 @@ describe('TaxPdfExport', () => {
     }
   });
 
+  it('preserves two FIFO acquisition lot values in the generated PDF without double-counting the sale', async () => {
+    // Hand-calculated, one currency and zero fees:
+    // Lot 1: 10 * (130 - 100) = 300; lot 2: 5 * (130 - 120) = 50.
+    // One sale: proceeds 1950, basis 1600, realized gain 350.
+    const originalSale = createCompleteFifoSummary().realizedGains[0];
+    const summary: YearlyTaxSummary = {
+      ...createEmptyFifoSummary(),
+      grossProceedsBaseCurrency: new Big('1950'),
+      grossCostBasisBaseCurrency: new Big('1600'),
+      grossRealizedGainBaseCurrency: new Big('350'),
+      totalActivityFeesBaseCurrency: new Big(0),
+      realizedGainAfterActivityFeesBaseCurrency: new Big('350'),
+      disposalCount: 1,
+      realizedGains: [
+        {
+          ...originalSale,
+          sellQuantity: new Big(15),
+          matchedQuantity: new Big(15),
+          grossProceeds: new Big('1950'),
+          grossCostBasis: new Big('1600'),
+          grossRealizedGain: new Big('350'),
+          allocatedAcquisitionFees: new Big(0),
+          allocatedSellFees: new Big(0),
+          totalActivityFees: new Big(0),
+          realizedGainAfterActivityFees: new Big('350'),
+          grossProceedsBaseCurrency: new Big('1950'),
+          grossCostBasisBaseCurrency: new Big('1600'),
+          grossRealizedGainBaseCurrency: new Big('350'),
+          totalActivityFeesBaseCurrency: new Big(0),
+          realizedGainAfterActivityFeesBaseCurrency: new Big('350')
+        }
+      ]
+    };
+
+    const originalMatch = createFifoTrace().matches[0];
+    const trace: Extract<TaxExportTrace, { method: 'FIFO' }> = {
+      method: 'FIFO',
+      // Deliberately reverse the input: PDF trace order must follow acquisition dates.
+      matches: [
+        {
+          ...originalMatch,
+          traceId: 'lot-2:sell-1',
+          buyActivityId: 'buy-2',
+          acquiredAt: new Date('2025-02-01T10:00:00.000Z'),
+          matchedQuantity: new Big(5),
+          grossCostBasisBaseCurrency: new Big(600),
+          grossProceedsBaseCurrency: new Big(650),
+          grossRealizedGainBaseCurrency: new Big(50),
+          activityFeesBaseCurrency: new Big(0),
+          realizedGainAfterActivityFeesBaseCurrency: new Big(50)
+        },
+        {
+          ...originalMatch,
+          traceId: 'lot-1:sell-1',
+          buyActivityId: 'buy-1',
+          acquiredAt: new Date('2025-01-01T10:00:00.000Z'),
+          matchedQuantity: new Big(10),
+          grossCostBasisBaseCurrency: new Big(1000),
+          grossProceedsBaseCurrency: new Big(1300),
+          grossRealizedGainBaseCurrency: new Big(300),
+          activityFeesBaseCurrency: new Big(0),
+          realizedGainAfterActivityFeesBaseCurrency: new Big(300)
+        }
+      ]
+    };
+
+    const report = TaxPdfReportBuilder.build({
+      generatedAt: GENERATED_AT,
+      summary,
+      trace
+    });
+
+    expect(report.annualSummary).toMatchObject({
+      grossProceeds: '1950',
+      grossCostBasis: '1600',
+      grossRealizedGain: '350',
+      activityFees: '0',
+      realizedGainAfterActivityFees: '350',
+      disposalCount: '1'
+    });
+    expect(report.realizedGains).toHaveLength(1);
+    expect(report.realizedGains[0]).toMatchObject({
+      sellActivityId: 'sell-1',
+      sellQuantity: '15',
+      matchedQuantity: '15',
+      grossProceedsBaseCurrency: '1950',
+      grossCostBasisBaseCurrency: '1600',
+      grossRealizedGainBaseCurrency: '350',
+      activityFeesBaseCurrency: '0',
+      realizedGainAfterActivityFeesBaseCurrency: '350'
+    });
+
+    expect(report.trace.method).toBe('FIFO');
+    if (report.trace.method !== 'FIFO') {
+      throw new Error('Expected FIFO PDF trace.');
+    }
+    expect(report.trace.matches).toEqual([
+      expect.objectContaining({
+        traceId: 'lot-1:sell-1',
+        buyActivityId: 'buy-1',
+        sellActivityId: 'sell-1',
+        matchedQuantity: '10',
+        grossCostBasisBaseCurrency: '1000',
+        grossProceedsBaseCurrency: '1300',
+        grossRealizedGainBaseCurrency: '300',
+        activityFeesBaseCurrency: '0',
+        realizedGainAfterActivityFeesBaseCurrency: '300'
+      }),
+      expect.objectContaining({
+        traceId: 'lot-2:sell-1',
+        buyActivityId: 'buy-2',
+        sellActivityId: 'sell-1',
+        matchedQuantity: '5',
+        grossCostBasisBaseCurrency: '600',
+        grossProceedsBaseCurrency: '650',
+        grossRealizedGainBaseCurrency: '50',
+        activityFeesBaseCurrency: '0',
+        realizedGainAfterActivityFeesBaseCurrency: '50'
+      })
+    ]);
+
+    const drawTextSpy = jest.spyOn(PDFPage.prototype, 'drawText');
+    try {
+      const pdf = await TaxPdfExport.generate({
+        generatedAt: GENERATED_AT,
+        summary,
+        trace
+      });
+      const document = await PDFDocument.load(pdf.content, {
+        updateMetadata: false
+      });
+      const drawnText = drawTextSpy.mock.calls.map(([text]) => text);
+
+      expect(document.getPageCount()).toBeGreaterThanOrEqual(1);
+      expect(drawnText).toContain('Gross Realized Gain: 350 USD');
+      expect(drawnText).toContain('Disposal Count: 1');
+      expect(drawnText).toContain('Sale sell-1');
+      expect(drawnText).toContain('FIFO Match lot-1:sell-1');
+      expect(drawnText).toContain('FIFO Match lot-2:sell-1');
+      expect(drawnText.indexOf('FIFO Match lot-1:sell-1')).toBeLessThan(
+        drawnText.indexOf('FIFO Match lot-2:sell-1')
+      );
+    } finally {
+      drawTextSpy.mockRestore();
+    }
+  });
+
   it('renders zero, unavailable and incomplete values distinctly', async () => {
     const drawTextSpy = jest.spyOn(PDFPage.prototype, 'drawText');
 
