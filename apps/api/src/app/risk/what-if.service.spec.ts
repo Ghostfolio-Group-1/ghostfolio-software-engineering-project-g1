@@ -270,6 +270,22 @@ describe('WhatIfService', () => {
     ).toThrow(/dropPercentage/);
   });
 
+  it('accepts a dropPercentage of exactly 1 (the inclusive upper bound): the holding wipes out to zero', () => {
+    const result = service.calculateWhatIf(
+      baseRequest({
+        scenario: { dataSource: 'YAHOO', dropPercentage: 1, symbol: 'AAPL' }
+      })
+    );
+
+    // AAPL 30,000 -> 0. Holdings: 60,000 (MSFT only). Portfolio: 70,000.
+    expect(result.holding.valueAfter).toEqual({ amount: 0, currency: 'USD' });
+    expect(result.holding.allocationAfter).toBe(0);
+    expect(result.portfolio.valueAfter).toEqual({
+      amount: 70000,
+      currency: 'USD'
+    });
+  });
+
   it('rejects a dropPercentage above 1', () => {
     expect(() =>
       service.calculateWhatIf(

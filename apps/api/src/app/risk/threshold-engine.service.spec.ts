@@ -32,6 +32,16 @@ describe('ThresholdEngineService', () => {
       ).toBe('GREEN');
     });
 
+    it('is YELLOW exactly at the red line, not RED (fail is strictly above there too)', () => {
+      expect(
+        service.calculateSeverity({
+          actual: 0.25,
+          ruleKey: 'SingleStockConcentration',
+          subject: { type: 'stock', value: 'AAPL' }
+        })
+      ).toBe('YELLOW');
+    });
+
     it('handles band rules correctly on both sides (volatility)', () => {
       expect(
         service.calculateSeverity({
@@ -56,6 +66,20 @@ describe('ThresholdEngineService', () => {
           subject: { type: 'portfolio', value: 'volatility' }
         })
       ).toBe('YELLOW'); // between redMin (0.05) and thresholdMin (0.10)
+    });
+
+    it('is GREEN at both inclusive band edges, YELLOW at both inclusive red-band edges (volatility defaults: thresholdMin 0.10, thresholdMax 0.25, redThresholdMin 0.05, redThresholdMax 0.35)', () => {
+      const severityOf = (actual: number) =>
+        service.calculateSeverity({
+          actual,
+          ruleKey: 'PortfolioVolatility',
+          subject: { type: 'portfolio', value: 'volatility' }
+        });
+
+      expect(severityOf(0.1)).toBe('GREEN');
+      expect(severityOf(0.25)).toBe('GREEN');
+      expect(severityOf(0.05)).toBe('YELLOW');
+      expect(severityOf(0.35)).toBe('YELLOW');
     });
 
     it('returns NO_DATA when actual is null', () => {
