@@ -27,6 +27,11 @@ import type { ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 
+import {
+  resolveReactHostColorScheme,
+  systemPrefersDarkColorScheme
+} from './resolve-react-host-color-scheme';
+
 export interface ReactHostRenderArgs {
   createElement: typeof import('react').createElement;
   request: AuthenticatedFetch;
@@ -39,7 +44,19 @@ export interface ReactHostRenderArgs {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'gf-react-host',
-  template: '<div #mount></div>'
+  styles: [
+    `
+      :host {
+        display: block;
+        width: 100%;
+      }
+
+      .react-host-mount {
+        width: 100%;
+      }
+    `
+  ],
+  template: '<div #mount class="react-host-mount"></div>'
 })
 export class GfReactHostComponent implements AfterViewInit, OnDestroy {
   public readonly colorScheme = input<ColorScheme | null | undefined>(
@@ -60,6 +77,21 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
 
   private renderGeneration = 0;
 
+  private systemColorSchemeQuery?: MediaQueryList;
+
+  private readonly onSystemColorSchemeChange = () => {
+    if (this.destroyed) {
+      return;
+    }
+
+    // User has no explicit preference — follow the OS like app.component.
+    if (this.colorScheme() === 'DARK' || this.colorScheme() === 'LIGHT') {
+      return;
+    }
+
+    void this.renderTree(this.resolveColorScheme(this.colorScheme()));
+  };
+
   private readonly impersonationStorageService = inject(
     ImpersonationStorageService
   );
@@ -73,9 +105,10 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
       () => {
         // Only colorScheme is tracked. Screens should pass a stable
         // renderReact reference; a new callback does not remount on its own.
-        const scheme = this.colorScheme() ?? DEFAULT_COLOR_SCHEME;
+        const scheme = this.resolveColorScheme(this.colorScheme());
 
         untracked(() => {
+          this.syncSystemColorSchemeListener(this.colorScheme());
           void this.renderTree(scheme);
         });
       },
@@ -86,8 +119,52 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
   public ngOnDestroy(): void {
     this.destroyed = true;
     this.renderGeneration += 1;
+    this.teardownSystemColorSchemeListener();
     this.reactRoot?.unmount();
     this.reactRoot = undefined;
+  }
+
+  private resolveColorScheme(
+    scheme: ColorScheme | null | undefined
+  ): ColorScheme {
+    return resolveReactHostColorScheme({
+      documentHasDarkClass: document.body.classList.contains('theme-dark'),
+      documentHasLightClass: document.body.classList.contains('theme-light'),
+      scheme,
+      systemPrefersDark: systemPrefersDarkColorScheme()
+    });
+  }
+
+  private syncSystemColorSchemeListener(
+    scheme: ColorScheme | null | undefined
+  ): void {
+    if (scheme === 'DARK' || scheme === 'LIGHT') {
+      this.teardownSystemColorSchemeListener();
+      return;
+    }
+
+    if (
+      this.systemColorSchemeQuery ||
+      typeof window.matchMedia !== 'function'
+    ) {
+      return;
+    }
+
+    this.systemColorSchemeQuery = window.matchMedia(
+      '(prefers-color-scheme: dark)'
+    );
+    this.systemColorSchemeQuery.addEventListener(
+      'change',
+      this.onSystemColorSchemeChange
+    );
+  }
+
+  private teardownSystemColorSchemeListener(): void {
+    this.systemColorSchemeQuery?.removeEventListener(
+      'change',
+      this.onSystemColorSchemeChange
+    );
+    this.systemColorSchemeQuery = undefined;
   }
 
   private readonly request: AuthenticatedFetch = (fetchInput, init) => {
@@ -150,7 +227,9 @@ export class GfReactHostComponent implements AfterViewInit, OnDestroy {
       this.reactRoot.render(
         createElement(
           ThemeProvider,
-          { theme: scheme === 'DARK' ? darkTheme : lightTheme },
+          {
+            theme: scheme === 'DARK' ? darkTheme : lightTheme
+          },
           node
         )
       );

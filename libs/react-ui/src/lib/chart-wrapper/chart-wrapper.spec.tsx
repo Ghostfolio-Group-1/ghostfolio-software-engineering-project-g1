@@ -63,4 +63,20 @@ describe('ChartWrapper', () => {
     expect(html).toContain('No data for this range');
     expect(html).not.toContain('<svg');
   });
+
+  it('skips the Card surface when embedded', () => {
+    const html = renderToStaticMarkup(
+      <ChartWrapper
+        embedded
+        height={100}
+        points={points}
+        title="Portfolio value"
+        width={300}
+      />
+    );
+
+    expect(html).toContain('data-testid="chart-wrapper-embedded"');
+    expect(html).toContain('role="img"');
+    expect(html).not.toContain('<h2');
+  });
 });
