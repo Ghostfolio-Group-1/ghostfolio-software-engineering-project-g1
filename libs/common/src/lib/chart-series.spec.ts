@@ -222,6 +222,49 @@ describe('chart series adapter', () => {
     ).toEqual([{ date: '2026-03-01', value: 1200 }]);
   });
 
+  it('prefers currency-effect invested capital over the unconverted total', () => {
+    expect(
+      toChartSeriesResponse({
+        endDate: '2026-03-01',
+        history: [
+          {
+            date: '2026-03-01',
+            totalInvestment: 80,
+            totalInvestmentValueWithCurrencyEffect: 95,
+            valueWithCurrencyEffect: 100
+          }
+        ],
+        kind: 'investedCapital',
+        startDate: '2026-03-01'
+      }).points
+    ).toEqual([{ date: '2026-03-01', value: 95 }]);
+  });
+
+  it('skips a non-finite net worth and sums the holding and cash parts', () => {
+    expect(
+      toChartSeriesResponse({
+        endDate: '2026-03-02',
+        history: [
+          {
+            date: '2026-03-01',
+            netWorth: Number.NaN,
+            totalCashInBaseCurrency: 5,
+            valueWithCurrencyEffect: 10
+          },
+          {
+            date: '2026-03-02',
+            netWorth: Number.POSITIVE_INFINITY,
+            value: 4
+          }
+        ],
+        startDate: '2026-03-01'
+      }).points
+    ).toEqual([
+      { date: '2026-03-01', value: 15 },
+      { date: '2026-03-02', value: 4 }
+    ]);
+  });
+
   it('uses the base-currency value when the currency-effect value is absent', () => {
     expect(
       toChartSeriesResponse({
