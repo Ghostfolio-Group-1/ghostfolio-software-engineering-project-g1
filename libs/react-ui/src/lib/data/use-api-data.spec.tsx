@@ -101,4 +101,44 @@ describe('useApiData', () => {
 
     expect(seen?.aborted).toBe(true);
   });
+
+  it('ignores a slow first response that arrives after reload()', async () => {
+    const resolvers: ((rows: string[]) => void)[] = [];
+    const load = jest.fn(
+      () => new Promise<string[]>((done) => resolvers.push(done))
+    );
+
+    await render(load);
+    await act(async () => latest.reload());
+    expect(load).toHaveBeenCalledTimes(2);
+
+    await act(async () => resolvers[1](['FRESH']));
+    expect(latest.data).toEqual(['FRESH']);
+
+    await act(async () => resolvers[0](['STALE']));
+    expect(latest.status).toBe('ready');
+    expect(latest.data).toEqual(['FRESH']);
+  });
+
+  it('ignores a failure from a request replaced by reload()', async () => {
+    const settle: {
+      reject: (error: Error) => void;
+      resolve: (rows: string[]) => void;
+    }[] = [];
+    const load = jest.fn(
+      () =>
+        new Promise<string[]>((resolve, reject) =>
+          settle.push({ reject, resolve })
+        )
+    );
+
+    await render(load);
+    await act(async () => latest.reload());
+    await act(async () => settle[1].resolve(['AAPL']));
+    await act(async () => settle[0].reject(new Error('late failure')));
+
+    expect(latest.status).toBe('ready');
+    expect(latest.error).toBeNull();
+    expect(latest.data).toEqual(['AAPL']);
+  });
 });
