@@ -202,4 +202,107 @@ describe('toDrawdownResponse', () => {
       isNewPeak: false
     });
   });
+
+  it('returns a zero summary and no points when history is empty', () => {
+    expect(
+      toDrawdownResponse({
+        endDate: '2026-06-01',
+        history: [],
+        startDate: '2026-01-01'
+      })
+    ).toEqual({
+      endDate: '2026-06-01',
+      granularity: 'daily',
+      maxDrawdown: 0,
+      maxDrawdownDate: '2026-01-01',
+      points: [],
+      startDate: '2026-01-01'
+    });
+  });
+
+  it('marks a recovery above the previous peak as a new peak', () => {
+    const result = toDrawdownResponse({
+      endDate: '2026-04-01',
+      history: [
+        {
+          date: '2026-01-01',
+          netPerformanceInPercentageWithCurrencyEffect: 0
+        },
+        {
+          date: '2026-02-01',
+          netPerformanceInPercentageWithCurrencyEffect: 0.2
+        },
+        {
+          date: '2026-03-01',
+          netPerformanceInPercentageWithCurrencyEffect: -0.1
+        },
+        {
+          date: '2026-04-01',
+          netPerformanceInPercentageWithCurrencyEffect: 0.3
+        }
+      ],
+      startDate: '2026-01-01'
+    });
+
+    expect(result.points[3]).toEqual({
+      date: '2026-04-01',
+      drawdown: 0,
+      isNewPeak: true
+    });
+    expect(result.maxDrawdown).toBe(drawdownFrom(-0.1, 0.2));
+    expect(result.maxDrawdownDate).toBe('2026-03-01');
+  });
+
+  it('does not report a trough from before the selected window as the max drawdown', () => {
+    const result = toDrawdownResponse({
+      endDate: '2026-03-01',
+      history: [
+        {
+          date: '2026-01-01',
+          netPerformanceInPercentageWithCurrencyEffect: 0
+        },
+        {
+          date: '2026-02-01',
+          netPerformanceInPercentageWithCurrencyEffect: -0.5
+        },
+        {
+          date: '2026-03-01',
+          netPerformanceInPercentageWithCurrencyEffect: 0.1
+        }
+      ],
+      startDate: '2026-03-01'
+    });
+
+    expect(result.points).toEqual([
+      { date: '2026-03-01', drawdown: 0, isNewPeak: true }
+    ]);
+    expect(result.maxDrawdown).toBe(0);
+    expect(result.maxDrawdownDate).toBe('2026-03-01');
+  });
+
+  it('treats a zero performance index as zero drawdown and skips non-finite rows', () => {
+    expect(
+      toDrawdownResponse({
+        endDate: '2026-03-01',
+        history: [
+          {
+            date: '2026-01-01',
+            netPerformanceInPercentageWithCurrencyEffect: Number.NaN
+          },
+          {
+            date: '2026-02-01',
+            netPerformanceInPercentageWithCurrencyEffect: -1
+          },
+          {
+            date: '2026-03-01',
+            netPerformanceInPercentageWithCurrencyEffect: -0.5
+          }
+        ],
+        startDate: '2026-02-01'
+      }).points
+    ).toEqual([
+      { date: '2026-02-01', drawdown: 0, isNewPeak: true },
+      { date: '2026-03-01', drawdown: 0, isNewPeak: true }
+    ]);
+  });
 });

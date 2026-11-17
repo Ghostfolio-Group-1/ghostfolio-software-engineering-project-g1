@@ -11,6 +11,8 @@ describe('BenchmarkService', () => {
     expect(benchmarkService.calculateChangeInPercentage(1, 2)).toEqual(1);
     expect(benchmarkService.calculateChangeInPercentage(2, 2)).toEqual(0);
     expect(benchmarkService.calculateChangeInPercentage(2, 1)).toEqual(-0.5);
+    expect(benchmarkService.calculateChangeInPercentage(0, 10)).toEqual(0);
+    expect(benchmarkService.calculateChangeInPercentage(10, 0)).toEqual(0);
   });
 
   it('getMarketCondition', async () => {
