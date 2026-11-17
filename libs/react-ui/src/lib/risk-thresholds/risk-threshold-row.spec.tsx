@@ -152,4 +152,50 @@ describe('RiskThresholdRow', () => {
       redMin: ''
     });
   });
+
+  // The "Active" checkbox is the only interactive toggle on this row - every
+  // other assertion in this file exercises the item's default isActive: true,
+  // so unchecking it and still saving valid values was never actually proven
+  // to flip what onSave receives.
+  it('unchecks the Active box and calls onSave with isActive: false', async () => {
+    const onSave = jest.fn();
+
+    await act(async () => {
+      root.render(
+        <RiskThresholdRow
+          item={ceilingItem}
+          onReset={() => {}}
+          onSave={onSave}
+        />
+      );
+    });
+
+    const activeCheckbox = container.querySelector(
+      'input[type="checkbox"]'
+    ) as HTMLInputElement;
+
+    expect(activeCheckbox.checked).toBe(true);
+    expect(activeCheckbox.closest('label')?.textContent).toContain('Active');
+
+    await act(async () => {
+      activeCheckbox.click();
+    });
+
+    expect(activeCheckbox.checked).toBe(false);
+
+    const saveButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Save'
+    );
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSave).toHaveBeenCalledWith(false, {
+      max: '10',
+      min: '',
+      redMax: '25',
+      redMin: ''
+    });
+  });
 });
