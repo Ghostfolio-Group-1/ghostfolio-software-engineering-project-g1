@@ -439,10 +439,12 @@ describe('TaxPdfExport', () => {
     }
   });
 
-  it('preserves two FIFO acquisition lot values in the generated PDF without double-counting the sale', async () => {
+  it('renders and reconciles a precomputed two-lot FIFO trace in the PDF', async () => {
     // Hand-calculated, one currency and zero fees:
     // Lot 1: 10 * (130 - 100) = 300; lot 2: 5 * (130 - 120) = 50.
     // One sale: proceeds 1950, basis 1600, realized gain 350.
+    // The PDF builder does not calculate FIFO gains or count disposals;
+    // this test checks internal consistency and the exported text only.
     const originalSale = createCompleteFifoSummary().realizedGains[0];
     const summary: YearlyTaxSummary = {
       ...createEmptyFifoSummary(),
@@ -560,6 +562,38 @@ describe('TaxPdfExport', () => {
       })
     ]);
 
+    // The PDF model must preserve one disposal with two matching lot rows.
+    // Sum decimal strings with Big, not JavaScript floating-point arithmetic.
+    expect(report.trace.matches).toHaveLength(2);
+    expect(report.annualSummary.disposalCount).toBe(
+      report.realizedGains.length.toString()
+    );
+
+    const amountsToReconcile = [
+      ['matchedQuantity', 'matchedQuantity'],
+      ['grossCostBasisBaseCurrency', 'grossCostBasisBaseCurrency'],
+      ['grossProceedsBaseCurrency', 'grossProceedsBaseCurrency'],
+      ['grossRealizedGainBaseCurrency', 'grossRealizedGainBaseCurrency'],
+      ['activityFeesBaseCurrency', 'activityFeesBaseCurrency'],
+      [
+        'realizedGainAfterActivityFeesBaseCurrency',
+        'realizedGainAfterActivityFeesBaseCurrency'
+      ]
+    ] as const;
+
+    for (const [matchField, saleField] of amountsToReconcile) {
+      const sumOfLots = report.trace.matches.reduce(
+        (total, match) => total.plus(match[matchField]),
+        new Big(0)
+      );
+      expect(sumOfLots.toString()).toBe(report.realizedGains[0][saleField]);
+    }
+    expect(
+      new Big(report.annualSummary.grossProceeds)
+        .minus(report.annualSummary.grossCostBasis)
+        .toString()
+    ).toBe(report.annualSummary.grossRealizedGain);
+
     const drawTextSpy = jest.spyOn(PDFPage.prototype, 'drawText');
     try {
       const pdf = await TaxPdfExport.generate({
@@ -576,10 +610,28 @@ describe('TaxPdfExport', () => {
       expect(drawnText).toContain('Gross Realized Gain: 350 USD');
       expect(drawnText).toContain('Disposal Count: 1');
       expect(drawnText).toContain('Sale sell-1');
-      expect(drawnText).toContain('FIFO Match lot-1:sell-1');
-      expect(drawnText).toContain('FIFO Match lot-2:sell-1');
-      expect(drawnText.indexOf('FIFO Match lot-1:sell-1')).toBeLessThan(
-        drawnText.indexOf('FIFO Match lot-2:sell-1')
+      const lot1Index = drawnText.indexOf('FIFO Match lot-1:sell-1');
+      const lot2Index = drawnText.indexOf('FIFO Match lot-2:sell-1');
+      const nextSectionIndex = drawnText.indexOf('Warnings and Errors');
+
+      expect(lot1Index).toBeGreaterThanOrEqual(0);
+      expect(lot2Index).toBeGreaterThan(lot1Index);
+      expect(nextSectionIndex).toBeGreaterThan(lot2Index);
+
+      // The PDF renderer wraps long paragraphs into drawText calls.
+      // Join each match's own lines so a value from another lot cannot pass.
+      const lot1Text = drawnText.slice(lot1Index + 1, lot2Index).join(' ');
+      const lot2Text = drawnText
+        .slice(lot2Index + 1, nextSectionIndex)
+        .join(' ');
+
+      expect(lot1Text).toMatch(/Matched quantity: 10(?:\s|$)/);
+      expect(lot1Text).toContain(
+        'Cost basis: 1000, Proceeds: 1300, Gross gain: 300, Fees: 0, Gain after fees: 300'
+      );
+      expect(lot2Text).toMatch(/Matched quantity: 5(?:\s|$)/);
+      expect(lot2Text).toContain(
+        'Cost basis: 600, Proceeds: 650, Gross gain: 50, Fees: 0, Gain after fees: 50'
       );
     } finally {
       drawTextSpy.mockRestore();
