@@ -31,6 +31,7 @@ import {
 
 import { GfCreateOrUpdateActivityDialogComponent } from '../create-or-update-activity-dialog/create-or-update-activity-dialog.component';
 import { CreateOrUpdateActivityDialogParams } from '../create-or-update-activity-dialog/interfaces/interfaces';
+import { activitySaveErrorMessage } from './activity-save-error';
 import { ActivityDialogMode } from './types/activity-dialog-mode.type';
 
 @Component({
@@ -210,12 +211,9 @@ export class GfActivityDialogHostComponent implements OnDestroy, OnInit {
 
         request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
           error: (error) => {
-            const message = error?.error?.message;
-            const text = Array.isArray(message)
-              ? message.join(' ')
-              : (message ?? $localize`Could not save activity.`);
-
-            this.snackBar.open(String(text), undefined, { duration: 6000 });
+            this.snackBar.open(activitySaveErrorMessage(error), undefined, {
+              duration: 6000
+            });
             this.navigateBack();
           },
           next: () => {
