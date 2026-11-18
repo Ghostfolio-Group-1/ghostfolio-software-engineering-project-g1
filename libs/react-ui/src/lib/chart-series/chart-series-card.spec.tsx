@@ -207,4 +207,112 @@ describe('ChartSeriesCard', () => {
     ).toBe('Showing Cash');
     expect(container.querySelector('svg')).not.toBeNull();
   });
+
+  it('switches kind while loading and requests that series', async () => {
+    let resolveRequest: ((value: Response) => void) | undefined;
+    const pending = new Promise<Response>((resolve) => {
+      resolveRequest = resolve;
+    });
+    const request = jest
+      .fn()
+      .mockReturnValue(pending) as unknown as ChartSeriesFetch;
+
+    await act(async () => {
+      root.render(
+        <ThemeProvider>
+          <ChartSeriesCard range={{ range: 'ytd' }} request={request} />
+        </ThemeProvider>
+      );
+    });
+
+    const cashButton = container.querySelector(
+      '[data-kind="cash"]'
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      cashButton.click();
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/charts/series?range=ytd&kind=cash',
+      expect.any(Object)
+    );
+    expect(cashButton.getAttribute('aria-pressed')).toBe('true');
+    expect(container.textContent).toContain('Loading…');
+    expect(container.querySelector('svg')).toBeNull();
+
+    await act(async () => {
+      resolveRequest?.(httpResponse(success(cashData)));
+    });
+  });
+
+  it('shows the empty state for the kind selected from the toggle', async () => {
+    const { request } = mockRequest((url) => {
+      if (url.includes('kind=cash')) {
+        return { body: success({ ...cashData, points: [] }) };
+      }
+
+      return { body: success(portfolioData) };
+    });
+
+    await renderCard(request);
+
+    const cashButton = container.querySelector(
+      '[data-kind="cash"]'
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      cashButton.click();
+    });
+
+    expect(container.textContent).toContain('No cash data for this range');
+    expect(
+      container.querySelector('[data-testid="chart-series-toggle"]')
+    ).not.toBeNull();
+    expect(container.querySelector('svg')).toBeNull();
+    expect(cashButton.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('keeps the toggle usable after an error and loads the next kind', async () => {
+    const invested = { ...portfolioData, kind: 'investedCapital' as const };
+    const { request } = mockRequest((url) => {
+      if (url.includes('kind=investedCapital')) {
+        return { body: success(invested) };
+      }
+
+      return {
+        body: {
+          data: null,
+          error: {
+            code: 'CHARTS_SERIES_FAILED',
+            message: 'Internal stack trace should stay hidden'
+          },
+          meta: {}
+        },
+        status: 500
+      };
+    });
+
+    await renderCard(request);
+
+    expect(container.textContent).toContain('Unable to load the chart series');
+
+    const investedButton = container.querySelector(
+      '[data-kind="investedCapital"]'
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      investedButton.click();
+    });
+
+    expect(investedButton.getAttribute('aria-pressed')).toBe('true');
+    expect(
+      container.querySelector('[data-testid="chart-series-kind-label"]')
+        ?.textContent
+    ).toBe('Showing Invested capital');
+    expect(container.querySelector('svg')).not.toBeNull();
+    expect(container.textContent).not.toContain(
+      'Internal stack trace should stay hidden'
+    );
+  });
 });
