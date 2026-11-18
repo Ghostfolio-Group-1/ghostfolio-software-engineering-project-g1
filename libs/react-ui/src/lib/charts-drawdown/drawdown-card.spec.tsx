@@ -181,4 +181,29 @@ describe('DrawdownCard', () => {
     expect(container.textContent).not.toContain('private detail');
     expect(container.textContent).toContain('Try again');
   });
+
+  it('shows a loading state before drawdown points arrive', async () => {
+    let resolveRequest: ((value: Response) => void) | undefined;
+    const pending = new Promise<Response>((resolve) => {
+      resolveRequest = resolve;
+    });
+    const request = jest
+      .fn()
+      .mockReturnValue(pending) as unknown as DrawdownFetch;
+
+    await render(request);
+
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/charts/drawdown?range=1y',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(container.textContent).toContain('Loading…');
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelector('svg')).toBeNull();
+    expect(container.querySelector('[data-testid="drawdown-max"]')).toBeNull();
+
+    await act(async () => {
+      resolveRequest?.(apiResponse(drawdown));
+    });
+  });
 });
