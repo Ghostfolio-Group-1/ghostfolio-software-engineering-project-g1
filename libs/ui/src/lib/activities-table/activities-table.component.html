@@ -303,6 +303,37 @@
       </td>
     </ng-container>
 
+    <ng-container matColumnDef="withholdingTax">
+      <th
+        *matHeaderCellDef
+        class="d-none d-lg-table-cell justify-content-end px-1"
+        mat-header-cell
+        mat-sort-header
+      >
+        <ng-container i18n>Withholding tax</ng-container>
+      </th>
+      <td
+        *matCellDef="let element"
+        class="d-none d-lg-table-cell px-1"
+        mat-cell
+      >
+        <div class="d-flex justify-content-end">
+          @if (element.type === 'DIVIDEND') {
+            @if (element.withholdingTax === null) {
+              <span class="text-muted">—</span>
+            } @else {
+              <gf-value
+                [isCurrency]="true"
+                [isLoading]="isLoading()"
+                [locale]="locale"
+                [value]="element.withholdingTax"
+              />
+            }
+          }
+        </div>
+      </td>
+    </ng-container>
+
     <ng-container matColumnDef="value">
       <th
         *matHeaderCellDef

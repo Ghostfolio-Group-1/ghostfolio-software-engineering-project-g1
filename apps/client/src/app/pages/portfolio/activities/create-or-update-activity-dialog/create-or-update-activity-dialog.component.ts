@@ -32,9 +32,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
+  AbstractControl,
   FormBuilder,
   FormGroup,
   ReactiveFormsModule,
+  ValidationErrors,
+  ValidatorFn,
   Validators
 } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -245,7 +248,11 @@ export class GfCreateOrUpdateActivityDialogComponent {
       ],
       type: [undefined, Validators.required], // Set after value changes subscription
       unitPrice: [this.data.activity?.unitPrice, Validators.required],
-      updateAccountBalance: [false]
+      updateAccountBalance: [false],
+      withholdingTax: [
+        this.data.activity?.withholdingTax ?? null,
+        [Validators.min(0), this.createWithholdingTaxValidator()]
+      ]
     });
 
     this.activityForm.valueChanges
@@ -271,6 +278,10 @@ export class GfCreateOrUpdateActivityDialogComponent {
               this.activityForm.get('unitPrice')?.value -
             (this.activityForm.get('fee')?.value ?? 0);
         }
+
+        this.activityForm.get('withholdingTax')?.updateValueAndValidity({
+          emitEvent: false
+        });
 
         this.changeDetectorRef.markForCheck();
       });
@@ -440,6 +451,10 @@ export class GfCreateOrUpdateActivityDialogComponent {
           this.activityForm.get('searchSymbol')?.updateValueAndValidity();
         }
 
+        if (type !== 'DIVIDEND') {
+          this.activityForm.get('withholdingTax')?.setValue(null);
+        }
+
         this.syncUpdateAccountBalanceControl();
 
         this.changeDetectorRef.markForCheck();
@@ -487,43 +502,43 @@ export class GfCreateOrUpdateActivityDialogComponent {
   }
 
   protected async onSubmit() {
+    // Prefer raw value — `type` is disabled on update and excluded from form.value.
+    const raw = this.activityForm.getRawValue();
+    const activityType = raw.type ?? this.data.activity?.type;
+    const withholdingTax = this.parseOptionalAmount(raw.withholdingTax);
+    const dateValue = raw.date as Date | string | null;
     const activity: CreateOrderDto | UpdateOrderDto = {
-      accountId: this.activityForm.get('accountId')?.value,
-      assetClass: this.activityForm.get('assetClass')?.value,
-      assetSubClass: this.activityForm.get('assetSubClass')?.value,
-      comment: getStringOrNull(this.activityForm.get('comment')?.value),
-      currency: this.activityForm.get('currency')?.value,
-      customCurrency: this.activityForm.get('currencyOfUnitPrice')?.value,
+      accountId: raw.accountId,
+      assetClass: raw.assetClass,
+      assetSubClass: raw.assetSubClass,
+      comment: getStringOrNull(raw.comment),
+      currency: raw.currency,
+      customCurrency: raw.currencyOfUnitPrice,
       dataSource: ['FEE', 'INTEREST', 'LIABILITY', 'VALUABLE'].includes(
-        this.activityForm.get('type')?.value
+        activityType
       )
         ? 'MANUAL'
-        : this.activityForm.get('dataSource')?.value,
-      date: this.activityForm.get('date')?.value,
-      fee: this.activityForm.get('fee')?.value,
-      quantity: this.activityForm.get('quantity')?.value,
+        : raw.dataSource,
+      // API DTO expects an ISO-8601 string (Date objects fail @IsISO8601).
+      date: dateValue instanceof Date ? dateValue.toISOString() : dateValue!,
+      fee: raw.fee,
+      quantity: raw.quantity,
       symbol:
-        (['FEE', 'INTEREST', 'LIABILITY', 'VALUABLE'].includes(
-          this.activityForm.get('type')?.value
-        )
+        (['FEE', 'INTEREST', 'LIABILITY', 'VALUABLE'].includes(activityType)
           ? undefined
-          : this.activityForm.get('searchSymbol')?.value?.symbol) ??
-        this.activityForm.get('name')?.value,
-      tags: this.activityForm.get('tags')?.value?.map(({ id }) => {
+          : raw.searchSymbol?.symbol) ?? raw.name,
+      tags: raw.tags?.map(({ id }) => {
         return id;
       }),
-      type:
-        this.activityForm.get('type')?.value === 'VALUABLE'
-          ? 'BUY'
-          : this.activityForm.get('type')?.value,
-      unitPrice: this.activityForm.get('unitPrice')?.value
+      type: activityType === 'VALUABLE' ? 'BUY' : activityType,
+      unitPrice: raw.unitPrice,
+      // Empty means unknown (null). Only send for dividends — backend rejects it elsewhere.
+      ...(activityType === 'DIVIDEND' ? { withholdingTax } : {})
     };
 
     try {
       if (this.mode === 'create') {
-        activity.updateAccountBalance = this.activityForm.get(
-          'updateAccountBalance'
-        )?.value;
+        activity.updateAccountBalance = raw.updateAccountBalance;
 
         await validateObjectForForm({
           classDto: CreateOrderDto,
@@ -553,7 +568,49 @@ export class GfCreateOrUpdateActivityDialogComponent {
       }
     } catch (error) {
       console.error(error);
+      this.changeDetectorRef.markForCheck();
     }
+  }
+
+  private createWithholdingTaxValidator(): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      if (
+        control.value === null ||
+        control.value === undefined ||
+        control.value === ''
+      ) {
+        return null;
+      }
+
+      const amount = Number(control.value);
+
+      if (!Number.isFinite(amount)) {
+        return { withholdingTaxInvalid: true };
+      }
+
+      const quantity = Number(this.activityForm?.get('quantity')?.value);
+      const unitPrice = Number(this.activityForm?.get('unitPrice')?.value);
+
+      if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice)) {
+        return null;
+      }
+
+      if (amount > quantity * unitPrice) {
+        return { withholdingExceedsGross: true };
+      }
+
+      return null;
+    };
+  }
+
+  private parseOptionalAmount(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const amount = typeof value === 'number' ? value : Number(value);
+
+    return Number.isFinite(amount) ? amount : null;
   }
 
   private syncUpdateAccountBalanceControl() {
