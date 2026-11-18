@@ -134,6 +134,31 @@ describe('Risk UI <-> API <-> service <-> data integration (Wed Nov 18)', () => 
     });
   }
 
+  // supertest's request() against app.getHttpServer() is a real (if
+  // in-process) HTTP round trip, so it settles after a real but unknown
+  // number of event-loop ticks - not a fixed number of microtasks, and not
+  // reliably within any fixed wall-clock wait under slower CI load. Polls
+  // an observable rendered condition instead (same approach as the
+  // integration harness's own settled() in
+  // libs/react-ui/integration/screens.integration.tsx), so the test waits
+  // exactly as long as it needs to and no longer.
+  async function waitFor(
+    predicate: () => boolean,
+    { timeoutMs = 2000, intervalMs = 20 } = {}
+  ) {
+    const deadline = Date.now() + timeoutMs;
+
+    while (!predicate()) {
+      if (Date.now() >= deadline) {
+        throw new Error('Timed out waiting for the condition to become true');
+      }
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      });
+    }
+  }
+
   beforeEach(async () => {
     (
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -211,12 +236,7 @@ describe('Risk UI <-> API <-> service <-> data integration (Wed Nov 18)', () => 
 
     it('renders a real RED severity indicator for MSFT, computed by the real backend from the fixture portfolio', async () => {
       await render(<RiskWarningsPage request={uiFetch} />);
-      // supertest's request() against app.getHttpServer() is a real (if
-      // in-process) HTTP round trip - it needs real event-loop ticks to
-      // settle, not just queued microtasks.
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
+      await waitFor(() => !container.querySelector('[aria-busy="true"]'));
 
       // MSFT is 1600 of the 2712 fixture total = 59.0%, against the default
       // SingleStockConcentration ceiling (warn 10%, red 25%) - computed by
@@ -293,18 +313,21 @@ describe('Risk UI <-> API <-> service <-> data integration (Wed Nov 18)', () => 
       getCashDetails.mockClear();
     });
 
-    // supertest's request() against app.getHttpServer() is a real (if
-    // in-process) HTTP round trip - it needs real event-loop ticks to
-    // settle, not just queued microtasks.
-    function flush() {
-      return act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
+    function holdingsLoaded() {
+      const select = container.querySelector('select') as HTMLSelectElement;
+
+      return (select?.options.length ?? 0) > 1;
+    }
+
+    function submitSettled() {
+      return !Array.from(container.querySelectorAll('button')).some(
+        (button) => button.textContent === 'Simulating…'
+      );
     }
 
     it('loads real holdings, shocks AAPL by 40% through the real pipeline, and renders the real before/after numbers', async () => {
       await render(<WhatIfSimulatorPage request={uiFetch} />);
-      await flush();
+      await waitFor(holdingsLoaded);
 
       const select = container.querySelector('select') as HTMLSelectElement;
       const nativeSelectSetter = Object.getOwnPropertyDescriptor(
@@ -333,7 +356,7 @@ describe('Risk UI <-> API <-> service <-> data integration (Wed Nov 18)', () => 
       await act(async () => {
         submit?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
-      await flush();
+      await waitFor(submitSettled);
 
       // Same fixture math as risk.e2e.spec.ts: holdings total 2712, cash
       // 1000 -> portfolio 3712 before, 3496 after (AAPL 540 x 0.4 = 216
@@ -370,7 +393,7 @@ describe('Risk UI <-> API <-> service <-> data integration (Wed Nov 18)', () => 
       );
 
       await render(<WhatIfSimulatorPage request={uiFetch} />);
-      await flush();
+      await waitFor(holdingsLoaded);
 
       const select = container.querySelector('select') as HTMLSelectElement;
       const nativeSelectSetter = Object.getOwnPropertyDescriptor(
@@ -400,7 +423,7 @@ describe('Risk UI <-> API <-> service <-> data integration (Wed Nov 18)', () => 
       await act(async () => {
         submit?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
-      await flush();
+      await waitFor(submitSettled);
 
       expect(container.textContent).toContain(
         'Could not run the simulation. Please try again.'
