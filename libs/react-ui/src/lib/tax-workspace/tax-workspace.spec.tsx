@@ -241,4 +241,92 @@ describe('TaxWorkspace', () => {
     expect(request).toHaveBeenCalledTimes(2);
     expect(request.mock.calls[1][0]).toBe('/api/v1/tax/lots');
   });
+
+  it('renders exact populated yearly totals through TaxWorkspace', async () => {
+    const year = new Date().getUTCFullYear();
+    const summary = {
+      ...emptyYearlySummary,
+      currencySummaries: [
+        {
+          allocatedFees: '0',
+          currency: 'USD',
+          grossCostBasis: '1600.000000',
+          grossProceeds: '1950.000000',
+          grossRealizedGain: '350.000000',
+          realizedGainAfterActivityFees: '350.000000',
+          totalGrossDividends: '0',
+          totalNetDividends: '0',
+          totalWithholdingTax: '0'
+        }
+      ],
+      disposalCount: 1,
+      grossCostBasisBaseCurrency: '1600.000000',
+      grossProceedsBaseCurrency: '1950.000000',
+      grossRealizedGainBaseCurrency: '350.000000',
+      realizedGainAfterActivityFeesBaseCurrency: '350.000000',
+      realizedGains: [
+        {
+          accountId: null,
+          symbolProfileId: 'asset-1',
+          sellActivityId: 'sell-1',
+          sellDate: `${year}-04-15T15:00:00.000Z`,
+          transactionCurrency: 'USD',
+          sellQuantity: '15',
+          matchedQuantity: '15',
+          grossProceeds: '1950.000000',
+          grossCostBasis: '1600.000000',
+          grossRealizedGain: '350.000000',
+          allocatedAcquisitionFees: '0',
+          allocatedSellFees: '0',
+          realizedGainAfterActivityFees: '350.000000',
+          baseCurrency: 'USD',
+          totalActivityFees: '0',
+          grossProceedsBaseCurrency: '1950.000000',
+          grossCostBasisBaseCurrency: '1600.000000',
+          grossRealizedGainBaseCurrency: '350.000000',
+          totalActivityFeesBaseCurrency: '0',
+          realizedGainAfterActivityFeesBaseCurrency: '350.000000'
+        }
+      ]
+    };
+    const yearlyUrl = `/api/v1/tax/yearly-summary?year=${year}&method=FIFO`;
+    const request = jest.fn((url: string) => {
+      if (url === '/api/v1/tax/lots') {
+        return Promise.resolve(apiResponse({ lots: [] }));
+      }
+
+      if (url === yearlyUrl) {
+        return Promise.resolve(apiResponse(summary));
+      }
+
+      return Promise.reject(new Error(`Unexpected endpoint: ${url}`));
+    });
+
+    await render(request as unknown as AuthenticatedFetch);
+    await select('Yearly summary');
+
+    expect(request.mock.calls.map(([url]) => url)).toEqual([
+      '/api/v1/tax/lots',
+      yearlyUrl
+    ]);
+    expect(
+      container.querySelector('[aria-label="Yearly summary view"]')
+    ).not.toBeNull();
+
+    const displayedTotal = (label: string) =>
+      Array.from(container.querySelectorAll('dt')).find(
+        (element) => element.textContent === label
+      )?.nextElementSibling?.textContent;
+
+    // These values must be displayed exactly as supplied by the API.
+    // The UI must not round or independently recompute the Tax amounts.
+    expect(displayedTotal('Gross proceeds')).toBe('1950.000000');
+    expect(displayedTotal('Gross cost basis')).toBe('1600.000000');
+    expect(displayedTotal('Gross realized gain')).toBe('350.000000');
+    expect(displayedTotal('Realized gain after activity fees')).toBe(
+      '350.000000'
+    );
+    expect(container.textContent).toContain('Disposals: 1.');
+    expect(container.textContent).not.toContain('No Tax activities for');
+  });
 });
