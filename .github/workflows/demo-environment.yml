@@ -1,26 +1,16 @@
 name: Demo environment
 
 # Builds the demo image (linux/amd64 only), starts it with Postgres and Redis
-# from docker/docker-compose.demo.yml, runs scripts/demo-smoke.sh against it and
-# then the UI-to-API integration harness (libs/react-ui/integration).
+# from docker/docker-compose.demo.yml and runs the smoke test against it.
+# Two jobs, both required checks on main:
+#   Integration tests: UI-to-API harness (libs/react-ui/integration)
+#   E2E tests:         Playwright suite (e2e/)
+# No path filter: a required check must report on every PR, or the PR waits
+# forever for a check that never starts.
 on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'Dockerfile'
-      - 'docker/**'
-      - 'scripts/demo-smoke.sh'
-      - '.env.demo.example'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'prisma/**'
-      - '.github/workflows/demo-environment.yml'
-      - 'apps/api/**'
-      - 'libs/common/**'
-      - 'libs/react-ui/**'
-      - 'apps/client/**'
-      - 'e2e/**'
   push:
     branches:
       - main
@@ -34,8 +24,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  smoke:
-    name: Demo build and smoke test
+  integration:
+    name: Integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -70,13 +60,52 @@ jobs:
           INTEGRATION_API_URL: http://localhost:3333
         run: npx jest -c libs/react-ui/jest.integration.config.ts
 
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose -f docker/docker-compose.demo.yml logs --tail 200
+
+      - name: Stop the demo environment
+        if: always()
+        run: docker compose -f docker/docker-compose.demo.yml down -v
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create demo environment file
+        run: |
+          cp .env.demo.example .env.demo
+          sed -i "s/CHANGE_ME_redis_password/$(openssl rand -hex 16)/" .env.demo
+          sed -i "s/CHANGE_ME_postgres_password/$(openssl rand -hex 16)/" .env.demo
+          sed -i "s/CHANGE_ME_access_token_salt/$(openssl rand -hex 32)/" .env.demo
+          sed -i "s/CHANGE_ME_jwt_secret_key/$(openssl rand -hex 32)/" .env.demo
+
+      - name: Build and start the demo environment
+        run: docker compose -f docker/docker-compose.demo.yml up --build -d
+
+      - name: Smoke test every Iteration 3 route
+        run: ./scripts/demo-smoke.sh http://localhost:3333
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Browser smoke test of every React route
+      - name: Playwright end-to-end suite
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3333
-        run: npx playwright test -c e2e/playwright.config.ts route-smoke
+        run: npx playwright test -c e2e/playwright.config.ts
 
       - name: Upload the Playwright report on failure
         if: failure()
