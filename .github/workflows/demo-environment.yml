@@ -4,7 +4,8 @@ name: Demo environment
 # from docker/docker-compose.demo.yml and runs the smoke test against it.
 # Two jobs, both required checks on main:
 #   Integration tests: UI-to-API harness (libs/react-ui/integration)
-#   E2E tests:         Playwright suite (e2e/)
+#   E2E tests:         Playwright suite (e2e/), with docker-compose.e2e.yml
+#                      and the seeded demo users (scripts/seed-e2e-users.sh)
 # No path filter: a required check must report on every PR, or the PR waits
 # forever for a check that never starts.
 on:
@@ -85,7 +86,7 @@ jobs:
           sed -i "s/CHANGE_ME_jwt_secret_key/$(openssl rand -hex 32)/" .env.demo
 
       - name: Build and start the demo environment
-        run: docker compose -f docker/docker-compose.demo.yml up --build -d
+        run: docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml up --build -d
 
       - name: Smoke test every Iteration 3 route
         run: ./scripts/demo-smoke.sh http://localhost:3333
@@ -98,6 +99,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Seed the synthetic demo users (Risk and Tax specs)
+        run: ./scripts/seed-e2e-users.sh
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -117,8 +121,8 @@ jobs:
 
       - name: Show container logs on failure
         if: failure()
-        run: docker compose -f docker/docker-compose.demo.yml logs --tail 200
+        run: docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml logs --tail 200
 
       - name: Stop the demo environment
         if: always()
-        run: docker compose -f docker/docker-compose.demo.yml down -v
+        run: docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml down -v
