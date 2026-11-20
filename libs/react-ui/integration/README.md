@@ -13,6 +13,18 @@ demo. Unit tests (`jest.config.ts`) stay fast and never need a database.
 | `TaxLotsScreen`                       | `GET /api/v1/tax/lots`                     | settles into a table, no error                               |
 | `DividendWithholdingScreen`           | `GET /api/v1/tax/dividends?year=2025`      | settles into a table, no error                               |
 
+`dashboard-flow.integration.tsx` (Unified Dashboard across Risk, Tax and Charts):
+
+| Case            | Route(s)                                                                | Assertion                                                               |
+| --------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| All sources up  | `/dashboard/overview`, `/risk/concentration`, `/charts/series?range=1y` | portfolio total is 1055 USD in Risk, Charts and both Dashboard sections |
+| All sources up  | `DashboardOverviewPage`                                                 | three cards, no error card, no partial-failure notice                   |
+| Tax source down | `GET /api/v1/dashboard/overview`                                        | HTTP 200, tax `DASHBOARD_TAX_UNAVAILABLE`, risk and charts available    |
+| Tax source down | `DashboardOverviewPage`                                                 | only the Tax card errors; notice names Tax; Risk and Performance render |
+
+The tax-down case signs up a second user with `fixtures/tax-down-portfolio.json`
+(sell 12 of 10 held), so the FIFO engine throws for insufficient holdings.
+
 ## Fixture
 
 `fixtures/portfolio.json`: two `MANUAL` stocks, a buy of each, one partial
@@ -20,6 +32,8 @@ sell and one dividend, plus prices for each symbol. Every run signs up its
 own user (`POST /api/v1/user`), imports the activities (`POST /api/v1/import`)
 under run-specific symbols and posts the prices
 (`POST /api/v1/market-data/MANUAL/:symbol`), so runs never share data.
+`createIntegrationSession(baseUrl, portfolio?)` imports the shared fixture by
+default; pass another fixture for a case that needs different data.
 `expected` holds the values the screens must show (FIFO: 480 proceeds − 400
 cost − 0.40 allocated buy fee − 1 sell fee = 78.6 USD).
 

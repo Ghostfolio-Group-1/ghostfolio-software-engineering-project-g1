@@ -1,0 +1,10 @@
+# E2E add-on for docker/docker-compose.demo.yml (local runs and the CI E2E
+# job only). Publishes the demo Postgres on 127.0.0.1:5433 so
+# scripts/seed-e2e-users.sh can seed the synthetic demo users into the same
+# database the API serves from. 5433, not 5432, so it never clashes with a
+# local Postgres. Loopback only: nothing outside this machine can reach it.
+#   docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml up --build -d
+services:
+  postgres:
+    ports:
+      - 127.0.0.1:5433:5432
