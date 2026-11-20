@@ -1,9 +1,12 @@
 # Risk module
 
 **Owner:** Sesha Siva Sankar
-**Status (Iteration 3):** all 11 routes in the API contract are implemented;
-React components for the dashboard card, severity indicator and what-if
-simulator are built in `libs/react-ui`.
+**Status (Iteration 3):** all 10 routes in the API contract are implemented;
+every React screen (dashboard card, severity indicator, warnings list,
+target-allocation editor, thresholds editor, what-if simulator) is built in
+`libs/react-ui` and mounted on `/risk` (`RiskPage`, issue #261). All four
+test layers are green as of the Week 3 check (Fri Nov 20): unit, component,
+UI-to-API integration and browser E2E - see "Testing" below.
 
 This README documents the risk module as it stands at the end of
 Iteration 3. For the original design rationale see
@@ -107,25 +110,123 @@ Target allocation is stored in `user.settings.targetAllocation`.
 
 ## 4. React components (`libs/react-ui/src/lib/`)
 
-| Folder               | Component(s)                                                                                                          | Purpose                                                                                                                                                                                                                                                     |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `risk-indicator/`    | `RiskIndicator`, `formatThresholdRange`                                                                               | Severity-to-colour dot (issue #188) and a shared threshold-range label formatter.                                                                                                                                                                           |
-| `risk-dashboard/`    | `RiskDashboardCard`, `risk-dashboard.client.ts`                                                                       | Card on the shared `Card`/`DashboardCard` showing the score, grade, overall severity, top concentration and one `RiskIndicator` row per category (concentration/volatility/cash/target allocation). Wired to `GET /risk/score` + `GET /risk/concentration`. |
-| `what-if-simulator/` | `WhatIfSimulator`, `WhatIfSimulatorForm`, `WhatIfResultPanel`, `what-if-form.model.ts`, `what-if-simulator.client.ts` | Scenario form with client-side validation, wired to `POST /risk/what-if`, and a result panel showing the before/after score and warning differences.                                                                                                        |
+| Folder               | Component(s)                                                                                                        | Purpose                                                                                                                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `risk-indicator/`    | `RiskIndicator`, `formatThresholdRange`                                                                             | Severity-to-colour dot (issue #188) and a shared threshold-range label formatter.                                                                                                                                                                         |
+| `risk-dashboard/`    | `RiskDashboardCard`, `RiskDashboardPage`, `RiskPage`, `risk-dashboard.client.ts`                                    | Card on the shared `Card`/`DashboardCard` showing the score, grade, overall severity, top concentration and one `RiskIndicator` row per category. Wired to `GET /risk/score` + `GET /risk/concentration`. `RiskPage` mounts every screen below it (#261). |
+| `risk-warnings/`     | `RiskWarningsList`, `RiskWarningsPage`, `risk-warnings.client.ts`                                                   | Every breaching rule/subject pair, worst first, each with its own `RiskIndicator`. Wired to `GET /risk/warnings`.                                                                                                                                         |
+| `target-allocation/` | `TargetAllocationEditor`, `TargetAllocationForm`, `TargetAllocationPage`, `target-allocation.client.ts`             | Set/clear a target allocation and see the computed buckets. Wired to `GET`/`PUT`/`DELETE /risk/target-allocation`.                                                                                                                                        |
+| `risk-thresholds/`   | `RiskThresholdsList`, `RiskThresholdRow`, `RiskThresholdsPage`, `risk-thresholds.client.ts`                         | Per-rule threshold editor (ceiling or band shape) with an Active toggle and reset-to-default. Wired to `GET /risk/thresholds`, `PUT`/`DELETE /risk/thresholds/:ruleKey`.                                                                                  |
+| `what-if-simulator/` | `WhatIfSimulator`, `WhatIfSimulatorForm`, `WhatIfResultPanel`, `WhatIfSimulatorPage`, `what-if-simulator.client.ts` | Scenario form with client-side validation, wired to `POST /risk/what-if`, and a result panel showing the before/after score and warning differences.                                                                                                      |
 
 Every component has loading/error/empty states (where applicable) and a
-`*.spec.tsx`/`*.spec.ts` file. The HTTP layer is always injected as a
-plain function (`fetchJson`/`postJson`), never called directly from a
-component, so tests mock it without needing a DOM - this library's Jest
-`testEnvironment` is `node`, not `jsdom`.
+`*.spec.tsx`/`*.spec.ts` file. The HTTP layer is always injected as a plain
+function (`AuthenticatedFetch`/`PostJson`), never called directly from a
+presentational component, so most tests mock it without needing a DOM -
+this library's Jest `testEnvironment` default is `node`; the `*-page.tsx`
+host components that actually own `useState`/effects opt into
+`/** @jest-environment jsdom */` per file instead.
 
-## 5. Known gaps
+## 5. Testing
 
-- `GET /risk/concentration`'s buckets are always returned with
-  `severity: 'NO_DATA'` and `thresholds: null` - the threshold engine was
-  wired into `/score`, `/warnings` and `/target-allocation` in Iteration 3,
-  but back-filling `/concentration` itself was not part of this iteration's
-  task list and was left untouched.
+Four layers, each stricter than the last about what it's allowed to mock.
+All green as of the Fri Nov 20 Week 3 check - run locally (not yet CI, see
+note below) and confirmed with these counts:
+
+| Layer                    | Result                                                              |
+| ------------------------ | ------------------------------------------------------------------- |
+| Unit (backend)           | 19 suites / 188 tests passed                                        |
+| Unit + component (React) | 26 suites / 171 tests passed                                        |
+| Integration - in-process | included in the backend/React runs above                            |
+| Integration - live       | 2 suites / 9 tests passed                                           |
+| End-to-end (Playwright)  | 5 / 5 passed (`risk.spec.ts` x4, `risk-what-if-journey.spec.ts` x1) |
+
+These are Risk-focused local runs against a freshly built demo stack on
+this machine, not a CI run: the demo CI (`demo-environment.yml`) currently
+runs `route-smoke.spec.ts` and (once #326 merges) `dashboard.spec.ts`, but
+not the full seeded Risk Playwright journey (`risk.spec.ts` /
+`risk-what-if-journey.spec.ts`) - those still need to be added to a CI job
+once the seeding step below is wired into it.
+
+### Unit (backend services/mappers)
+
+No database, no network - `PortfolioService`/`AccountService`/etc. mocked
+at the service boundary.
+
+```
+npx jest --config=apps/api/jest.config.ts --testPathPatterns="apps/api/src/app/risk"
+```
+
+19 suites / 188 tests.
+
+### Unit + component (React, `libs/react-ui`)
+
+No database, no network - `AuthenticatedFetch` mocked. Covers every
+presentational component and page-host component across all four states
+(loading/error/empty/ready) plus severity colours and accessibility
+roles/labels.
+
+```
+npx jest --config=libs/react-ui/jest.config.ts --testPathPatterns="risk|what-if|target-allocation"
+```
+
+26 suites / 171 tests.
+
+### Integration (UI -> API -> service -> data, real HTTP)
+
+No mocked fetch anywhere above the data-access boundary. Two kinds:
+
+- **In-process** (`libs/react-ui/src/lib/integration/risk-what-if-and-indicators.integration.spec.tsx`):
+  a real NestJS app driven via `supertest`, no live stack needed - runs as
+  part of the normal unit command above.
+- **Live** (`libs/react-ui/integration/screens.integration.tsx`): against a
+  real running demo API. Requires the demo stack (see
+  `project-docs/iteration-3/deployment.md`):
+  ```
+  docker compose -f docker/docker-compose.demo.yml up --build -d
+  ./scripts/demo-smoke.sh
+  INTEGRATION_API_URL=http://localhost:3333 npx jest -c libs/react-ui/jest.integration.config.ts
+  ```
+  Skipped automatically (not failed) when `INTEGRATION_API_URL` isn't set.
+
+### End-to-end (browser, Playwright)
+
+Full journeys against a real running demo + database, using the seeded
+demo users from `scripts/seed-risk-demo-data.mts`. See `e2e/README.md` for
+full setup; in short:
+
+`.env.demo`'s `DATABASE_URL` points at `postgres:5432`, which only resolves
+inside the Docker network - a host-run seed script can't reach it there.
+`docker-compose.e2e.yml` (added alongside #326, coordinated with Raniya)
+publishes the same Postgres on `127.0.0.1:5433` for exactly this. **These
+two files only exist on #326's branch as of this writing - the commands
+below need #326 merged into `main` first:**
+
+```
+docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml up --build -d
+./scripts/demo-smoke.sh
+./scripts/seed-e2e-users.sh
+npx playwright test -c e2e/playwright.config.ts e2e/tests/risk.spec.ts e2e/tests/risk-what-if-journey.spec.ts
+```
+
+Verified end-to-end on this machine (Fri Nov 20): since the host already
+had a native Postgres service permanently bound to 5433, the local run used
+a scratch override on 5434 instead with the same seed logic - the committed
+5433 mapping itself is untouched and is what CI/other machines use. All 5
+seeded users (`demo-risk-concentrated/-balanced/-empty/-target/-rich`)
+seeded cleanly and both E2E specs passed against them (counts above).
+
+- `risk.spec.ts`: one journey per seeded demo user (concentrated/
+  balanced/empty/target), reading the indicators.
+- `risk-what-if-journey.spec.ts` (Thu Nov 19): the full journey - open the
+  dashboard, read the indicators, then run a what-if - on the
+  "concentrated" user, asserting the result against a real API call made
+  from inside the test rather than a hardcoded total (see #323 for a real
+  portfolio-value/allocation inconsistency this surfaced, tracked
+  separately rather than fixed in a test PR).
+
+## 6. Known gaps
+
 - `PUT /target-allocation`'s "every key is valid for the chosen `groupBy`"
   rule (Section 6.6) is only enforced for `groupBy: "assetClass"`; the
   other four `groupBy` values would need a market-data lookup this
@@ -135,3 +236,9 @@ component, so tests mock it without needing a DOM - this library's Jest
   money fields, so this gap is isolated to that one route.
 - Basic-subscription gating (Section 11's open question - hide rules,
   keep the score) is not implemented; `rules` is never `null` today.
+- `POST /what-if`'s `portfolio.valueBefore`/`valueAfter` don't agree with
+  its own `holding.allocationBefore`/`allocationAfter` on the same
+  response - the allocation percentage is computed against a smaller total
+  than the portfolio value is, by exactly the account's cash amount in at
+  least one observed case. Tracked as #323, surfaced by the Nov 19 E2E
+  test, not yet fixed.
