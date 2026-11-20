@@ -11,10 +11,7 @@ import type {
 } from '../src/lib/chart-series/use-chart-series';
 import { toPath } from '../src/lib/chart-wrapper/chart-wrapper';
 import { DrawdownCard } from '../src/lib/charts-drawdown/drawdown-card';
-import {
-  fetchDrawdown,
-  formatDrawdownPercent
-} from '../src/lib/charts-drawdown/drawdown.client';
+import { fetchDrawdown } from '../src/lib/charts-drawdown/drawdown.client';
 import { createIntegrationSession, INTEGRATION_API_URL } from './api-session';
 import type { IntegrationSession } from './api-session';
 
@@ -248,32 +245,37 @@ describeLive(
 
     it('plots drawdown from the live route and shows that series max', async () => {
       const data = await fetchDrawdown(RANGE, session.request);
-      const lowest = Math.min(...data.points.map(({ drawdown }) => drawdown));
+
+      // Fees are 1 + 1 = 2 on a 1,250 cost. Peak tracking includes the day
+      // before the first activity, which is outside this window, so every
+      // day until the first price increase is that fee drag: -2 / 1250.
+      // Prices only rise after that (100 → 120 → 130, 50 → 55), so the
+      // 2025-06-02 sale and every later point are a new peak at 0.
+      const openingFeeDrag = -(1 + 1) / (10 * 100 + 5 * 50);
 
       expect(data.granularity).toBe('daily');
       expect(data.points.length).toBeGreaterThan(1);
-      expect(data.points[0]).toMatchObject({
-        date: RANGE.startDate,
-        drawdown: 0,
-        isNewPeak: true
-      });
-      expect(data.points.every(({ drawdown }) => drawdown <= 0)).toBe(true);
-      expect(data.maxDrawdown).toBe(lowest);
-      expect(
-        data.points.some(
-          ({ date, drawdown }) =>
-            date === data.maxDrawdownDate && drawdown === data.maxDrawdown
-        )
-      ).toBe(true);
+      expect(data.points[0].date).toBe(RANGE.startDate);
+
+      for (const point of data.points) {
+        if (point.date < SALE_DATE) {
+          expect(point.drawdown).toBeCloseTo(openingFeeDrag, 10);
+          expect(point.isNewPeak).toBe(false);
+        } else {
+          expect(point.drawdown).toBe(0);
+          expect(point.isNewPeak).toBe(true);
+        }
+      }
+
+      expect(data.maxDrawdown).toBeCloseTo(openingFeeDrag, 10);
+      expect(data.maxDrawdownDate < SALE_DATE).toBe(true);
 
       await render(<DrawdownCard range={RANGE} request={session.request} />);
       await settled();
 
       expect(
         container.querySelector('[data-testid="drawdown-max"]')?.textContent
-      ).toBe(
-        `Max drawdown ${formatDrawdownPercent(data.maxDrawdown)} on ${data.maxDrawdownDate}`
-      );
+      ).toBe(`Max drawdown -0.16% on ${data.maxDrawdownDate}`);
       expect(chartPath()).toBe(
         toPath(
           data.points.map(({ date, drawdown }) => {

@@ -6,14 +6,14 @@ demo. Unit tests (`jest.config.ts`) stay fast and never need a database.
 
 ## What it checks
 
-| Screen                                | Route(s)                                   | Assertion                                                    |
-| ------------------------------------- | ------------------------------------------ | ------------------------------------------------------------ |
-| `DashboardOverviewPage`               | `GET /api/v1/dashboard/overview`           | every card settles, no error card, exact realized gain shown |
-| `RiskDashboardCard` (+ client loader) | `GET /api/v1/risk/score`, `/concentration` | both responses parse; the card renders the live grade        |
-| `TaxLotsScreen`                       | `GET /api/v1/tax/lots`                     | settles into a table, no error                               |
-| `DividendWithholdingScreen`           | `GET /api/v1/tax/dividends?year=2025`      | settles into a table, no error                               |
-| `ChartSeriesCard`                     | `GET /api/v1/charts/series`                | kind toggle replots value, invested capital, and cash        |
-| `DrawdownCard`                        | `GET /api/v1/charts/drawdown`              | path and max drawdown match the live series                  |
+| Screen                                | Route(s)                                   | Assertion                                                          |
+| ------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| `DashboardOverviewPage`               | `GET /api/v1/dashboard/overview`           | every card settles, no error card, exact realized gain shown       |
+| `RiskDashboardCard` (+ client loader) | `GET /api/v1/risk/score`, `/concentration` | both responses parse; the card renders the live grade              |
+| `TaxLotsScreen`                       | `GET /api/v1/tax/lots`                     | settles into a table, no error                                     |
+| `DividendWithholdingScreen`           | `GET /api/v1/tax/dividends?year=2025`      | settles into a table, no error                                     |
+| `ChartSeriesCard`                     | `GET /api/v1/charts/series`                | kind toggle replots value, invested capital, and cash              |
+| `DrawdownCard`                        | `GET /api/v1/charts/drawdown`              | −0.16% fee drag until the first price rise; the sale is not a loss |
 
 ## Fixture
 
