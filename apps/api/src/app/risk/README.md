@@ -198,7 +198,9 @@ full setup; in short:
 `.env.demo`'s `DATABASE_URL` points at `postgres:5432`, which only resolves
 inside the Docker network - a host-run seed script can't reach it there.
 `docker-compose.e2e.yml` (added alongside #326, coordinated with Raniya)
-publishes the same Postgres on `127.0.0.1:5433` for exactly this:
+publishes the same Postgres on `127.0.0.1:5433` for exactly this. **These
+two files only exist on #326's branch as of this writing - the commands
+below need #326 merged into `main` first:**
 
 ```
 docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml up --build -d
