@@ -1,0 +1,262 @@
+import type { ReactElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
+import { act } from 'react-dom/test-utils';
+
+import { InteractiveChart } from '../src/lib/chart-series/interactive-chart';
+import { fetchChartSeries } from '../src/lib/chart-series/use-chart-series';
+import { toPath } from '../src/lib/chart-wrapper/chart-wrapper';
+import { DrawdownCard } from '../src/lib/charts-drawdown/drawdown-card';
+import {
+  fetchDrawdown,
+  formatDrawdownPercent
+} from '../src/lib/charts-drawdown/drawdown.client';
+import { createIntegrationSession, INTEGRATION_API_URL } from './api-session';
+import type { IntegrationSession } from './api-session';
+
+// Live journey on the running demo API. Without INTEGRATION_API_URL the suite
+// is skipped. Benchmark comparison is not on main (screen and
+// GET /api/v1/charts/benchmark-comparison are still on open PRs), so this
+// walk stops after the kind toggle and then opens drawdown on the same range.
+const describeLive = INTEGRATION_API_URL ? describe : describe.skip;
+
+const CHART_WIDTH = 480;
+const CHART_HEIGHT = 160;
+const SALE_DATE = '2025-06-02';
+const LATEST_PRICE_DATE = '2026-11-09';
+const YEAR_START = '2026-01-01';
+
+// 10 ALPHA @ 100 and 5 BETA @ 50, then 6 ALPHA after the sale. BETA stays at
+// 50 until the 2026-11-09 marks (130 and 55). Invested capital is remaining
+// cost and steps down on the sale. There is no cash holding.
+function marketValue(date: string): number {
+  if (date < SALE_DATE) {
+    return 10 * 100 + 5 * 50;
+  }
+
+  if (date < LATEST_PRICE_DATE) {
+    return 6 * 120 + 5 * 50;
+  }
+
+  return 6 * 130 + 5 * 55;
+}
+
+function investedCapital(date: string): number {
+  if (date < SALE_DATE) {
+    return 10 * 100 + 5 * 50;
+  }
+
+  return 6 * 100 + 5 * 50;
+}
+
+describeLive(
+  'Open the chart, change the range, toggle the series, then drawdown',
+  () => {
+    let container: HTMLDivElement;
+    let root: Root;
+    let session: IntegrationSession;
+
+    beforeAll(async () => {
+      (
+        globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+      ).IS_REACT_ACT_ENVIRONMENT = true;
+
+      session = await createIntegrationSession(INTEGRATION_API_URL as string);
+    });
+
+    beforeEach(() => {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+    });
+
+    afterEach(() => {
+      if (root) {
+        act(() => root.unmount());
+      }
+
+      container?.remove();
+    });
+
+    async function render(element: ReactElement) {
+      await act(async () => {
+        root.render(element);
+      });
+    }
+
+    async function settled() {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (!container.querySelector('[aria-busy="true"]')) {
+          break;
+        }
+
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        });
+      }
+
+      expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+    }
+
+    async function press(selector: string) {
+      const button = container.querySelector(selector);
+
+      expect(button).toBeInstanceOf(HTMLButtonElement);
+
+      await act(async () => {
+        (button as HTMLButtonElement).click();
+      });
+
+      await settled();
+    }
+
+    function chartPath(): string | null {
+      return container.querySelector('svg path')?.getAttribute('d') ?? null;
+    }
+
+    function kindLabel(): string | null | undefined {
+      return container.querySelector('[data-testid="chart-series-kind-label"]')
+        ?.textContent;
+    }
+
+    it('follows Max into YTD, then invested capital, cash, and drawdown', async () => {
+      const maxValue = await fetchChartSeries(
+        { kind: 'portfolioValue', range: 'max' },
+        session.request
+      );
+
+      await render(<InteractiveChart request={session.request} />);
+      await settled();
+
+      expect(
+        container
+          .querySelector('[data-range="max"]')
+          ?.getAttribute('aria-pressed')
+      ).toBe('true');
+      expect(kindLabel()).toBe('Showing Portfolio value');
+      expect(maxValue.points.map(({ date }) => date)).toEqual(
+        expect.arrayContaining(['2025-01-06', SALE_DATE])
+      );
+      expect(maxValue.points).toEqual(
+        maxValue.points.map(({ date }) => {
+          return { date, value: marketValue(date) };
+        })
+      );
+      expect(chartPath()).toBe(
+        toPath(maxValue.points, CHART_WIDTH, CHART_HEIGHT)
+      );
+
+      const ytdValue = await fetchChartSeries(
+        { kind: 'portfolioValue', range: 'ytd' },
+        session.request
+      );
+
+      await press('[data-range="ytd"]');
+
+      expect(
+        container
+          .querySelector('[data-range="ytd"]')
+          ?.getAttribute('aria-pressed')
+      ).toBe('true');
+      expect(
+        container
+          .querySelector('[data-range="max"]')
+          ?.getAttribute('aria-pressed')
+      ).toBe('false');
+      expect(ytdValue.granularity).toBe('daily');
+      expect(ytdValue.startDate >= YEAR_START).toBe(true);
+      expect(ytdValue.points.map(({ date }) => date)).toContain(YEAR_START);
+      expect(ytdValue.points.every(({ date }) => date >= YEAR_START)).toBe(
+        true
+      );
+      expect(ytdValue.points).toEqual(
+        ytdValue.points.map(({ date }) => {
+          return { date, value: marketValue(date) };
+        })
+      );
+      expect(ytdValue.points[ytdValue.points.length - 1]?.value).toBe(
+        marketValue(LATEST_PRICE_DATE)
+      );
+      expect(chartPath()).toBe(
+        toPath(ytdValue.points, CHART_WIDTH, CHART_HEIGHT)
+      );
+      expect(chartPath()).not.toBe(
+        toPath(maxValue.points, CHART_WIDTH, CHART_HEIGHT)
+      );
+
+      const ytdInvested = await fetchChartSeries(
+        { kind: 'investedCapital', range: 'ytd' },
+        session.request
+      );
+      const ytdCash = await fetchChartSeries(
+        { kind: 'cash', range: 'ytd' },
+        session.request
+      );
+
+      await press('[data-kind="investedCapital"]');
+
+      expect(kindLabel()).toBe('Showing Invested capital');
+      expect(
+        container
+          .querySelector('[data-kind="investedCapital"]')
+          ?.getAttribute('aria-pressed')
+      ).toBe('true');
+      expect(ytdInvested.points.map(({ date }) => date)).toEqual(
+        ytdValue.points.map(({ date }) => date)
+      );
+      expect(ytdInvested.points).toEqual(
+        ytdInvested.points.map(({ date }) => {
+          return { date, value: investedCapital(date) };
+        })
+      );
+      expect(chartPath()).toBe(
+        toPath(ytdInvested.points, CHART_WIDTH, CHART_HEIGHT)
+      );
+
+      await press('[data-kind="cash"]');
+
+      expect(kindLabel()).toBe('Showing Cash');
+      expect(ytdCash.points.every(({ value }) => value === 0)).toBe(true);
+      expect(chartPath()).toBe(
+        toPath(ytdCash.points, CHART_WIDTH, CHART_HEIGHT)
+      );
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+
+      const drawdown = await fetchDrawdown({ range: 'ytd' }, session.request);
+
+      await render(
+        <DrawdownCard range={{ range: 'ytd' }} request={session.request} />
+      );
+      await settled();
+
+      // YTD starts after the fee drag and the 2025-06-02 sale. Prices only
+      // rise after that, so the window is a peak the whole way.
+      expect(drawdown.granularity).toBe('daily');
+      expect(drawdown.points.length).toBeGreaterThan(1);
+      expect(
+        drawdown.points.every(
+          ({ drawdown: value, isNewPeak }) => value === 0 && isNewPeak
+        )
+      ).toBe(true);
+      expect(drawdown.maxDrawdown).toBe(0);
+      expect(
+        container.querySelector('[data-testid="drawdown-max"]')?.textContent
+      ).toBe(
+        `Max drawdown ${formatDrawdownPercent(drawdown.maxDrawdown)} on ${drawdown.maxDrawdownDate}`
+      );
+      expect(chartPath()).toBe(
+        toPath(
+          drawdown.points.map(({ date, drawdown: value }) => {
+            return { date, value };
+          }),
+          CHART_WIDTH,
+          CHART_HEIGHT
+        )
+      );
+      expect(
+        container.querySelector('[data-testid="drawdown-short-history"]')
+      ).toBeNull();
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+    });
+  }
+);
