@@ -7,5 +7,10 @@
     "resolveJsonModule": true,
     "types": ["jest", "node"]
   },
-  "include": ["integration/**/*.ts", "integration/**/*.tsx", "src/**/*.d.ts"]
+  "include": [
+    "integration/**/*.ts",
+    "integration/**/*.tsx",
+    "jest.integration.config.ts",
+    "src/**/*.d.ts"
+  ]
 }

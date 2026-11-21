@@ -31,11 +31,6 @@ On `main` today:
 
 ```text
 GET /api/v1/charts/series
-```
-
-Planned (PR #167, not merged):
-
-```text
 GET /api/v1/charts/drawdown
 ```
 
@@ -69,7 +64,7 @@ Clients never send granularity.
 ### Consequences
 
 - One validation path in `ChartsApi`; empty windows return empty `points`.
-- When drawdown lands (CD-4), max summary must not rely on weekly-thinned
+- Drawdown's max summary (CD-4) must not rely on weekly-thinned
   points alone.
 
 ## CD-3 — Series Kinds on a Dedicated Endpoint
@@ -106,10 +101,9 @@ date index as step / running series.
 Should drawdown track `netWorth` (Iteration 1 draft), and when should
 `maxDrawdown` be measured relative to weekly thinning?
 
-### Decision — Planned (PR #167)
+### Decision — Implemented (#167)
 
-Drawdown is **not on `main`** until #167 merges. The planned rules, matching
-#167's final code, are:
+Drawdown is on `main`. The rules, matching #167, are:
 
 1. **Index:** drawdown uses
    `100 × (1 + netPerformanceInPercentageWithCurrencyEffect)`.
@@ -120,15 +114,11 @@ Drawdown is **not on `main`** until #167 merges. The planned rules, matching
    points **before** weekly thinning, then weekly points may still be returned
    for long ranges.
 
-After #167 merges, flip this decision (and the README / status table) from
-**Planned** to **Implemented**.
-
 ### Consequences
 
-- Docs must not claim `CHARTS_DRAWDOWN_FAILED` or `GET /charts/drawdown` as
-  live until #167 is on `main`.
+- `CHARTS_DRAWDOWN_FAILED` and `GET /charts/drawdown` are live.
 - Iteration 1 drawdown formula text that says "portfolio value" is superseded
-  by the planned performance-index basis once the endpoint ships.
+  by the performance-index basis.
 
 ## CD-5 — Deferred Chart Types
 
@@ -141,10 +131,9 @@ Which Iteration 1 chart types remain unimplemented at this reconciliation?
 Still design-only (not exposed by `ChartsController` on `main`):
 
 ```text
-drawdown              (planned in #167)
 return-comparison
 benchmark-comparison  (open PR #160)
-waterfall
+waterfall             (React client only; no ChartsController route)
 ```
 
 If #160 merges, move `benchmark-comparison` out of this list and update the
@@ -160,19 +149,19 @@ No README or decision here should describe deferred types as built.
 
 ## Final Iteration 2 Status
 
-| Decision | Final as-built status | Notes                                                                 |
-| -------- | --------------------- | --------------------------------------------------------------------- |
-| CD-1     | Partial               | `GET /charts/series` on `main`; `GET /charts/drawdown` planned (#167) |
-| CD-2     | Implemented           | Shared range + ≤2y daily / else weekly                                |
-| CD-3     | Implemented           | `GET /charts/series` with three kinds                                 |
-| CD-4     | Planned (#167)        | Performance-index drawdown; max from daily before weekly thinning     |
-| CD-5     | Deferred              | Drawdown (#167), return comparison, benchmark (#160), waterfall       |
+| Decision | Final as-built status | Notes                                                             |
+| -------- | --------------------- | ----------------------------------------------------------------- |
+| CD-1     | Implemented           | `GET /charts/series` and `GET /charts/drawdown` on `main`         |
+| CD-2     | Implemented           | Shared range + ≤2y daily / else weekly                            |
+| CD-3     | Implemented           | `GET /charts/series` with three kinds                             |
+| CD-4     | Implemented (#167)    | Performance-index drawdown; max from daily before weekly thinning |
+| CD-5     | Deferred              | Return comparison, benchmark (#160), waterfall route              |
 
 ## Testing Gate
 
 Charts calculation and HTTP coverage used during Iteration 2 on `main`:
 
 ```text
-libs/common chart-series unit tests
-apps/api charts controller + e2e contract tests (series)
+libs/common chart-series and drawdown unit tests
+apps/api charts controller + e2e contract tests (series and drawdown)
 ```

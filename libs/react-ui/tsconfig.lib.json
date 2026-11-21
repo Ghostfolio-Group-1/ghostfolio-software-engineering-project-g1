@@ -10,6 +10,9 @@
     "**/*.spec.tsx",
     "**/*.test.ts",
     "**/*.test.tsx",
-    "jest.config.ts"
+    "integration/**/*.ts",
+    "integration/**/*.tsx",
+    "jest.config.ts",
+    "jest.integration.config.ts"
   ]
 }
