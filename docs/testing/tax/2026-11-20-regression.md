@@ -4,26 +4,44 @@
 - **Owner:** Tharun Swaminathan (Tax); **independent reviewer:** Arthur
 - **Scope:** Regression checks and Tax README updates only. No source calculation, UI, shared CI, or fixture changes.
 - **Local branch:** `tharun/2026-11-20-329-tax-suite-readme`, created from `origin/main` at `a3e70368e46f9be89e52d49211e48f1cb2d1e8c4`.
-- **Overall status:** Targeted Tax and cross-feature browser tests **passed locally**. Full Nx unit/coverage run **failed** due to a Dashboard E2E timeout. CI and merge status **not yet accepted**.
+- **Overall status:** Targeted Tax and browser tests **passed locally**. The original local full-project Nx run **failed** due to a Dashboard E2E timeout. Subsequent commit-hook checks and PR #331 CI jobs passed; Arthur requested documentation corrections, so approval and merge remain pending.
 
 ## Recorded local test evidence
 
-| Check                                          | Actual outcome                              | Notes                                                                                                                            |
-| ---------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Tax API backend Jest (`apps/api/src/app/tax`)  | **PASS:** 19 suites, 271 tests              | Rerun with `--runInBand --testTimeout=15000`; initial default-timeout run had one 5-second timeout and an isolated retest passed |
-| React UI Jest unit/component                   | **PASS:** 62 suites, 456 tests              | Includes shared UI and Tax state tests                                                                                           |
-| Live UI-to-API Jest integration                | **PASS:** 2 suites, 9 tests                 | `INTEGRATION_API_URL=http://localhost:3333`, real local Docker demo API, exit 0; no reported skips                               |
-| Tax Playwright Chromium E2E                    | **PASS:** 2/2                               | Empty and populated seeded users; 9.9s; exit 0                                                                                   |
-| React route-smoke Chromium                     | **PASS:** 3/3                               | Dashboard, Risk, and Tax routes; 9.4s; exit 0                                                                                    |
-| **Full Playwright Chromium suite**             | **PASS:** 10/10                             | Five Risk, three route-smoke, two Tax browser tests; 35.7s; exit 0                                                               |
-| Nx full-project Jest with coverage             | **FAIL:** 1,507 passed, 1 failed, 1 skipped | Five projects run; `api:test` failed, final process exit 1; see breakdown below                                                  |
-| Repository-wide lint, format, production build | **NOT VERIFIED**                            | Not performed in this evidence session after repeated Windows crashes                                                            |
-| Green GitHub Actions on this documentation PR  | **NOT VERIFIED**                            | PR not yet created/reviewed at time of this evidence draft                                                                       |
+| Check                                         | Actual outcome                              | Notes                                                                                                                            |
+| --------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Tax API backend Jest (`apps/api/src/app/tax`) | **PASS:** 19 suites, 271 tests              | Rerun with `--runInBand --testTimeout=15000`; initial default-timeout run had one 5-second timeout and an isolated retest passed |
+| React UI Jest unit/component                  | **PASS:** 62 suites, 456 tests              | Includes shared UI and Tax state tests                                                                                           |
+| Live UI-to-API Jest integration               | **PASS:** 2 suites, 9 tests                 | `INTEGRATION_API_URL=http://localhost:3333`, real local Docker demo API, exit 0; no reported skips                               |
+| Tax Playwright Chromium E2E                   | **PASS:** 2/2                               | Empty and populated seeded users; 9.9s; exit 0                                                                                   |
+| React route-smoke Chromium                    | **PASS:** 3/3                               | Dashboard, Risk, and Tax routes; 9.4s; exit 0                                                                                    |
+| **Full Playwright Chromium suite**            | **PASS:** 10/10                             | Five Risk, three route-smoke, two Tax browser tests; 35.7s; exit 0                                                               |
+| Nx full-project Jest with coverage            | **FAIL:** 1,507 passed, 1 failed, 1 skipped | Five projects run; `api:test` failed, final process exit 1; see breakdown below                                                  |
+| Full local repository lint/format/build       | **NOT RUN in this session**                 | Deferred after workstation crashes; later commit-hook and CI evidence is listed separately below                                 |
 
 The targeted browser 2/2 and 3/3 cases are included within the later full browser
 10/10 and must **not** be added again as unique test coverage. The local Docker
 image was created two days before the run; successful testing proves behavior
 of that running image but not that the image was rebuilt from the latest `main`.
+
+### Checks completed after the initial local test session
+
+- **Local commit hooks, Nov 20:** Commit `af6485d0f` successfully ran
+  `npm run affected:lint` (`nx affected:lint`) for `api`, `react-ui` and
+  `client`, and `npm run format:check` (`nx format:check`). Manual Prettier
+  checks for the two changed Markdown files passed, as did the staged
+  `git diff --cached --check`. These results were obtained after the original
+  testing session; they do **not** establish a separate local production build.
+- **PR #331 GitHub Actions, head `af6485d0f`:** [Lint and format](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/actions/runs/44818224203/job/136572004459),
+  [Unit tests](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/actions/runs/44818224203/job/136572004964),
+  [Build](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/actions/runs/44818224203/job/136572004910),
+  [Demo build and smoke test](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/actions/runs/44818224102/job/136572002979),
+  and [Docker image CD](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/actions/runs/44818223897/job/136572002194)
+  all completed **successfully**. These are CI results, distinct from the
+  earlier local Nx run that timed out.
+- **Review status:** [PR #331](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/331)
+  is open. Arthur requested updates to this documentation after reviewing
+  commit `af6485d0f`; independent approval and merge are still pending.
 
 ### Full-project Nx coverage breakdown (failed run)
 
@@ -97,17 +115,23 @@ amount strings and preserves nulls, including unknown withholding.
 - **Blocked/needs contract:** Tax-relevance UI filter — [#242](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/242). The existing lot-status filter is different.
 - **Not covered:** Incomplete-history Tax browser diagnostic state; no verified
   seeded browser fixture supporting this state.
-- **Shared dependency:** [PR #324](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/324) (live integration / CI) and [PR #326](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/326) (synthetic seeding / Playwright CI) were open on the last November 20 GitHub check. Their branch results do not establish green `main` CI.
+- **Shared CI dependencies updated:** [PR #326](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/326) (synthetic seeding / Playwright CI) and [PR #324](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/324) (live integration / CI) both **merged on November 20, 2026**, after the original local QA session and commit `af6485d0f`. Subsequent `main` test jobs succeeded; this does not retroactively change the earlier failed local run.
 
 ## Acceptance handoff
 
-- **Verified:** Tax backend, React components, live integration, Tax browser
-  journeys, full local Playwright; API shape rechecked against controller.
-- **Unverified:** clean full-project coverage, lint, format, build, updated
-  `main` workflow CI, reviewer approval, merge, issue closure.
-- **Recommendation:** Review this documentation-only patch, run low-impact
-  `git diff --check` and Prettier on changed Markdown when the machine is
-  stable, then open an Issue #329 PR with Arthur as reviewer. Coordinate the
-  existing shared Dashboard timeout and React-host warnings with Raniya.
-- **Definition of done:** not yet met; keep Issue #329 open until reviewed,
-  applicable green CI, merge and evidence links are recorded.
+- **Verified locally:** Tax backend, React components, live integration, Tax
+  browser journeys, full local Playwright, affected lint and formatting via
+  commit hooks; API contracts rechecked against the controller.
+- **Verified in PR #331 CI:** Lint and format, Unit tests, Build, Demo build
+  and smoke test, and Docker image CD completed successfully on `af6485d0f`.
+- **Outstanding:** the original failed local full-project Nx run remains
+  documented; no standalone local production build or isolated Dashboard
+  timeout rerun was completed after the workstation crashes. Arthur's
+  independent approval on the updated PR, merge, and Issue #329 closure are
+  pending.
+- **Next:** Commit the documentation-only review corrections to existing
+  [PR #331](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/331),
+  request Arthur's re-review, and merge only after approval and applicable
+  green CI. Coordinate shared Dashboard and React-host findings with Raniya.
+- **Definition of done:** not yet met; keep Issue #329 open until independent
+  approval, current green PR checks, merge, and evidence links are recorded.

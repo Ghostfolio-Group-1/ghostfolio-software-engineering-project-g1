@@ -740,11 +740,14 @@ git diff --check
 # Nx --parallel=1 does not constrain Jest's worker processes.
 ```
 
-On November 20, 2026 the local full-project coverage attempt was **not green**:
-`api:test` had one 5-second Dashboard E2E timeout, while other projects
-passed. A diagnostic single-worker retest and full lint/build verification
-were deferred after repeated workstation crashes. Do not treat local test
-passes as equivalent to green `main` CI. Evidence and exact counts:
+On November 20, 2026 the initial local full-project coverage attempt was
+**not green**: `api:test` had one 5-second Dashboard E2E timeout, while other
+projects passed. A diagnostic single-worker retest and standalone local build
+were deferred after repeated workstation crashes. Later, commit hooks passed
+affected lint and formatting, and [PR #331](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/331)
+CI passed Lint and format, Unit tests, Build, Demo build and smoke test, and
+Docker image CD. Those later checks are not the same run as the failed local
+Nx test. Evidence and exact counts:
 [`docs/testing/tax/2026-11-20-regression.md`](../../../../../docs/testing/tax/2026-11-20-regression.md).
 
 For the Tax browser test and seeding prerequisites, see
