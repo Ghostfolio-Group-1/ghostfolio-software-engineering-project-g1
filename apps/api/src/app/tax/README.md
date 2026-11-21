@@ -526,13 +526,19 @@ CSV and PDF presentation values use plain decimal serialization.
 
 ## Current HTTP API
 
-The live tax controller currently exposes:
+The authenticated Tax controller exposes four public GET endpoints. All
+require the `portfolio:read` scope and use the signed-in or impersonated user:
 
 ```text
-GET /api/v1/tax/realized-gains
 GET /api/v1/tax/lots
+GET /api/v1/tax/realized-gains?method=FIFO
 GET /api/v1/tax/dividends?year=YYYY
+GET /api/v1/tax/yearly-summary?year=YYYY&method=FIFO
 ```
+
+The method is optional for realized gains and yearly summaries; omitted method
+defaults to `FIFO`. These are the implemented HTTP endpoints, not merely backend
+service methods. No public Tax CSV/PDF download routes are exposed yet.
 
 Realized gains support:
 
@@ -552,7 +558,18 @@ AVERAGE_COST
 
 Values such as `fifo` or `average_cost` are not normalized and result in an unsupported-method error.
 
-The tax-lot endpoint currently represents FIFO tax lots.
+The tax-lot endpoint currently represents FIFO acquisition lots; the UI
+disables average-cost selection for this view. Realized gains and yearly
+summaries support both FIFO and AVERAGE_COST calculations.
+
+The yearly-summary endpoint requires `year=YYYY` (UTC calendar year 1970–2100)
+and accepts only `method=FIFO` or `method=AVERAGE_COST`. A missing, malformed,
+or out-of-range year or invalid method returns HTTP `400` with
+`TAX_INVALID_QUERY`. A calculation failure returns HTTP `422` with
+`TAX_YEARLY_SUMMARY_FAILED`. The response includes yearly totals, currency
+summaries, dividend records, realized-gain rows, completeness indicators,
+warnings and errors. Financial amounts remain decimal strings or `null` if
+unavailable; counts and the year are numbers.
 
 The dividend endpoint requires an explicit integer UTC calendar year
 (`1970`–`2100`, inclusive; no default). A missing, malformed, or out-of-range
@@ -567,7 +584,7 @@ yearly summary. Year boundaries are UTC `[Jan 1, next Jan 1)`. React displays
 logged server-side, with the generic `TAX_DIVIDENDS_FAILED` envelope returned
 to clients.
 
-All three endpoints use Ghostfolio's shared API envelope.
+All four endpoints use Ghostfolio's shared API envelope.
 
 Successful responses have the form:
 
@@ -593,7 +610,8 @@ Endpoint error codes are:
 TAX_REALIZED_GAINS_FAILED
 TAX_LOTS_FAILED
 TAX_DIVIDENDS_FAILED
-TAX_INVALID_QUERY (HTTP 400, invalid dividend year)
+TAX_YEARLY_SUMMARY_FAILED
+TAX_INVALID_QUERY (HTTP 400, invalid dividend year or yearly-summary query)
 ```
 
 The response schemas are the source of truth for the current HTTP contracts:
@@ -601,10 +619,14 @@ The response schemas are the source of truth for the current HTTP contracts:
 - [`contracts/tax-realized-gains.schema.ts`](./contracts/tax-realized-gains.schema.ts)
 - [`contracts/tax-lots.schema.ts`](./contracts/tax-lots.schema.ts)
 - [`contracts/tax-dividends.schema.ts`](./contracts/tax-dividends.schema.ts)
+- [`contracts/tax-yearly-summary.schema.ts`](./contracts/tax-yearly-summary.schema.ts)
 
-Yearly-summary, CSV-export, and PDF-export functionality exists in the tax service/domain layer but is not currently exposed through separate public HTTP endpoints.
-
-Those integrations belong to later application/frontend work rather than the Iteration 2 backend calculation implementation.
+The yearly-summary HTTP response is serialized by
+`tax-yearly-summary.serializer.ts` from the backend's decimal-safe domain
+result. The `TaxExport` and PDF export services generate CSV/PDF content from
+authoritative yearly results, but no public Tax CSV/PDF HTTP download routes
+or working browser-download controls are available yet (Issue #190). Do not
+represent these service methods as downloadable API endpoints.
 
 ## Known Limitations
 
@@ -649,11 +671,11 @@ This keeps the row internally reconcilable, but it does not apply a separate acq
 
 ### Asset Identity in Realized-Gain Export Data
 
-Current yearly realized-gain records primarily retain SELL activity identity and calculation trace information.
-
-They do not yet contain a complete asset-identity contract equivalent to the dividend record.
-
-This should be extended upstream rather than guessed inside CSV or PDF serializers.
+Yearly realized-gain rows now retain the SELL activity ID and the upstream
+`accountId` and `symbolProfileId` where available. The fields remain nullable
+for supported historical/legacy cases; CSV/PDF serializers preserve source
+identity rather than inventing missing asset identifiers. See the yearly-summary
+response interface and export tests. This was improved in Tax PR #277.
 
 ### Jurisdiction Rules
 
@@ -669,22 +691,67 @@ The implemented results are portfolio tax analytics.
 
 ## Testing
 
-Financial calculations have numeric unit tests covering normal cases and important edge conditions.
+Financial calculations are backend-authoritative and decimal-safe. The React
+TaxWorkspace is mounted at `/en/portfolio/tax` through the shared authenticated
+request adapter. Its four API-backed views are Tax lots, Realized gains,
+Dividend withholding and Yearly summary. Screens have loading, success, error
+and empty-state component tests; UI financial fields use API decimal strings,
+not JavaScript floating-point tax calculations. The lot-status filter supports
+open/all lots; it is **not** a tax-relevance selector (Issue #242).
 
-To run the tax test suite:
+Run tests from the repository root. In Windows PowerShell use `npx.cmd`, not
+`npx`/`npm` when execution policy blocks the `.ps1` shims:
 
 ```powershell
-npx jest --config apps/api/jest.config.ts apps/api/src/app/tax --runInBand
+# Backend Tax numeric, controller, and export tests
+npx.cmd jest --config apps/api/jest.config.ts apps/api/src/app/tax --runInBand --testTimeout=15000
+
+# React unit/component tests (includes shared features)
+npx.cmd jest --config libs/react-ui/jest.config.ts --runInBand
+
+# Live authenticated UI-to-API integration (running disposable demo API required)
+docker compose -f docker/docker-compose.demo.yml ps
+$env:INTEGRATION_API_URL = 'http://localhost:3333'
+npx.cmd jest -c libs/react-ui/jest.integration.config.ts --runInBand
+
+# Real Chromium browser tests with existing synthetic demo users seeded
+$env:PLAYWRIGHT_BASE_URL = 'http://localhost:3333'
+npx.cmd playwright test -c e2e/playwright.config.ts --project=chromium
 ```
 
-Repository checks used during Iteration 2 include:
+For live tests, the Docker demo API must be healthy and use a disposable,
+pre-seeded database. The `demo-risk-empty` and `demo-risk-rich` browser accounts
+are **synthetic only**. The React integration suite skips without
+`INTEGRATION_API_URL`; inspect the reported test count, not just exit status.
+The browser suite checks actual authenticated API responses and does not mock
+Tax routes. The Tax browser journey does **not** cover CSV/PDF downloads, which
+are still blocked (Issue #190).
+
+Repository checks and full-project unit coverage can be run separately:
 
 ```powershell
-npx nx run api:lint
-npx nx format:check
-npx nx run api:build
+# These run independently of the demo Docker services
+npx.cmd nx run api:lint
+npx.cmd nx format:check
+npx.cmd nx run api:build
 git diff --check
+
+# Full-project coverage uses Nx and Jest. Run only on a stable machine.
+# Nx --parallel=1 does not constrain Jest's worker processes.
 ```
+
+On November 20, 2026 the initial local full-project coverage attempt was
+**not green**: `api:test` had one 5-second Dashboard E2E timeout, while other
+projects passed. A diagnostic single-worker retest and standalone local build
+were deferred after repeated workstation crashes. Later, commit hooks passed
+affected lint and formatting, and [PR #331](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/pull/331)
+CI passed Lint and format, Unit tests, Build, Demo build and smoke test, and
+Docker image CD. Those later checks are not the same run as the failed local
+Nx test. Evidence and exact counts:
+[`docs/testing/tax/2026-11-20-regression.md`](../../../../../docs/testing/tax/2026-11-20-regression.md).
+
+For the Tax browser test and seeding prerequisites, see
+[`docs/testing/tax/2026-11-19-browser-e2e.md`](../../../../../docs/testing/tax/2026-11-19-browser-e2e.md).
 
 ## Decision Record
 
