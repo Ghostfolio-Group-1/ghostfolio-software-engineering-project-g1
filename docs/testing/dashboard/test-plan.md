@@ -56,21 +56,22 @@ issue.
 
 ### Dashboard page and cards (`dashboard-page/`, 40 tests)
 
-| Case                                                                                         | Status       |
-| -------------------------------------------------------------------------------------------- | ------------ |
-| Shell: one card per section in order, loading by default, each section in its own state      | have         |
-| Notice slot rendered above the grid                                                          | have         |
-| Overview mapping: risk / tax / charts ready, empty when no rows, unavailable → generic error | have         |
-| No server text in any error view (`internal detail` / `holdings down` never rendered)        | have         |
-| Live page: one GET through the host fetch; whole failure → 3 retryable errors; retry reloads | have         |
-| Partial failure: notice names the failed section; hidden when healthy and on total failure   | have         |
-| Risk card: fraction → %, severity text, over-limit callout, all-`NO_DATA` shows shares only  | have         |
-| Tax card: exact Big sums, losses, mixed currencies refused, newest first                     | have         |
-| Charts card: formatting, kind labels, singular/plural, labelled sparkline, empty → nothing   | have         |
-| Every card in the dark theme: no text colour equal to its background (#273 follow-up)        | gap — Nov 17 |
-| Charts card with negative and very large values                                              | gap — Nov 17 |
-| Partial-failure Retry reachable by keyboard and announced (`role="status"`)                  | gap — Nov 17 |
-| Risk card severity colours from live severities (unblocked by #281)                          | gap — Nov 17 |
+| Case                                                                                         | Status              |
+| -------------------------------------------------------------------------------------------- | ------------------- |
+| Shell: one card per section in order, loading by default, each section in its own state      | have                |
+| Notice slot rendered above the grid                                                          | have                |
+| Overview mapping: risk / tax / charts ready, empty when no rows, unavailable → generic error | have                |
+| No server text in any error view (`internal detail` / `holdings down` never rendered)        | have                |
+| Live page: one GET through the host fetch; whole failure → 3 retryable errors; retry reloads | have                |
+| Partial failure: notice names the failed section; hidden when healthy and on total failure   | have                |
+| Risk card: fraction → %, severity text, over-limit callout, all-`NO_DATA` shows shares only  | have                |
+| Tax card: exact Big sums, losses, mixed currencies refused, newest first                     | have                |
+| Charts card: formatting, kind labels, singular/plural, labelled sparkline, empty → nothing   | have                |
+| Benchmark card four states (both series plotted, title kept when ready)                      | blocked — #160/#105 |
+| Every card in the dark theme: no text colour equal to its background (#273 follow-up)        | gap — Nov 17        |
+| Charts card with negative and very large values                                              | gap — Nov 17        |
+| Partial-failure Retry reachable by keyboard and announced (`role="status"`)                  | gap — Nov 17        |
+| Risk card severity colours from live severities (unblocked by #281)                          | gap — Nov 17        |
 
 ### Shared primitives (36 tests)
 

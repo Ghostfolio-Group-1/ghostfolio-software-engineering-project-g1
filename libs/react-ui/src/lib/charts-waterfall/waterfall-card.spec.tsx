@@ -182,6 +182,46 @@ describe('WaterfallCard', () => {
     );
     expect(container.textContent).not.toContain('private detail');
     expect(container.textContent).toContain('Try again');
+    expect(
+      container.querySelector('[data-testid="waterfall-breakdown-toggle"]')
+    ).not.toBeNull();
+  });
+
+  it('keeps the breakdown toggle visible while loading', async () => {
+    let resolveRequest: ((value: Response) => void) | undefined;
+    const pending = new Promise<Response>((resolve) => {
+      resolveRequest = resolve;
+    });
+    const request = jest
+      .fn()
+      .mockReturnValue(pending) as unknown as WaterfallFetch;
+
+    await render(request);
+
+    expect(container.textContent).toContain('Loading…');
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelector('svg')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="waterfall-breakdown-toggle"]')
+    ).not.toBeNull();
+
+    const holding = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'By holding'
+    );
+
+    await act(async () => {
+      holding?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(request).toHaveBeenLastCalledWith(
+      '/api/v1/charts/waterfall?range=1y&breakdown=holding',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(container.textContent).toContain('Loading…');
+
+    await act(async () => {
+      resolveRequest?.(apiResponse(waterfall));
+    });
   });
 
   it('uses custom start and end dates from the shared range', async () => {
