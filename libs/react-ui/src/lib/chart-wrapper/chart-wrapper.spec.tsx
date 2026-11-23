@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { darkTheme } from '../theme/theme';
+import { ThemeProvider } from '../theme/theme-provider';
 import { ChartWrapper, toPath } from './chart-wrapper';
 
 const points = [
@@ -52,6 +54,18 @@ describe('ChartWrapper', () => {
     expect(html).toContain('role="img"');
     expect(html).toContain('aria-label="Portfolio value"');
     expect(html).toContain('d="M0,100 L150,0 L300,50"');
+    // #36cfcc on white is 1.92:1. The light-theme mark is #0d7377 (5.62:1).
+    expect(html).toContain('stroke="#0d7377"');
+    expect(html).not.toContain('stroke="#36cfcc"');
+  });
+
+  it('keeps the primary teal on a dark background, where it already clears 3:1', () => {
+    const html = renderToStaticMarkup(
+      <ThemeProvider theme={darkTheme}>
+        <ChartWrapper points={points} title="Portfolio value" />
+      </ThemeProvider>
+    );
+
     expect(html).toContain('stroke="#36cfcc"');
   });
 

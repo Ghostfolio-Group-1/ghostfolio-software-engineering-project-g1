@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import { focusedControlOutline } from '../chart-wrapper/chart-contrast';
 import { ChartWrapper } from '../chart-wrapper/chart-wrapper';
 import { DashboardCard } from '../dashboard-card/dashboard-card';
 import { useTheme } from '../theme/theme-provider';
@@ -95,12 +96,14 @@ function SeriesKindToggle({
   kind: ChartSeriesKind;
   onChange: (kind: ChartSeriesKind) => void;
 }) {
+  const [focusedKind, setFocusedKind] = useState<ChartSeriesKind | null>(null);
   const theme = useTheme();
 
   return (
     <div
       aria-label="Chart series"
       data-testid="chart-series-toggle"
+      role="group"
       style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -118,7 +121,9 @@ function SeriesKindToggle({
             data-kind={option}
             data-selected={selected ? 'true' : 'false'}
             key={option}
+            onBlur={() => setFocusedKind(null)}
             onClick={() => onChange(option)}
+            onFocus={() => setFocusedKind(option)}
             style={{
               backgroundColor: selected ? theme.color.primary : 'transparent',
               border: `1px solid ${theme.color.primary}`,
@@ -129,7 +134,8 @@ function SeriesKindToggle({
               fontWeight: selected ? 600 : 400,
               padding: `${px(designTokens.spacing.xs)} ${px(
                 designTokens.spacing.sm
-              )}`
+              )}`,
+              ...focusedControlOutline(theme, focusedKind === option)
             }}
             type="button"
           >

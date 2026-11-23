@@ -103,6 +103,24 @@ describe('WaterfallCard', () => {
     expect(container.textContent).toContain('Market gain/loss');
     expect(container.textContent).toContain('Dividends');
     expect(
+      container
+        .querySelector('[data-testid="waterfall-breakdown-toggle"]')
+        ?.getAttribute('aria-label')
+    ).toBe('Contribution breakdown');
+
+    const marketLabel = Array.from(container.querySelectorAll('li')).find(
+      (item) => item.textContent?.includes('Market gain/loss')
+    );
+
+    // The words used to be painted in the bar colour. #36cfcc on white is
+    // 1.92:1, under the 4.5:1 text minimum.
+    expect(marketLabel?.style.color).toBe('rgb(33, 33, 33)');
+    expect(
+      container
+        .querySelector('[data-category="marketGainLoss"]')
+        ?.getAttribute('fill')
+    ).toBe('#0d7377');
+    expect(
       container.querySelectorAll('[data-testid="waterfall-bar-start"]')
     ).toHaveLength(1);
     expect(
