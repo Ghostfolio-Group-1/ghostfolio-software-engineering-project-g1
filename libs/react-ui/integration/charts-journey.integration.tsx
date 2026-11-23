@@ -22,14 +22,25 @@ const describeLive = INTEGRATION_API_URL ? describe : describe.skip;
 
 const CHART_WIDTH = 480;
 const CHART_HEIGHT = 160;
+const FIRST_BUY_DATE = '2025-01-06';
+// Performance history opens on this date: the portfolio calculator starts the
+// day before the first activity, and that snapshot is an empty portfolio.
+const DAY_BEFORE_FIRST_BUY = '2025-01-05';
 const SALE_DATE = '2025-06-02';
 const LATEST_PRICE_DATE = '2026-11-09';
+// YTD begins the day before the year, so this window includes 2025-12-31.
+const YTD_START = '2025-12-31';
 const YEAR_START = '2026-01-01';
 
 // 10 ALPHA @ 100 and 5 BETA @ 50, then 6 ALPHA after the sale. BETA stays at
 // 50 until the 2026-11-09 marks (130 and 55). Invested capital is remaining
-// cost and steps down on the sale. There is no cash holding.
+// cost and steps down on the sale. There is no cash holding. Dates before
+// the first buy are the empty opening point, so both series are 0 there.
 function marketValue(date: string): number {
+  if (date < FIRST_BUY_DATE) {
+    return 0;
+  }
+
   if (date < SALE_DATE) {
     return 10 * 100 + 5 * 50;
   }
@@ -42,6 +53,10 @@ function marketValue(date: string): number {
 }
 
 function investedCapital(date: string): number {
+  if (date < FIRST_BUY_DATE) {
+    return 0;
+  }
+
   if (date < SALE_DATE) {
     return 10 * 100 + 5 * 50;
   }
@@ -134,8 +149,13 @@ describeLive(
           ?.getAttribute('aria-pressed')
       ).toBe('true');
       expect(kindLabel()).toBe('Showing Portfolio value');
+      expect(maxValue.startDate).toBe(DAY_BEFORE_FIRST_BUY);
+      expect(maxValue.points[0]).toEqual({
+        date: DAY_BEFORE_FIRST_BUY,
+        value: 0
+      });
       expect(maxValue.points.map(({ date }) => date)).toEqual(
-        expect.arrayContaining(['2025-01-06', SALE_DATE])
+        expect.arrayContaining([FIRST_BUY_DATE, SALE_DATE])
       );
       expect(maxValue.points).toEqual(
         maxValue.points.map(({ date }) => {
@@ -164,11 +184,13 @@ describeLive(
           ?.getAttribute('aria-pressed')
       ).toBe('false');
       expect(ytdValue.granularity).toBe('daily');
-      expect(ytdValue.startDate >= YEAR_START).toBe(true);
+      expect(ytdValue.startDate).toBe(YTD_START);
+      expect(ytdValue.points[0]).toEqual({
+        date: YTD_START,
+        value: marketValue(YTD_START)
+      });
       expect(ytdValue.points.map(({ date }) => date)).toContain(YEAR_START);
-      expect(ytdValue.points.every(({ date }) => date >= YEAR_START)).toBe(
-        true
-      );
+      expect(ytdValue.points.every(({ date }) => date >= YTD_START)).toBe(true);
       expect(ytdValue.points).toEqual(
         ytdValue.points.map(({ date }) => {
           return { date, value: marketValue(date) };

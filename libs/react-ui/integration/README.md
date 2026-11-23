@@ -23,10 +23,11 @@ under run-specific symbols and posts the prices
 (`POST /api/v1/market-data/MANUAL/:symbol`), so runs never share data.
 `expected` holds the values the screens must show (FIFO: 480 proceeds − 400
 cost − 0.40 allocated buy fee − 1 sell fee = 78.6 USD). The same activities
-price the chart: 10×100 + 5×50 = 1250 until the 2025-06-02 sale, then
-6×120 + 5×50 = 970 until the 2026-11-09 marks (6×130 + 5×55 = 1055). Invested
-capital steps from 1250 to 850 on that sale. There is no cash holding, so the
-cash series is 0. YTD starts after the sale, so its drawdown stays at 0.
+price the chart: the day before the first buy is 0, then 10×100 + 5×50 = 1250
+until the 2025-06-02 sale, then 6×120 + 5×50 = 970 until the 2026-11-09 marks
+(6×130 + 5×55 = 1055). Invested capital steps from 1250 to 850 on that sale.
+There is no cash holding, so the cash series is 0. YTD starts after the sale,
+so its drawdown stays at 0.
 
 Imported `MANUAL` symbols have no asset class, so the Risk stock bucket can be
 empty; the Risk check covers parsing and rendering, not severities.
