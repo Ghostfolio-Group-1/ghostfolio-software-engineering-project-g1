@@ -1,5 +1,6 @@
 import { Card } from '../card/card';
 import { useTheme } from '../theme/theme-provider';
+import { chartMarkColor } from './chart-contrast';
 
 // Same shape as ChartSeriesPoint in @ghostfolio/common, kept local so the
 // React library has no dependency on the API types.
@@ -72,7 +73,7 @@ export function ChartWrapper({
           <path
             d={toPath(points, width, height)}
             fill="none"
-            stroke={theme.color.primary}
+            stroke={chartMarkColor(theme)}
             strokeWidth={2}
           />
         </svg>

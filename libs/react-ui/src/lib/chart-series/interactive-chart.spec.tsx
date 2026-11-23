@@ -4,6 +4,7 @@ import type { Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 
 import { toPath } from '../chart-wrapper/chart-wrapper';
+import { darkTheme } from '../theme/theme';
 import { ThemeProvider } from '../theme/theme-provider';
 import { InteractiveChart } from './interactive-chart';
 import type { ChartSeriesData, ChartSeriesFetch } from './use-chart-series';
@@ -85,10 +86,10 @@ describe('InteractiveChart', () => {
     return container.querySelector('path')?.getAttribute('d') ?? null;
   }
 
-  async function render(request: ChartSeriesFetch) {
+  async function render(request: ChartSeriesFetch, theme?: typeof darkTheme) {
     await act(async () => {
       root.render(
-        <ThemeProvider>
+        <ThemeProvider theme={theme}>
           <InteractiveChart request={request} />
         </ThemeProvider>
       );
@@ -159,5 +160,30 @@ describe('InteractiveChart', () => {
     expect(drawnPath()).toBe(chartPath(seriesByRange['5y'].points));
     expect(rangeButton('5y').getAttribute('aria-pressed')).toBe('true');
     expect(rangeButton('max').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('shows a focus ring on the range button the global stylesheet would hide', async () => {
+    const request = jest.fn().mockImplementation((url: string) => {
+      const range = new URL(url, 'http://localhost').searchParams.get(
+        'range'
+      ) as keyof typeof seriesByRange;
+
+      return Promise.resolve(success(seriesByRange[range]));
+    }) as unknown as ChartSeriesFetch;
+
+    await render(request, darkTheme);
+
+    const button = rangeButton('ytd');
+
+    expect(button.style.outline).toBe('');
+
+    await act(async () => {
+      button.focus();
+    });
+
+    // Dark text color is #fafafa. The client stylesheet sets
+    // `button:focus { outline: 0 }`; this inline ring has to replace it.
+    expect(button.style.outline).toBe('2px solid #fafafa');
+    expect(button.style.outlineOffset).toBe('2px');
   });
 });

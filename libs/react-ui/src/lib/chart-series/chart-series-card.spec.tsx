@@ -95,9 +95,13 @@ describe('ChartSeriesCard', () => {
       );
     });
 
-    expect(
-      container.querySelector('[data-testid="chart-series-toggle"]')
-    ).not.toBeNull();
+    const toggle = container.querySelector(
+      '[data-testid="chart-series-toggle"]'
+    );
+
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute('role')).toBe('group');
+    expect(toggle?.getAttribute('aria-label')).toBe('Chart series');
     expect(container.textContent).toContain('Portfolio value');
     expect(container.textContent).toContain('Invested capital');
     expect(container.textContent).toContain('Cash');
@@ -206,5 +210,24 @@ describe('ChartSeriesCard', () => {
         ?.textContent
     ).toBe('Showing Cash');
     expect(container.querySelector('svg')).not.toBeNull();
+  });
+
+  it('shows a focus ring on the kind button the global stylesheet would hide', async () => {
+    const { request } = mockRequest(() => ({
+      body: success(portfolioData)
+    }));
+
+    await renderCard(request);
+
+    const button = container.querySelector(
+      '[data-kind="cash"]'
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      button.focus();
+    });
+
+    expect(button.style.outline).toBe('2px solid #212121');
+    expect(button.style.outlineOffset).toBe('2px');
   });
 });

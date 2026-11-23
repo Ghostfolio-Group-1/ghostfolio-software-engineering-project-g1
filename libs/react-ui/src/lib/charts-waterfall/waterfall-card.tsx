@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react';
 
+import {
+  chartMarkColor,
+  focusedControlOutline
+} from '../chart-wrapper/chart-contrast';
 import { DashboardCard } from '../dashboard-card/dashboard-card';
 import { useTheme } from '../theme/theme-provider';
 import { designTokens, px } from '../tokens/design-tokens';
@@ -50,7 +54,7 @@ const valueFormat = new Intl.NumberFormat('en-US', {
 function categoryColor(
   category: WaterfallCategory | undefined,
   kind: WaterfallBar['kind'],
-  primary: string,
+  mark: string,
   textMuted: string
 ): string {
   if (kind === 'start' || kind === 'end') {
@@ -63,9 +67,9 @@ function categoryColor(
     case 'dividends':
       return designTokens.color.success;
     case 'marketGainLoss':
-      return primary;
+      return mark;
     default:
-      return primary;
+      return mark;
   }
 }
 
@@ -125,7 +129,7 @@ function WaterfallChart({
         const fill = categoryColor(
           bar.category,
           bar.kind,
-          theme.color.primary,
+          chartMarkColor(theme),
           theme.color.textMuted
         );
         const label = bar.holdingSymbol
@@ -136,6 +140,7 @@ function WaterfallChart({
           <g key={`${bar.kind}-${bar.label}-${index}`}>
             <title>{`${label}: ${valueFormat.format(bar.value)} ${currency}`}</title>
             <rect
+              data-category={bar.category}
               data-testid={`waterfall-bar-${bar.kind}`}
               fill={fill}
               height={height}
@@ -198,7 +203,7 @@ export function WaterfallCard({
             <ul
               aria-label="Contribution categories"
               style={{
-                color: theme.color.textMuted,
+                color: theme.color.text,
                 display: 'flex',
                 flexWrap: 'wrap',
                 gap: px(designTokens.spacing.md),
@@ -207,15 +212,18 @@ export function WaterfallCard({
                 padding: 0
               }}
             >
-              <li style={{ color: designTokens.color.secondary }}>
-                {WATERFALL_CATEGORY_LABELS.netCashFlow}
-              </li>
-              <li style={{ color: theme.color.primary }}>
-                {WATERFALL_CATEGORY_LABELS.marketGainLoss}
-              </li>
-              <li style={{ color: designTokens.color.success }}>
-                {WATERFALL_CATEGORY_LABELS.dividends}
-              </li>
+              <LegendItem
+                color={designTokens.color.secondary}
+                label={WATERFALL_CATEGORY_LABELS.netCashFlow}
+              />
+              <LegendItem
+                color={chartMarkColor(theme)}
+                label={WATERFALL_CATEGORY_LABELS.marketGainLoss}
+              />
+              <LegendItem
+                color={designTokens.color.success}
+                label={WATERFALL_CATEGORY_LABELS.dividends}
+              />
             </ul>
             <WaterfallChart
               bars={bars}
@@ -238,6 +246,33 @@ export function WaterfallCard({
   );
 }
 
+function LegendItem({ color, label }: { color: string; label: string }) {
+  const theme = useTheme();
+
+  return (
+    <li
+      style={{
+        alignItems: 'center',
+        color: theme.color.text,
+        display: 'flex',
+        gap: px(designTokens.spacing.xs)
+      }}
+    >
+      <span
+        aria-hidden="true"
+        data-testid="waterfall-legend-swatch"
+        style={{
+          background: color,
+          display: 'inline-block',
+          height: 10,
+          width: 10
+        }}
+      />
+      {label}
+    </li>
+  );
+}
+
 function BreakdownToggle({
   breakdown,
   onChange
@@ -245,10 +280,12 @@ function BreakdownToggle({
   breakdown: WaterfallBreakdown;
   onChange: (breakdown: WaterfallBreakdown) => void;
 }) {
+  const [focused, setFocused] = useState<WaterfallBreakdown | null>(null);
   const theme = useTheme();
 
   return (
     <div
+      aria-label="Contribution breakdown"
       data-testid="waterfall-breakdown-toggle"
       role="group"
       style={{
@@ -264,7 +301,9 @@ function BreakdownToggle({
           <button
             aria-pressed={selected}
             key={option}
+            onBlur={() => setFocused(null)}
             onClick={() => onChange(option)}
+            onFocus={() => setFocused(option)}
             style={{
               background: selected ? theme.color.primary : theme.color.surface,
               border: `1px solid ${
@@ -275,7 +314,8 @@ function BreakdownToggle({
               cursor: 'pointer',
               fontFamily: designTokens.fontFamily,
               fontSize: px(designTokens.fontSize.sm),
-              padding: `${px(designTokens.spacing.xs)} ${px(designTokens.spacing.sm)}`
+              padding: `${px(designTokens.spacing.xs)} ${px(designTokens.spacing.sm)}`,
+              ...focusedControlOutline(theme, focused === option)
             }}
             type="button"
           >

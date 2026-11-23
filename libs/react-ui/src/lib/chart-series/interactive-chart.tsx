@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { focusedControlOutline } from '../chart-wrapper/chart-contrast';
 import { useTheme } from '../theme/theme-provider';
 import { designTokens, px } from '../tokens/design-tokens';
 import { ChartSeriesCard } from './chart-series-card';
@@ -29,6 +30,7 @@ export function InteractiveChart({
   initialRange = 'max',
   request
 }: InteractiveChartProps) {
+  const [focusedRange, setFocusedRange] = useState<string | null>(null);
   const [range, setRange] = useState<InteractiveChartRange>(initialRange);
   const theme = useTheme();
 
@@ -52,7 +54,9 @@ export function InteractiveChart({
               aria-pressed={selected}
               data-range={option.id}
               key={option.id}
+              onBlur={() => setFocusedRange(null)}
               onClick={() => setRange(option.id)}
+              onFocus={() => setFocusedRange(option.id)}
               style={{
                 backgroundColor: selected ? theme.color.primary : 'transparent',
                 border: `1px solid ${theme.color.primary}`,
@@ -63,7 +67,8 @@ export function InteractiveChart({
                 fontWeight: selected ? 600 : 400,
                 padding: `${px(designTokens.spacing.xs)} ${px(
                   designTokens.spacing.sm
-                )}`
+                )}`,
+                ...focusedControlOutline(theme, focusedRange === option.id)
               }}
               type="button"
             >
