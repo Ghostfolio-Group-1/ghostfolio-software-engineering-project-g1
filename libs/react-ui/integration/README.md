@@ -14,18 +14,6 @@ demo. Unit tests (`jest.config.ts`) stay fast and never need a database.
 | `DividendWithholdingScreen`            | `GET /api/v1/tax/dividends?year=2025`      | settles into a table, no error                               |
 | `InteractiveChart` then `DrawdownCard` | `GET /api/v1/charts/series`, `/drawdown`   | Max → YTD → invested capital → cash, then YTD drawdown is 0  |
 
-`dashboard-flow.integration.tsx` (Unified Dashboard across Risk, Tax and Charts):
-
-| Case            | Route(s)                                                                | Assertion                                                               |
-| --------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| All sources up  | `/dashboard/overview`, `/risk/concentration`, `/charts/series?range=1y` | portfolio total is 1055 USD in Risk, Charts and both Dashboard sections |
-| All sources up  | `DashboardOverviewPage`                                                 | three cards, no error card, no partial-failure notice                   |
-| Tax source down | `GET /api/v1/dashboard/overview`                                        | HTTP 200, tax `DASHBOARD_TAX_UNAVAILABLE`, risk and charts available    |
-| Tax source down | `DashboardOverviewPage`                                                 | only the Tax card errors; notice names Tax; Risk and Performance render |
-
-The tax-down case signs up a second user with `fixtures/tax-down-portfolio.json`
-(sell 12 of 10 held), so the FIFO engine throws for insufficient holdings.
-
 ## Fixture
 
 `fixtures/portfolio.json`: two `MANUAL` stocks, a buy of each, one partial
