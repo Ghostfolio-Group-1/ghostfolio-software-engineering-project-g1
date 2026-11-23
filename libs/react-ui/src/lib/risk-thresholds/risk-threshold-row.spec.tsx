@@ -56,10 +56,14 @@ describe('RiskThresholdRow', () => {
     });
 
     expect(
-      container.querySelector('[aria-label="SingleStockConcentration-max"]')
+      container.querySelector(
+        '[aria-label="Single stock concentration Warning max"]'
+      )
     ).not.toBeNull();
     expect(
-      container.querySelector('[aria-label="SingleStockConcentration-min"]')
+      container.querySelector(
+        '[aria-label="Single stock concentration Warning min"]'
+      )
     ).toBeNull();
     expect(container.textContent).not.toContain('Customized');
   });
@@ -76,7 +80,7 @@ describe('RiskThresholdRow', () => {
     });
 
     expect(
-      container.querySelector('[aria-label="PortfolioVolatility-min"]')
+      container.querySelector('[aria-label="Volatility estimate Warning min"]')
     ).not.toBeNull();
     expect(container.textContent).toContain('Customized');
     expect(
@@ -100,7 +104,7 @@ describe('RiskThresholdRow', () => {
     });
 
     const maxInput = container.querySelector(
-      '[aria-label="SingleStockConcentration-max"]'
+      '[aria-label="Single stock concentration Warning max"]'
     ) as HTMLInputElement;
     const nativeSetter = Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,

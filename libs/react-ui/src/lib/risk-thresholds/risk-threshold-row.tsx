@@ -86,7 +86,17 @@ export function RiskThresholdRow({
     >
       <div style={{ fontWeight: 600 }}>
         {item.name}
-        {item.isCustomized ? ' — Customized' : ''}
+        {item.isCustomized ? (
+          <span
+            style={{
+              color: theme.color.textMuted,
+              fontWeight: 400,
+              marginLeft: px(designTokens.spacing.xs)
+            }}
+          >
+            — Customized
+          </span>
+        ) : null}
       </div>
       <label>
         <input
@@ -105,8 +115,15 @@ export function RiskThresholdRow({
           }}
         >
           {FIELD_LABEL[field]}
+          {/* The nested <label> text alone ("Red max") is identical across
+              every rule's row, so a screen reader can't tell which rule an
+              input belongs to - the explicit aria-label disambiguates with
+              the rule's name. It used to be `${item.ruleKey}-${field}`
+              (e.g. "SingleStockConcentration-redMax"), a raw PascalCase key
+              nobody would actually say; using item.name instead (Mon 11/23
+              usability pass) keeps it unique but readable. */}
           <input
-            aria-label={`${item.ruleKey}-${field}`}
+            aria-label={`${item.name} ${FIELD_LABEL[field]}`}
             onChange={(event) => updateField(field, event.target.value)}
             type="number"
             value={values[field]}

@@ -22,7 +22,15 @@ describe('TargetAllocationForm', () => {
       />
     );
 
-    expect(html.match(/aria-label="Key"/g)).toHaveLength(2);
+    // Each row's Key/Percentage aria-label must include the row number -
+    // with 2+ rows (the normal case for a real target allocation), a
+    // screen reader needs to tell rows apart, not announce "Key" twice
+    // with no way to know which is which (Mon 11/23 usability pass).
+    expect(html).toContain('aria-label="Key (row 1)"');
+    expect(html).toContain('aria-label="Key (row 2)"');
+    expect(html).toContain('aria-label="Percentage (row 1)"');
+    expect(html).toContain('aria-label="Percentage (row 2)"');
+    expect(html.match(/aria-label="Key \(row \d+\)"/g)).toHaveLength(2);
     expect(html).toContain('value="EQUITY"');
     expect(html).toContain('value="60"');
     expect(html).toContain('value="FIXED_INCOME"');

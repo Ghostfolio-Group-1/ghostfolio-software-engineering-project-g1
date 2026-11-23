@@ -127,7 +127,7 @@ describe('RiskThresholdsPage', () => {
     await render(request as unknown as AuthenticatedFetch);
 
     const maxInput = container.querySelector(
-      '[aria-label="SingleStockConcentration-max"]'
+      '[aria-label="Single stock concentration Warning max"]'
     ) as HTMLInputElement;
     const nativeSetter = Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
@@ -217,7 +217,7 @@ describe('RiskThresholdsPage', () => {
     await render(request as unknown as AuthenticatedFetch);
 
     const maxInput = container.querySelector(
-      '[aria-label="SingleStockConcentration-max"]'
+      '[aria-label="Single stock concentration Warning max"]'
     ) as HTMLInputElement;
     const nativeSetter = Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,

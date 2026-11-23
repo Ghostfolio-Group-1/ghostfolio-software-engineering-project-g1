@@ -9,11 +9,13 @@ import type { RiskSeverity } from './risk-indicator';
 
 describe('RiskIndicator', () => {
   // One test per severity-to-colour mapping (Mon Nov 9, issue #188).
+  // NO_DATA is #757575 (textMuted), not the unused #9e9e9e noData token -
+  // see the comment in risk-indicator.tsx (Mon 11/23 contrast fix).
   it.each<[RiskSeverity, string]>([
     ['GREEN', '#28a745'],
     ['YELLOW', '#ffc107'],
     ['RED', '#dc3545'],
-    ['NO_DATA', '#9e9e9e']
+    ['NO_DATA', '#757575']
   ])('renders %s with colour %s', (severity, color) => {
     const html = renderToStaticMarkup(<RiskIndicator severity={severity} />);
 
