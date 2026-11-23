@@ -21,6 +21,8 @@ sell and one dividend, plus prices for each symbol. Every run signs up its
 own user (`POST /api/v1/user`), imports the activities (`POST /api/v1/import`)
 under run-specific symbols and posts the prices
 (`POST /api/v1/market-data/MANUAL/:symbol`), so runs never share data.
+`createIntegrationSession(baseUrl, portfolio?)` imports the shared fixture by
+default; pass another fixture for a case that needs different data.
 `expected` holds the values the screens must show (FIFO: 480 proceeds − 400
 cost − 0.40 allocated buy fee − 1 sell fee = 78.6 USD). The same activities
 price the chart: the day before the first buy is 0, then 10×100 + 5×50 = 1250

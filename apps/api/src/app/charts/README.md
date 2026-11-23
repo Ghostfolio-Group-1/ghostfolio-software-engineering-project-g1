@@ -23,15 +23,19 @@ The charts backend currently supports:
 - shared time-range presets and custom `startDate` / `endDate` windows;
 - server-side granularity (`daily` up to 2 years, `weekly` beyond);
 - portfolio value / invested capital / cash series via `GET /charts/series`;
+- investment drawdown via `GET /charts/drawdown`;
 - shared `{ data, meta, error }` envelopes and `CHARTS_*` error codes.
 
 Not implemented on `main` yet:
 
-- investment drawdown (`GET /charts/drawdown`) — planned in PR #167;
 - total-return vs price-return comparison;
 - benchmark comparison (open PR #160);
-- contribution / waterfall;
-- Iteration 3 React chart UI.
+- contribution / waterfall. A React client in
+  `libs/react-ui/src/lib/charts-waterfall` calls `GET /charts/waterfall`, but
+  `ChartsController` does not expose that route.
+
+Iteration 3 React views for series, range presets, and drawdown are in
+`libs/react-ui`. They are not part of this Nest module.
 
 ## Architecture
 
@@ -42,6 +46,7 @@ apps/api/src/app/charts/
   contracts/             AJV schemas used by controller/e2e tests
 libs/common/src/lib/
   chart-series.ts        series kind → points
+  drawdown.ts            performance index → drawdown points
   calculation-helper/    TimeRangeSelection → concrete dates
 ```
 
@@ -151,9 +156,9 @@ interpolated between those dates.
 Weekly thinning keeps the last observed point of each Monday-start week and
 relabels its date to that Monday.
 
-## Planned: `GET /api/v1/charts/drawdown` (PR #167)
+## `GET /api/v1/charts/drawdown`
 
-Not on `main` until #167 merges. When it lands, the intended contract is:
+On `main` since #167. Contract:
 
 ```text
 GET /api/v1/charts/drawdown
@@ -174,7 +179,7 @@ interface DrawdownResponse {
 }
 ```
 
-Planned calculation (matches #167's final code):
+Calculation:
 
 1. Index each history row as
    `100 × (1 + netPerformanceInPercentageWithCurrencyEffect)`.
@@ -188,15 +193,15 @@ Planned calculation (matches #167's final code):
    week, date relabelled to Monday); the max-drawdown summary still uses the
    daily trough date.
 
-Until #167 merges, treat drawdown as planned — not implemented — in this README
-and in `project-docs/iteration-2/charts-decision-record.md` (CD-1 / CD-4).
+`project-docs/iteration-2/charts-decision-record.md` records this as CD-4.
 
 ## Known Limitations
 
 ### Unimplemented chart types
 
-Drawdown (#167), return comparison, benchmark comparison (#160), and waterfall
-remain unimplemented on `main`. They are not exposed by this controller today.
+Return comparison, benchmark comparison (#160), and the waterfall route remain
+unimplemented on `main`. They are not exposed by this controller today. The
+waterfall React client is ahead of the route.
 
 ### Series path vs Iteration 1 toggle spec
 
@@ -207,8 +212,8 @@ feature boundary from `project-docs/api-conventions.md`.
 ### Weekly point dates
 
 Weekly points use the Monday week-start label, which may not be a date that
-existed in the daily history. When drawdown lands, summary fields that must
-stay on real data dates (max drawdown) are computed before thinning.
+existed in the daily history. Drawdown's max-drawdown summary is computed
+before that thinning, so the trough date stays a real history date.
 
 ### No separate charts data store
 
@@ -217,10 +222,52 @@ schema migration.
 
 ## Testing
 
+November 20, 2026 check, from `main` at `fb1efd6dd`. No production failure
+turned up in these layers. The live journey on PR #327 failed in the demo
+smoke job because the day before the first buy is an empty portfolio (value
+0); the hand calculation now treats that point as 0.
+
+Unit, calculation (`libs/common`):
+
 ```text
-npx jest --config libs/common/jest.config.ts libs/common/src/lib/chart-series.spec.ts
-npx jest --config apps/api/jest.config.ts apps/api/src/app/charts --runInBand
+npx jest --config libs/common/jest.config.ts --testPathPatterns="chart-series|drawdown"
 ```
+
+2 suites, 20 tests, all passed (`chart-series.spec.ts`, `drawdown.spec.ts`).
+
+Unit and contract (`apps/api`, including the supertest charts e2e):
+
+```text
+npx jest --config apps/api/jest.config.ts --testPathPatterns="apps/api/src/app/charts"
+```
+
+3 suites, 41 tests, all passed.
+
+Component and client (`libs/react-ui`):
+
+```text
+npx jest --config libs/react-ui/jest.config.ts --testPathPatterns="chart-series|charts-drawdown|charts-waterfall|chart-wrapper|dashboard-charts"
+```
+
+9 suites, 47 tests, all passed. Covers the series card, interactive range
+chart, drawdown card, waterfall card, chart wrapper, and the dashboard charts
+summary. Waterfall tests mock `GET /charts/waterfall`; that route is still
+absent.
+
+Live UI-to-API (`INTEGRATION_API_URL` required, otherwise the files skip):
+
+```text
+INTEGRATION_API_URL=http://localhost:3333 npx jest -c libs/react-ui/jest.integration.config.ts
+```
+
+`dashboard-flow.integration.tsx` checks `GET /charts/series?range=1y` (latest
+value 1055). `charts-journey.integration.tsx` walks Max → YTD → invested
+capital → cash, then YTD drawdown. Not re-run locally on November 20; the
+demo job for #327 is the failure this calculation fix addresses.
+
+Browser (`e2e/tests/dashboard.spec.ts`): the home chart's latest value is
+1055 and matches the overview performance card. Not re-run locally on
+November 20.
 
 Repository checks used during Iteration 2 include:
 

@@ -76,3 +76,42 @@ class of bug that unit tests cannot (#266). Add a route to `ROUTES` when a
 new screen is mounted.
 
 Run only this file locally: `npx playwright test -c e2e/playwright.config.ts route-smoke`.
+
+## Unified Dashboard journey
+
+`tests/dashboard.spec.ts` signs up its own user, imports the integration
+fixture portfolio (`libs/react-ui/integration/fixtures/portfolio.json`),
+signs in through the header dialog and walks the journey:
+
+1. `/en/dashboard`: all three cards load from one `GET /dashboard/overview`;
+   Tax shows `78.6 USD`, Performance shows `1,055.00` (both worked out by hand
+   from the fixture), Risk shows each stock share the API sent.
+2. Risk card -> `/en/risk`: `GET /risk/concentration` equals the card's data.
+3. Tax card -> Portfolio > Tax analytics > Realized gains: same sales as the card.
+4. Performance card -> `/en/home`: the chart's latest value is 1055.
+
+A second test signs up a user who sells more than they hold, so only the Tax
+section fails: one error card, the partial-failure notice names Tax, and
+Risk and Performance still render.
+
+The cards have no links to their feature pages yet, so the journey opens each
+page directly; the click-through step is reported as **BLOCKED** in the test
+annotations until the cards get links.
+
+## Cross-feature run on a clean environment
+
+Runs every spec (route smoke, Risk, Tax, Dashboard, and Charts once merged)
+together against a fresh database, the same way the CI `E2E tests` job does:
+
+```
+docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml down -v
+docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml up --build -d
+until curl -fsS http://localhost:3333/api/v1/health >/dev/null; do sleep 5; done
+./scripts/seed-e2e-users.sh
+npm run e2e
+```
+
+`docker/docker-compose.e2e.yml` publishes the demo Postgres on
+`127.0.0.1:5433` only, so `scripts/seed-e2e-users.sh` can seed the
+`demo-risk-*` users into the same database the API uses. Disposable demo
+database only; never point it at a shared one.

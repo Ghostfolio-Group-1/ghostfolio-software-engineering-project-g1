@@ -5,6 +5,12 @@ export const INTEGRATION_API_URL = process.env['INTEGRATION_API_URL'];
 
 export { fixture };
 
+/** Activities and prices to import; defaults to the shared fixture portfolio. */
+export interface PortfolioFixture {
+  activities: (typeof fixture)['activities'];
+  marketData: Record<string, { date: string; marketPrice: number }[]>;
+}
+
 export interface IntegrationSession {
   /** Same contract as the Angular host's adapter: relative /api paths, auth added. */
   request: AuthenticatedFetch;
@@ -32,13 +38,15 @@ async function post(
 }
 
 /**
- * Signs up a fresh user on the running API, imports the shared fixture
- * portfolio and its prices, and returns an authenticated fetch for the
- * React screens. Each run gets its own user and its own MANUAL symbols
- * (a user may only price asset profiles it created), so runs never share data.
+ * Signs up a fresh user on the running API, imports the given portfolio
+ * (the shared fixture by default) and its prices, and returns an
+ * authenticated fetch for the React screens. Each run gets its own user and
+ * its own MANUAL symbols (a user may only price asset profiles it created), so
+ * runs never share data.
  */
 export async function createIntegrationSession(
-  baseUrl: string
+  baseUrl: string,
+  portfolio: PortfolioFixture = fixture
 ): Promise<IntegrationSession> {
   const runId = Date.now().toString(36).toUpperCase();
   const symbolFor = (symbol: string) => `${symbol}_${runId}`;
@@ -50,7 +58,7 @@ export async function createIntegrationSession(
   await post(
     `${baseUrl}/api/v1/import`,
     {
-      activities: fixture.activities.map((activity) => ({
+      activities: portfolio.activities.map((activity) => ({
         ...activity,
         symbol: symbolFor(activity.symbol)
       }))
@@ -58,7 +66,7 @@ export async function createIntegrationSession(
     authToken
   );
 
-  for (const [symbol, marketData] of Object.entries(fixture.marketData)) {
+  for (const [symbol, marketData] of Object.entries(portfolio.marketData)) {
     await post(
       `${baseUrl}/api/v1/market-data/MANUAL/${symbolFor(symbol)}`,
       { marketData },
