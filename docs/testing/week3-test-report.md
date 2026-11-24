@@ -2,8 +2,13 @@
 
 QA Execution Plan, Fri Nov 20: full suite green in CI, coverage report and
 test counts published, open failures listed with owners. Counted on `main` at
-`fb1efd6` (after #326), with the same commands the CI jobs run. Each layer's
-pass / fail status is the result of that job on `main` in GitHub Actions.
+`fb1efd6` (after #326), with the same commands the CI jobs run.
+
+CI status on `main`: every testing job is green (Lint and format, Unit tests,
+Component tests, Build in "Build code"; Integration tests and E2E tests in
+"Demo environment"). The separate "Extract locales" workflow fails; it is an
+upstream Ghostfolio translation workflow that tries to open its own PR, which
+Actions cannot do in this repo. It runs no tests and does not gate merges.
 
 ## Test counts per layer
 
@@ -58,41 +63,51 @@ run's summary page; the full report is the `coverage-report` artifact.
 `apps/api`, `apps/client` and `libs/ui` include the upstream Ghostfolio code;
 the Iteration 3 areas are:
 
-| Iteration 3 area       | Lines  | Branches |
-| ---------------------- | ------ | -------- |
-| Risk API               | 97.6%  | 84.9%    |
-| Tax API                | 92.4%  | 81.6%    |
-| Charts API             | 90.2%  | 77.1%    |
-| Dashboard API          | 100.0% | 100.0%   |
-| Shared API conventions | 100.0% | 100.0%   |
-| React: Risk            | 93.8%  | 85.2%    |
-| React: Tax             | 97.2%  | 86.0%    |
-| React: Charts          | 95.8%  | 85.0%    |
-| React: Dashboard page  | 100.0% | 94.0%    |
-| React: data layer      | 100.0% | 95.2%    |
-| React host (Angular)   | 98.2%  | 85.0%    |
+| Iteration 3 area         | Lines  | Branches |
+| ------------------------ | ------ | -------- |
+| Risk API                 | 97.6%  | 84.9%    |
+| Tax API                  | 92.4%  | 81.6%    |
+| Charts API               | 90.2%  | 77.1%    |
+| Dashboard API            | 100.0% | 100.0%   |
+| Shared API conventions   | 100.0% | 100.0%   |
+| React: Risk              | 93.7%  | 88.5%    |
+| React: Tax               | 97.0%  | 91.0%    |
+| React: Charts            | 95.5%  | 84.0%    |
+| React: Dashboard page    | 100.0% | 94.0%    |
+| React: data layer        | 100.0% | 95.2%    |
+| React: shared components | 100.0% | 100.0%   |
+| React host (Angular)     | 98.2%  | 85.0%    |
 
-Area rows count files loaded by at least one test. The report has no
+Each React area now lists every folder it owns (this PR updates
+`scripts/coverage-summary.mjs`): Tax is `tax-lots`, `tax-workspace`,
+`realized-gains`, `dividend-withholding` and `yearly-tax-summary`; Risk adds
+`target-allocation` and `what-if-simulator`; `chart-wrapper` moves to the
+shared components. A prefix match on "tax" had left 224 of the 331 Tax UI
+lines out. Area rows count files loaded by at least one test. The report has no
 thresholds yet; "no coverage drop on a PR" is checked by the reviewer from the
 run summary.
 
 ## Blocked tests (recorded as BLOCKED, not pass)
 
-| Test                                                  | Why                                                                                                   | Owner               |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------- |
-| Dashboard E2E: click a card to reach its feature page | Cards have no links yet; the test opens each page directly (annotated BLOCKED in `dashboard.spec.ts`) | Raniya              |
-| Charts: benchmark and return comparison               | #160 / #105 are not on main                                                                           | Arthur              |
-| Tax: CSV / PDF downloads in the browser               | The public export endpoint is not built yet; `requestFile` follows it                                 | Tharun, then Raniya |
+| Test                                                         | Why                                                                                                   | Owner               |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------- |
+| Dashboard E2E: click a card to reach its feature page        | Cards have no links yet; the test opens each page directly (annotated BLOCKED in `dashboard.spec.ts`) | Raniya              |
+| Charts: benchmark and return comparison                      | #160 / #105 are not on main                                                                           | Arthur              |
+| Tax: CSV / PDF downloads in the browser (#190)               | The public export endpoint is not built yet; `requestFile` follows it                                 | Tharun, then Raniya |
+| Tax: tax-relevance filter step in the browser journey (#242) | Blocked until the backend contract for the filter is agreed                                           | Tharun              |
 
 ## Open items with owners
 
-| Item                                                                                                                                               | Owner  |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| #272 Dashboard Risk card shows "No data yet" for holdings without an asset class                                                                   | Raniya |
-| #278 Asset identity in yearly summaries and exports (changes requested; trace part → #155)                                                         | Tharun |
-| #293 / #294 / #295 Split of the demo presentation fixes (calculator, withholding, dark mode)                                                       | Arthur |
-| Remaining GET routes in `demo-smoke.sh` (`/tax/dividends`, `/tax/yearly-summary`, `/risk/warnings`, `/risk/target-allocation`, `/risk/thresholds`) | Raniya |
-| Dashboard cards link to their feature pages (unblocks the click-through step)                                                                      | Raniya |
+| Item                                                                                                                                               | Owner               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| #272 Dashboard Risk card shows "No data yet" for holdings without an asset class                                                                   | Raniya              |
+| #155 FIFO / average-cost trace adapter, so export trace rows carry asset identity (the yearly-summary part landed in #277, closing #154)           | Tharun              |
+| #190 Tax CSV / PDF downloads                                                                                                                       | Tharun, then Raniya |
+| #242 Tax-relevance filter                                                                                                                          | Tharun              |
+| #278 Older fallback PR for #154, superseded by #277: to close                                                                                      | Tharun              |
+| #293 / #294 / #295 Split of the demo presentation fixes (calculator, withholding, dark mode)                                                       | Arthur              |
+| Remaining GET routes in `demo-smoke.sh` (`/tax/dividends`, `/tax/yearly-summary`, `/risk/warnings`, `/risk/target-allocation`, `/risk/thresholds`) | Raniya              |
+| Dashboard cards link to their feature pages (unblocks the click-through step)                                                                      | Raniya              |
 
 Each row is checked against GitHub at the 3:30 Week 3 check; anything closed
 since is removed here, anything new is added with an owner.

@@ -12,18 +12,60 @@ const root = process.cwd();
 const coverageDir = process.argv[2] ?? 'coverage';
 const METRICS = ['lines', 'statements', 'functions', 'branches'];
 
+const REACT = 'libs/react-ui/src/lib/';
+
+// Each area lists every folder that belongs to it, so a new screen folder
+// must be added here to be counted (a prefix like "tax" misses
+// "realized-gains" or "yearly-tax-summary").
 const AREAS = [
-  ['Risk API', 'apps/api/src/app/risk/'],
-  ['Tax API', 'apps/api/src/app/tax/'],
-  ['Charts API', 'apps/api/src/app/charts/'],
-  ['Dashboard API', 'apps/api/src/app/dashboard/'],
-  ['Shared API conventions', 'libs/common/src/lib/api-conventions'],
-  ['React: Risk', 'libs/react-ui/src/lib/risk'],
-  ['React: Tax', 'libs/react-ui/src/lib/tax'],
-  ['React: Charts', 'libs/react-ui/src/lib/chart'],
-  ['React: Dashboard page', 'libs/react-ui/src/lib/dashboard-page/'],
-  ['React: data layer', 'libs/react-ui/src/lib/data/'],
-  ['React host (Angular)', 'apps/client/src/app/components/react-host/']
+  ['Risk API', ['apps/api/src/app/risk/']],
+  ['Tax API', ['apps/api/src/app/tax/']],
+  ['Charts API', ['apps/api/src/app/charts/']],
+  ['Dashboard API', ['apps/api/src/app/dashboard/']],
+  ['Shared API conventions', ['libs/common/src/lib/api-conventions']],
+  [
+    'React: Risk',
+    [
+      'risk-dashboard/',
+      'risk-indicator/',
+      'risk-thresholds/',
+      'risk-warnings/',
+      'target-allocation/',
+      'what-if-simulator/'
+    ].map((folder) => REACT + folder)
+  ],
+  [
+    'React: Tax',
+    [
+      'dividend-withholding/',
+      'realized-gains/',
+      'tax-lots/',
+      'tax-workspace/',
+      'yearly-tax-summary/'
+    ].map((folder) => REACT + folder)
+  ],
+  [
+    'React: Charts',
+    ['chart-series/', 'charts-drawdown/', 'charts-waterfall/'].map(
+      (folder) => REACT + folder
+    )
+  ],
+  ['React: Dashboard page', [REACT + 'dashboard-page/']],
+  ['React: data layer', [REACT + 'data/']],
+  [
+    'React: shared components',
+    [
+      'button/',
+      'card/',
+      'chart-wrapper/',
+      'dashboard-card/',
+      'layout-shell/',
+      'table/',
+      'theme/',
+      'tokens/'
+    ].map((folder) => REACT + folder)
+  ],
+  ['React host (Angular)', ['apps/client/src/app/components/react-host/']]
 ];
 
 function findSummaries(dir) {
@@ -84,8 +126,8 @@ for (const file of summaries.sort()) {
 
     const repoPath = relative(root, path).split(sep).join('/');
 
-    for (const [name, prefix] of AREAS) {
-      if (repoPath.startsWith(prefix)) {
+    for (const [name, prefixes] of AREAS) {
+      if (prefixes.some((prefix) => repoPath.startsWith(prefix))) {
         add(areaTotals.get(name), totals);
       }
     }
