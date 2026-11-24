@@ -93,15 +93,21 @@ export function TargetAllocationForm({
             gap: px(designTokens.spacing.sm)
           }}
         >
+          {/* Every row used to share the literal aria-label "Key" /
+              "Percentage" - fine with one row, but with several (the normal
+              case for a real target allocation) a screen reader announces
+              the same name for every row with no way to tell them apart.
+              The row number makes each one unique (Mon 11/23 usability
+              pass). */}
           <input
-            aria-label="Key"
+            aria-label={`Key (row ${index + 1})`}
             onChange={(event) => updateRow(index, { key: event.target.value })}
             placeholder="e.g. EQUITY"
             type="text"
             value={row.key}
           />
           <input
-            aria-label="Percentage"
+            aria-label={`Percentage (row ${index + 1})`}
             max={100}
             min={0}
             onChange={(event) =>

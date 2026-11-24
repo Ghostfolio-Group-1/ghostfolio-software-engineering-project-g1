@@ -78,11 +78,18 @@ describe('TargetAllocationPage', () => {
     );
     expect(container.textContent).toContain('60% actual');
     expect(
-      (container.querySelector('[aria-label="Key"]') as HTMLInputElement).value
+      (
+        container.querySelector(
+          '[aria-label="Key (row 1)"]'
+        ) as HTMLInputElement
+      ).value
     ).toBe('EQUITY');
     expect(
-      (container.querySelector('[aria-label="Percentage"]') as HTMLInputElement)
-        .value
+      (
+        container.querySelector(
+          '[aria-label="Percentage (row 1)"]'
+        ) as HTMLInputElement
+      ).value
     ).toBe('60');
   });
 
@@ -113,10 +120,10 @@ describe('TargetAllocationPage', () => {
     await render(request as unknown as AuthenticatedFetch);
 
     const keyInput = container.querySelector(
-      '[aria-label="Key"]'
+      '[aria-label="Key (row 1)"]'
     ) as HTMLInputElement;
     const percentageInput = container.querySelector(
-      '[aria-label="Percentage"]'
+      '[aria-label="Percentage (row 1)"]'
     ) as HTMLInputElement;
 
     await act(async () => {
@@ -236,10 +243,10 @@ describe('TargetAllocationPage', () => {
     await render(request as unknown as AuthenticatedFetch);
 
     const keyInput = container.querySelector(
-      '[aria-label="Key"]'
+      '[aria-label="Key (row 1)"]'
     ) as HTMLInputElement;
     const percentageInput = container.querySelector(
-      '[aria-label="Percentage"]'
+      '[aria-label="Percentage (row 1)"]'
     ) as HTMLInputElement;
 
     await act(async () => {

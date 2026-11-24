@@ -130,23 +130,23 @@ host components that actually own `useState`/effects opt into
 ## 5. Testing
 
 Four layers, each stricter than the last about what it's allowed to mock.
-All green as of the Fri Nov 20 Week 3 check - run locally (not yet CI, see
-note below) and confirmed with these counts:
+All green as of the Mon Nov 23 usability pass - run locally (not yet CI,
+see note below) and confirmed with these counts:
 
-| Layer                    | Result                                                              |
-| ------------------------ | ------------------------------------------------------------------- |
-| Unit (backend)           | 19 suites / 188 tests passed                                        |
-| Unit + component (React) | 26 suites / 171 tests passed                                        |
-| Integration - in-process | included in the backend/React runs above                            |
-| Integration - live       | 2 suites / 9 tests passed                                           |
-| End-to-end (Playwright)  | 5 / 5 passed (`risk.spec.ts` x4, `risk-what-if-journey.spec.ts` x1) |
+| Layer                    | Result                                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Unit (backend)           | 19 suites / 188 tests passed                                                                                |
+| Unit + component (React) | 26 suites / 171 tests passed                                                                                |
+| Integration - in-process | included in the backend/React runs above                                                                    |
+| Integration - live       | 2 suites / 9 tests passed                                                                                   |
+| End-to-end (Playwright)  | 7 / 7 passed (`risk.spec.ts` x4, `risk-what-if-journey.spec.ts` x1, `risk-thresholds-usability.spec.ts` x2) |
 
 These are Risk-focused local runs against a freshly built demo stack on
 this machine, not a CI run: the demo CI (`demo-environment.yml`) currently
-runs `route-smoke.spec.ts` and (once #326 merges) `dashboard.spec.ts`, but
-not the full seeded Risk Playwright journey (`risk.spec.ts` /
-`risk-what-if-journey.spec.ts`) - those still need to be added to a CI job
-once the seeding step below is wired into it.
+runs `route-smoke.spec.ts` and `dashboard.spec.ts`, but not the full
+seeded Risk Playwright journey (`risk.spec.ts` / `risk-what-if-journey.spec.ts`
+/ `risk-thresholds-usability.spec.ts`) - those still need to be added to a
+CI job once the seeding step below is wired into it.
 
 ### Unit (backend services/mappers)
 
@@ -197,16 +197,15 @@ full setup; in short:
 
 `.env.demo`'s `DATABASE_URL` points at `postgres:5432`, which only resolves
 inside the Docker network - a host-run seed script can't reach it there.
-`docker-compose.e2e.yml` (added alongside #326, coordinated with Raniya)
-publishes the same Postgres on `127.0.0.1:5433` for exactly this. **These
-two files only exist on #326's branch as of this writing - the commands
-below need #326 merged into `main` first:**
+`docker-compose.e2e.yml` (added alongside #326, coordinated with Raniya,
+merged into `main`) publishes the same Postgres on `127.0.0.1:5433` for
+exactly this:
 
 ```
 docker compose -f docker/docker-compose.demo.yml -f docker/docker-compose.e2e.yml up --build -d
 ./scripts/demo-smoke.sh
 ./scripts/seed-e2e-users.sh
-npx playwright test -c e2e/playwright.config.ts e2e/tests/risk.spec.ts e2e/tests/risk-what-if-journey.spec.ts
+npx playwright test -c e2e/playwright.config.ts e2e/tests/risk.spec.ts e2e/tests/risk-what-if-journey.spec.ts e2e/tests/risk-thresholds-usability.spec.ts
 ```
 
 Verified end-to-end on this machine (Fri Nov 20): since the host already
@@ -224,6 +223,13 @@ seeded cleanly and both E2E specs passed against them (counts above).
   from inside the test rather than a hardcoded total (see #323 for a real
   portfolio-value/allocation inconsistency this surfaced, tracked
   separately rather than fixed in a test PR).
+- `risk-thresholds-usability.spec.ts` (Mon Nov 23): proves the thresholds
+  editor's and target-allocation editor's field labels are unique and
+  readable, and that a threshold can be edited/reset by keyboard alone -
+  see `docs/testing/risk-usability-checklist-2026-11-23.md` for the full
+  usability pass this came out of. Uses a freshly signed-up user, not a
+  seeded demo account, because the save needs `updateUserSettings`, which
+  seeded demo accounts deliberately don't have.
 
 ## 6. Known gaps
 
