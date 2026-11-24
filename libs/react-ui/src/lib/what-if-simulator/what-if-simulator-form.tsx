@@ -9,6 +9,23 @@ import type {
   WhatIfHoldingOption
 } from './what-if-form.model';
 
+// Inline field/input styling below deliberately uses the static
+// designTokens colours, not useRiskPalette()/useTheme() - this component
+// is tested by calling it as a plain function (see the spec's findByType
+// helper) to inspect the Button/select elements it returns without a real
+// React render, and a hook call outside React's dispatcher throws. The
+// submit Button and the holding <select> keep their exact element types
+// for that same reason - only their siblings get the redesign's styling.
+const RISK_INPUT_STYLE = {
+  backgroundColor: designTokens.color.surface,
+  border: `1px solid ${designTokens.color.border}`,
+  borderRadius: 10,
+  fontFamily: designTokens.fontFamily,
+  fontSize: px(designTokens.fontSize.sm),
+  height: 40,
+  padding: `0 ${px(designTokens.spacing.sm)}`
+};
+
 export interface WhatIfSimulatorFormProps {
   errors?: WhatIfFormErrors;
   // The user's actual open holdings (issue #187 review: a free-text symbol
@@ -89,6 +106,7 @@ export function WhatIfSimulatorForm({
             onChange({ ...values, scenarioName: event.target.value })
           }
           placeholder="e.g. Tech sell-off"
+          style={RISK_INPUT_STYLE}
           type="text"
           value={values.scenarioName}
         />
@@ -109,6 +127,7 @@ export function WhatIfSimulatorForm({
               symbol: holding?.symbol ?? ''
             });
           }}
+          style={RISK_INPUT_STYLE}
           value={selectedKey}
         >
           <option value="">
@@ -152,6 +171,10 @@ export function WhatIfSimulatorForm({
             onChange({ ...values, dropPercentage: event.target.value })
           }
           placeholder="e.g. 40"
+          style={{
+            ...RISK_INPUT_STYLE,
+            paddingRight: px(designTokens.spacing.lg)
+          }}
           type="number"
           value={values.dropPercentage}
         />
@@ -184,7 +207,9 @@ function Field({
         gap: px(designTokens.spacing.xs)
       }}
     >
-      <span>{label}</span>
+      <span style={{ fontSize: px(designTokens.fontSize.sm), fontWeight: 600 }}>
+        {label}
+      </span>
       <span
         style={{
           alignItems: 'center',

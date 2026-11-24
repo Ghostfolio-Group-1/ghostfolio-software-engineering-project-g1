@@ -1,5 +1,5 @@
-import { Button } from '../button/button';
 import type { DashboardCardStatus } from '../dashboard-card/dashboard-card';
+import { EmptyState, ErrorState } from '../risk-ui/risk-ui';
 import { designTokens, px } from '../tokens/design-tokens';
 import type {
   WhatIfFormErrors,
@@ -80,21 +80,20 @@ export function WhatIfSimulator({
       />
 
       {status === 'error' ? (
-        <div role="alert">
-          <p style={{ color: designTokens.color.danger }}>
-            {apiErrorMessage ??
-              'Could not run the simulation. Please try again.'}
-          </p>
-          {onRetry ? (
-            <Button onClick={onRetry} variant="secondary">
-              Try again
-            </Button>
-          ) : null}
-        </div>
+        <ErrorState
+          message={
+            apiErrorMessage ?? 'Could not run the simulation. Please try again.'
+          }
+          onRetry={onRetry}
+        />
       ) : null}
 
       {status === 'ready' && result ? (
         <WhatIfResultPanel result={result} />
+      ) : null}
+
+      {status === 'idle' || (status === 'ready' && !result) ? (
+        <EmptyState message="Run a simulation to see the impact on your risk score." />
       ) : null}
     </div>
   );
