@@ -65,6 +65,16 @@ describe('WhatIfResultPanel', () => {
     expect(html).toContain('color:#dc3545'); // negative change in red
   });
 
+  // QA R-05 (Mon 11/23, issue #341): the score delta used to render as a
+  // bare "-2" with nothing saying what it was a change of. Reverting the
+  // "Change: " label locally reproduces that failure (confirmed).
+  it('labels the score change, not just the before/after badges', () => {
+    const html = renderToStaticMarkup(<WhatIfResultPanel result={result} />);
+
+    expect(html).toContain('Change: ');
+    expect(html).toContain('>-2<');
+  });
+
   it('colours the before/after score indicators by severity band', () => {
     const html = renderToStaticMarkup(<WhatIfResultPanel result={result} />);
 

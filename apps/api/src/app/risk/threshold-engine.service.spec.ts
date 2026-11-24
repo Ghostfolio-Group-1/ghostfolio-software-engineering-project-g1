@@ -153,6 +153,52 @@ describe('ThresholdEngineService', () => {
       );
     });
 
+    // QA R-04 (Mon 11/23, issue #343): without targetAllocationDetail this
+    // fell through to the ceiling template above and used `actual` (the
+    // deviation magnitude, 0.5) as if it were the bucket's real holding
+    // percentage, producing the false "FIXED_INCOME is 50.0% of your
+    // portfolio" for a bucket the user holds 0% of. Reverting this test's
+    // input to omit targetAllocationDetail reproduces that exact wrong
+    // string (confirmed).
+    it('uses the dedicated target-allocation template when targetAllocationDetail is present, not the ceiling template', () => {
+      const [warning] = service.calculateWarnings([
+        {
+          actual: 0.5,
+          ruleKey: 'TargetAllocationDeviation',
+          subject: { type: 'bucket', value: 'FIXED_INCOME' },
+          targetAllocationDetail: {
+            actualAllocation: 0,
+            deviation: -0.5,
+            targetAllocation: 0.5
+          }
+        }
+      ]);
+
+      expect(warning.severity).toBe('RED');
+      expect(warning.message).toBe(
+        'FIXED_INCOME is 0.0% of your portfolio, 50.0 points below your 50.0% target.'
+      );
+    });
+
+    it('uses "above" wording in the target-allocation template when the bucket is over its target', () => {
+      const [warning] = service.calculateWarnings([
+        {
+          actual: 0.2,
+          ruleKey: 'TargetAllocationDeviation',
+          subject: { type: 'bucket', value: 'EQUITY' },
+          targetAllocationDetail: {
+            actualAllocation: 0.7,
+            deviation: 0.2,
+            targetAllocation: 0.5
+          }
+        }
+      ]);
+
+      expect(warning.message).toBe(
+        'EQUITY is 70.0% of your portfolio, 20.0 points above your 50.0% target.'
+      );
+    });
+
     it('uses the band template and "below" wording for a low-side breach, preserving a fractional threshold percentage (CashAllocation redThresholdMin = 0.5%)', () => {
       const [warning] = service.calculateWarnings([
         {

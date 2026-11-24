@@ -335,7 +335,17 @@ export class RiskEvaluationService {
       // evaluateConcentration's comment above for the same reasoning.
       actual: worst ? Math.abs(worst.deviation) : null,
       ruleKey: 'TargetAllocationDeviation',
-      subject: { type: subjectType, value: worst?.key ?? 'n/a' }
+      subject: { type: subjectType, value: worst?.key ?? 'n/a' },
+      // Issue #343: `actual` above is a magnitude (for severity banding),
+      // not a holding percentage - buildMessage() needs the bucket's real
+      // allocation and target to word the warning correctly.
+      targetAllocationDetail: worst
+        ? {
+            actualAllocation: worst.actual,
+            deviation: worst.deviation,
+            targetAllocation: worst.target
+          }
+        : undefined
     };
 
     const warningInputs: ThresholdEngineInput[] =
@@ -343,7 +353,12 @@ export class RiskEvaluationService {
         ? buckets.map((bucket) => ({
             ruleKey: 'TargetAllocationDeviation',
             actual: Math.abs(bucket.deviation),
-            subject: { type: subjectType, value: bucket.key }
+            subject: { type: subjectType, value: bucket.key },
+            targetAllocationDetail: {
+              actualAllocation: bucket.actual,
+              deviation: bucket.deviation,
+              targetAllocation: bucket.target
+            }
           }))
         : [thresholdInput];
 

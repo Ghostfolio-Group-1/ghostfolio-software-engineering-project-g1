@@ -262,6 +262,40 @@ describe('RiskEvaluationService', () => {
     expect(target.actual).toBeCloseTo(0.1667, 4);
   });
 
+  // QA R-04 (Mon 11/23, issue #343): evaluateTargetAllocation() used to
+  // build thresholdInputs/warningInputs with only the deviation magnitude
+  // in `actual`, so the resulting warning claimed the user held 66.7% of a
+  // bucket they actually hold 33.3% of (actual vs deviation swapped in the
+  // rendered message). Deleting targetAllocationDetail here locally
+  // reproduces that wrong "AAPL is 16.7% of your portfolio" string
+  // (confirmed - 16.7% is the deviation, not AAPL's real 33.3% weight).
+  it('produces a target-allocation warning message with the real holding percentage, not the deviation', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 0,
+      holdings,
+      targetAllocation: {
+        groupBy: 'symbol',
+        isActive: true,
+        targets: [
+          { key: 'AAPL', percentage: 0.5 },
+          { key: 'MSFT', percentage: 0.5 }
+        ]
+      }
+    });
+
+    const warnings = service.calculateWarnings(evaluation);
+    const target = warnings.find(
+      (warning) => warning.ruleKey === 'TargetAllocationDeviation'
+    );
+
+    expect(target).toBeDefined();
+    expect(target.message).toMatch(
+      /^(AAPL|MSFT) is (33\.3|66\.7)% of your portfolio, 16\.7 points (above|below) your 50\.0% target\.$/
+    );
+    expect(target.message).not.toContain('is 16.7% of your portfolio');
+  });
+
   it('calculateWarnings() returns the same warnings ThresholdEngineService would produce from the evaluation', () => {
     const evaluation = service.evaluate({
       baseCurrency: 'USD',

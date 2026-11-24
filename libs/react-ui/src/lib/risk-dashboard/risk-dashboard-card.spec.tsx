@@ -160,6 +160,20 @@ describe('RiskDashboardCard', () => {
     ).toBeGreaterThanOrEqual(2);
   });
 
+  // QA R-07 (Mon 11/23, issue #341): the per-category score used to render
+  // as a bare number with nothing nearby saying it was a score out of 100 -
+  // "Concentration Red 0" / "Cash Allocation Green 100". Reverting the
+  // "/ 100" suffix locally reproduces that failure (confirmed).
+  it('shows each category score out of 100, not a bare number', () => {
+    const html = renderToStaticMarkup(
+      <RiskDashboardCard data={summary} status="ready" />
+    );
+
+    expect(html).toContain('>45 / 100<');
+    expect(html).toContain('>80 / 100<');
+    expect(html.split('>100 / 100<').length - 1).toBe(2); // Volatility, Cash
+  });
+
   it('renders nothing extra when there is no ready data yet', () => {
     const html = renderToStaticMarkup(<RiskDashboardCard status="ready" />);
 
