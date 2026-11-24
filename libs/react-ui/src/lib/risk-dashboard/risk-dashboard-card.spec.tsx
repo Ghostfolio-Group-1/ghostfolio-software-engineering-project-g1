@@ -160,6 +160,27 @@ describe('RiskDashboardCard', () => {
     ).toBeGreaterThanOrEqual(2);
   });
 
+  // PR #351 review (Tharun): the redesign's switch from a <ul>/<li> list to
+  // a bare <div> grid, plus dropping RiskIndicator's `label` prop in favour
+  // of MetricTile's own visible label, silently broke two things the
+  // browser e2e suite depends on - risk.spec.ts's "Target Allocation: Red"
+  // accessible name, and risk-what-if-journey.spec.ts's
+  // getByRole('list').filter({ has: getByRole('status', { name: /: Red$/ }) })
+  // check. Reverting either the <ul>/<li> wrapper or visuallyHiddenLabel
+  // locally reproduces each failure (confirmed).
+  it('keeps each category inside a semantic list, with its name folded into the status accessible name', () => {
+    const html = renderToStaticMarkup(
+      <RiskDashboardCard data={summary} status="ready" />
+    );
+
+    expect(html).toMatch(/<ul[^>]*>[\s\S]*<li[^>]*>[\s\S]*<\/li>[\s\S]*<\/ul>/);
+    expect(html).toContain('aria-label="Target Allocation: Yellow"');
+    expect(html).toContain('aria-label="Concentration: Red"');
+    // The category name must not appear twice (once from MetricTile's own
+    // label, once from RiskIndicator rendering it visibly again).
+    expect(html.split('>Target Allocation<').length - 1).toBe(1);
+  });
+
   // QA R-07 (Mon 11/23, issue #341): the per-category score used to render
   // as a bare number with nothing nearby saying it was a score out of 100 -
   // "Concentration Red 0" / "Cash Allocation Green 100". Reverting the

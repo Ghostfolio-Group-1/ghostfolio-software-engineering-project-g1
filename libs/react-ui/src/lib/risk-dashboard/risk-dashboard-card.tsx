@@ -176,34 +176,47 @@ function RiskDashboardCardBody({
       ) : null}
 
       {data.categories.length > 0 ? (
-        <div
+        // A semantic <ul>, not a bare <div>, same as before the redesign -
+        // the e2e suite's "every RED category is inside a list" check
+        // (risk-what-if-journey.spec.ts) depends on role="list" here, not
+        // just on the visual grid.
+        <ul
           style={{
             display: 'grid',
             gap: px(designTokens.spacing.sm),
             gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            marginTop: px(designTokens.spacing.md)
+            listStyle: 'none',
+            margin: 0,
+            marginTop: px(designTokens.spacing.md),
+            padding: 0
           }}
         >
           {data.categories.map((category) => (
-            <MetricTile
-              key={category.key}
-              label={category.name}
-              value={<RiskIndicator severity={category.severity} />}
-            >
-              <span>
-                {category.score !== null
-                  ? `${Math.round(category.score)} / 100`
-                  : '—'}
-              </span>
-              {category.score !== null ? (
-                <ProgressBar
-                  severity={category.severity}
-                  value={category.score}
-                />
-              ) : null}
-            </MetricTile>
+            <li key={category.key}>
+              <MetricTile
+                label={category.name}
+                value={
+                  <RiskIndicator
+                    severity={category.severity}
+                    visuallyHiddenLabel={category.name}
+                  />
+                }
+              >
+                <span>
+                  {category.score !== null
+                    ? `${Math.round(category.score)} / 100`
+                    : '—'}
+                </span>
+                {category.score !== null ? (
+                  <ProgressBar
+                    severity={category.severity}
+                    value={category.score}
+                  />
+                ) : null}
+              </MetricTile>
+            </li>
           ))}
-        </div>
+        </ul>
       ) : null}
     </div>
   );
