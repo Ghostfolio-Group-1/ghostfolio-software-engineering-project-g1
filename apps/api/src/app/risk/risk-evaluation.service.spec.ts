@@ -285,15 +285,27 @@ describe('RiskEvaluationService', () => {
     });
 
     const warnings = service.calculateWarnings(evaluation);
-    const target = warnings.find(
+    const targetWarnings = warnings.filter(
       (warning) => warning.ruleKey === 'TargetAllocationDeviation'
     );
-
-    expect(target).toBeDefined();
-    expect(target.message).toMatch(
-      /^(AAPL|MSFT) is (33\.3|66\.7)% of your portfolio, 16\.7 points (above|below) your 50\.0% target\.$/
+    const aapl = targetWarnings.find(
+      (warning) => warning.subject.value === 'AAPL'
     );
-    expect(target.message).not.toContain('is 16.7% of your portfolio');
+    const msft = targetWarnings.find(
+      (warning) => warning.subject.value === 'MSFT'
+    );
+
+    // AAPL: holds 30000/90000 = 33.3%, 16.7 points below its 50% target.
+    expect(aapl).toBeDefined();
+    expect(aapl.message).toBe(
+      'AAPL is 33.3% of your portfolio, 16.7 points below your 50.0% target.'
+    );
+
+    // MSFT: holds 60000/90000 = 66.7%, 16.7 points above its 50% target.
+    expect(msft).toBeDefined();
+    expect(msft.message).toBe(
+      'MSFT is 66.7% of your portfolio, 16.7 points above your 50.0% target.'
+    );
   });
 
   it('calculateWarnings() returns the same warnings ThresholdEngineService would produce from the evaluation', () => {
