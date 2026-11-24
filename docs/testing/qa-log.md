@@ -75,12 +75,71 @@ Bug issues filed: #341, #343 (Risk, Sesha); #344 (Tax, Tharun); #342 (shared Rea
 ## Module usability checklists (each owner, Nov 23)
 
 - Charts (Arthur): `docs/testing/charts-usability-checklist-2026-11-23.md` (#338)
-- Risk (Sesha): link when merged
-- Tax (Tharun): link when merged
+- Risk (Sesha): `docs/testing/risk-usability-checklist-2026-11-23.md` (#336)
+- Tax (Tharun): `docs/testing/tax/2026-11-23-tax-qa.md` (#339)
 
 ## Part 2 — Charts and Unified Dashboard (Tue Nov 24)
 
-To be added.
+Tester: Raniya. Date: 2026-11-24. Browser: Chrome. Same clean stack and seeded
+users as part 1, rebuilt from `main` at `4b2314a01`.
+
+### Clean deployment
+
+| ID   | Test                      | Steps                                                                 | Expected                                                         | Result | Issue                                                 |
+| ---- | ------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------- | ------ | ----------------------------------------------------- |
+| P-01 | Deploy from a clean stack | `down -v`, `up --build -d`, wait for `/api/v1/health`, seed the users | API healthy, 5 demo users seeded, no manual steps; time recorded | PASS   | healthy after 332s (image build 309s), 5 users seeded |
+| P-02 | Smoke test the routes     | `./scripts/demo-smoke.sh`                                             | Every route OK, script exits 0                                   | PASS   | 9 routes OK, exit 0                                   |
+
+### Charts (Overview page chart)
+
+| ID   | Test                   | User           | Steps                                                        | Expected                                                                                   | Result      | Issue                                                         |
+| ---- | ---------------------- | -------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ----------- | ------------------------------------------------------------- |
+| C-01 | Chart loads            | `concentrated` | Open Overview                                                | Portfolio value line; starts at 0 the day before the first buy; whole line inside the card | FAIL        | #353 card top clipped at 100% zoom; buttons unreachable       |
+| C-02 | Range toggle           | `concentrated` | Click YTD, 1Y, 5Y, Max                                       | Each redraws the date range; no error, no line cut off                                     | PASS        | only reachable zoomed out (see C-01)                          |
+| C-03 | Series toggle          | `concentrated` | Click Portfolio value, Invested capital, Cash                | Title and line change each time; range choice kept                                         | PASS        |                                                               |
+| C-04 | Empty portfolio        | `empty`        | Open Overview                                                | Empty message, no crash; toggles still usable                                              | PASS        |                                                               |
+| C-05 | Keyboard use           | `concentrated` | Tab to the range and series toggles; Enter / Space to select | Every toggle reachable, focus ring visible                                                 | FAIL        | no focus ring on range or series buttons; fix in open PR #338 |
+| C-06 | Dark theme             | `concentrated` | macOS Dark, reload Overview                                  | Chart card follows the dark theme                                                          | FAIL        | #342                                                          |
+| C-07 | Drawdown and waterfall | `rich`         | Look for the drawdown and contribution (waterfall) charts    | Both can be opened from the app                                                            | FAIL        | #356 not mounted on any page                                  |
+| C-08 | Benchmark comparison   | `rich`         | Compare the portfolio with a benchmark                       | Benchmark line shown                                                                       | **BLOCKED** | #160, #105                                                    |
+
+C-06 was seen on Nov 23 (white chart card on a dark page, same cause as
+R-09). C-08 is blocked because the benchmark route is not on `main`.
+
+### Unified Dashboard (`/en/dashboard`)
+
+| ID   | Test                   | User           | Steps                                                    | Expected                                                                           | Result      | Issue                                                                                           |
+| ---- | ---------------------- | -------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| D-01 | Three cards render     | `concentrated` | Open `/en/dashboard`                                     | Portfolio risk, Tax and Performance cards, each with data; no "unavailable" notice | PASS        | Tax card 'No data yet' (no sales for this user)                                                 |
+| D-02 | Same portfolio total   | `concentrated` | Compare Performance latest value, Overview, Risk what-if | Same portfolio value in all three (10,640 USD in the what-if)                      | FAIL        | #355 10,140 vs 10,640 vs 9,640                                                                  |
+| D-03 | Risk card matches page | `concentrated` | Compare the Portfolio risk card with `/en/risk`          | Same holdings and the same Red severity                                            | PASS        | same data; card says High or OK, Risk page says Red or Green                                    |
+| D-04 | Tax card matches page  | `rich`         | Compare the Tax card with Realized gains (FIFO)          | Same sales and gains; amounts formatted                                            | PASS        | same sales as Realized gains; raw amounts (#344); heading 'Mixed currencies' reads like a value |
+| D-05 | Empty portfolio        | `empty`        | Open `/en/dashboard`                                     | Each card shows its empty state, no error notice                                   | PASS        |                                                                                                 |
+| D-06 | One source down        | automated      | Integration test `dashboard-flow` (Tax service throws)   | HTTP 200, Tax card unavailable, Risk and Performance present, Retry shown          | PASS        | automated: Demo environment run 45469078724 on main (green)                                     |
+| D-07 | Card opens its page    | `concentrated` | Click each card                                          | Opens the Risk, Tax or Charts page                                                 | **BLOCKED** | #354                                                                                            |
+| D-08 | Keyboard use           | `concentrated` | Tab through the page                                     | Every control reachable, focus visible                                             | PASS        |                                                                                                 |
+| D-09 | Dark theme             | `concentrated` | macOS Dark, reload `/en/dashboard`                       | Cards follow the dark theme                                                        | FAIL        | #342                                                                                            |
+| D-10 | No raw errors          | all            | Watch every screen above                                 | No `DASHBOARD_…` code or stack trace                                               | PASS        |                                                                                                 |
+
+D-07 is blocked because the cards have no links to their feature pages yet.
+
+### Resilience drill (supplementary S4)
+
+| ID   | Test          | User           | Steps                                                             | Expected                                                                                 | Result | Issue                                                            |
+| ---- | ------------- | -------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------- |
+| X-02 | Redis stopped | `concentrated` | `docker stop gf-demo-redis`, reload `/en/dashboard`, then restart | Slower answer or a section unavailable; no crash; recovers after restart (time recorded) | FAIL   | #357 all cards stuck on Loading 20s+; recovered 3s after restart |
+
+### Part 2 summary
+
+| Area       | Planned | PASS | FAIL | BLOCKED |
+| ---------- | ------- | ---- | ---- | ------- |
+| Deployment | 2       | 2    | 0    | 0       |
+| Charts     | 8       | 3    | 4    | 1       |
+| Dashboard  | 10      | 7    | 2    | 1       |
+| Resilience | 1       | 0    | 1    | 0       |
+| **Total**  | 21      | 12   | 7    | 2       |
+
+Bug issues filed: #353 (C-01) and #356 (C-07) for Arthur; #355 (D-02), #354 (D-07 card links) and #357 (X-02) for Raniya. C-05 is fixed by open PR #338; C-06 and D-09 are #342.
 
 ## Regression run (Wed Nov 25)
 
