@@ -29,7 +29,13 @@ export const TARGET_ALLOCATION_GROUP_BY_OPTIONS: TargetAllocationGroupByOption[]
     { label: 'Symbol', value: 'symbol' }
   ];
 
-const SUM_TOLERANCE = 0.0001;
+// Exported (PR #351 review - Tharun) so the form's live "Total: X% / 100%"
+// indicator can use the exact same tolerance as the submit-time check
+// below, rather than its own looser one: a separate, looser constant let
+// the indicator read as "complete" (e.g. 99.96%) while submission still
+// rejected it, since 100 - 99.96 = 0.04 cleared the indicator's old 0.05
+// threshold but not this one's 0.01 (SUM_TOLERANCE * 100).
+export const SUM_TOLERANCE = 0.0001;
 
 export function createEmptyTargetAllocationRow(): TargetAllocationRowValues {
   return { key: '', percentage: '' };

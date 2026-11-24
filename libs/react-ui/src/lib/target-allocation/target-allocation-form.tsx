@@ -7,6 +7,7 @@ import type {
   TargetAllocationRowValues
 } from './target-allocation-form.model';
 import {
+  SUM_TOLERANCE,
   TARGET_ALLOCATION_GROUP_BY_OPTIONS,
   createEmptyTargetAllocationRow
 } from './target-allocation-form.model';
@@ -62,7 +63,10 @@ export function TargetAllocationForm({
   }
 
   const total = totalPercentage(values.rows);
-  const totalIsComplete = Math.abs(total - 100) < 0.05;
+  // Same tolerance validateTargetAllocationForm enforces on submit (PR #351
+  // review - Tharun): this indicator must never read "complete" for a total
+  // submission would actually reject.
+  const totalIsComplete = Math.abs(total - 100) <= SUM_TOLERANCE * 100;
   const palette = useRiskPalette();
 
   return (
