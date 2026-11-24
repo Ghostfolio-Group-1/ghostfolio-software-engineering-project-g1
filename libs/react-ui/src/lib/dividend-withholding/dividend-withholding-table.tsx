@@ -1,6 +1,7 @@
 import { Card } from '../card/card';
 import { Table } from '../table/table';
 import type { TableColumn } from '../table/table';
+import { formatTaxMoney } from '../tax-workspace/format-tax-money';
 
 /**
  * Presentational counterpart of the Tax domain's DividendRecord.
@@ -41,25 +42,25 @@ const columns: TableColumn<DividendWithholdingViewRecord>[] = [
   },
   {
     align: 'right',
-    cell: (record) => record.grossDividend,
+    cell: (record) => formatTaxMoney(record.grossDividend),
     header: 'Gross dividend',
     key: 'gross'
   },
   {
     align: 'right',
-    cell: (record) => record.withholdingTax ?? 'Not available',
+    cell: (record) => formatTaxMoney(record.withholdingTax),
     header: 'Withholding tax',
     key: 'withholding'
   },
   {
     align: 'right',
-    cell: (record) => record.netDividend ?? 'Not available',
+    cell: (record) => formatTaxMoney(record.netDividend),
     header: 'Net dividend',
     key: 'net'
   },
   {
     align: 'right',
-    cell: (record) => record.activityFee,
+    cell: (record) => formatTaxMoney(record.activityFee),
     header: 'Activity fee',
     key: 'fee'
   },
@@ -78,6 +79,7 @@ const columns: TableColumn<DividendWithholdingViewRecord>[] = [
 /**
  * Tax-owned read-only view. The backend owns dividend calculations.
  * Unknown withholding is not the same as known zero withholding.
+ * Monetary formatting applies only to the displayed amounts.
  */
 export function DividendWithholdingTable({
   records
@@ -86,7 +88,8 @@ export function DividendWithholdingTable({
     <Card title="Dividend withholding">
       <p>
         Amounts are shown in each dividend's transaction currency. Activity fees
-        are separate from withholding tax.
+        are separate from withholding tax. Monetary amounts are rounded to two
+        decimal places for display only.
       </p>
       <div style={{ overflowX: 'auto' }}>
         <Table

@@ -98,31 +98,55 @@ describe('DividendWithholdingScreen', () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it('renders authoritative decimal strings, unknown withholding, and UTC calendar date', async () => {
+  it('renders formatted dividend amounts, unknown withholding, and UTC calendar date', async () => {
     const { mock, request } = mockRequest(successful([dividend]));
     await render(request);
 
-    expect(container.textContent).toContain('10.1234567890123456789');
-    expect((container.textContent?.match(/Not available/g) ?? []).length).toBe(
-      2
-    );
-    expect(container.textContent).toContain('Not available');
-    expect(container.textContent).toContain('2026-01-01');
-    expect(container.textContent).toContain('dividend-1');
-    expect(container.textContent).toContain('USD');
     expect(container.querySelectorAll('table')).toHaveLength(1);
     expect(mock).toHaveBeenCalledTimes(1);
+
+    const cells = Array.from(
+      container.querySelectorAll('tbody tr td'),
+      (cell) => cell.textContent
+    );
+
+    expect(cells).toEqual([
+      '2026-01-01',
+      'asset-1',
+      'USD',
+      '10.12',
+      'Not available',
+      'Not available',
+      '0.25',
+      'account-1',
+      'dividend-1'
+    ]);
+
+    // The unknown amounts must not be converted to zero.
+    expect(cells.filter((cell) => cell === 'Not available')).toHaveLength(2);
+
+    // Preserve the authoritative API values.
+    expect(dividend.grossDividend).toBe('10.1234567890123456789');
+    expect(dividend.withholdingTax).toBeNull();
+    expect(dividend.netDividend).toBeNull();
   });
 
-  it('shows a distinct known-zero withholding and keeps net value unmodified', async () => {
+  it('shows known-zero withholding and preserves the supplied net amount', async () => {
     const { request } = mockRequest(
       successful([{ ...dividend, withholdingTax: '0', netDividend: '9.86' }])
     );
     await render(request);
 
-    expect(container.textContent).toContain('9.86');
-    expect(container.textContent).not.toContain('Not available');
-    expect(container.textContent).toContain('0');
+    const cells = Array.from(
+      container.querySelectorAll('tbody tr td'),
+      (cell) => cell.textContent
+    );
+
+    expect(cells[3]).toBe('10.12');
+    expect(cells[4]).toBe('0.00');
+    expect(cells[5]).toBe('9.86');
+    expect(cells[6]).toBe('0.25');
+    expect(cells).not.toContain('Not available');
   });
 
   it('shows the empty state for an empty year', async () => {

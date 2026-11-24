@@ -242,7 +242,7 @@ describe('TaxWorkspace', () => {
     expect(request.mock.calls[1][0]).toBe('/api/v1/tax/lots');
   });
 
-  it('renders exact populated yearly totals through TaxWorkspace', async () => {
+  it('renders formatted authoritative yearly totals through TaxWorkspace', async () => {
     const year = new Date().getUTCFullYear();
     const summary = {
       ...emptyYearlySummary,
@@ -318,14 +318,20 @@ describe('TaxWorkspace', () => {
         (element) => element.textContent === label
       )?.nextElementSibling?.textContent;
 
-    // These values must be displayed exactly as supplied by the API.
-    // The UI must not round or independently recompute the Tax amounts.
-    expect(displayedTotal('Gross proceeds')).toBe('1950.000000');
-    expect(displayedTotal('Gross cost basis')).toBe('1600.000000');
-    expect(displayedTotal('Gross realized gain')).toBe('350.000000');
-    expect(displayedTotal('Realized gain after activity fees')).toBe(
+    // Format authoritative API totals for display without recalculating them.
+    expect(displayedTotal('Gross proceeds')).toBe('1,950.00');
+    expect(displayedTotal('Gross cost basis')).toBe('1,600.00');
+    expect(displayedTotal('Gross realized gain')).toBe('350.00');
+    expect(displayedTotal('Realized gain after activity fees')).toBe('350.00');
+
+    // The original API values must retain their full precision.
+    expect(summary.grossProceedsBaseCurrency).toBe('1950.000000');
+    expect(summary.grossCostBasisBaseCurrency).toBe('1600.000000');
+    expect(summary.grossRealizedGainBaseCurrency).toBe('350.000000');
+    expect(summary.realizedGainAfterActivityFeesBaseCurrency).toBe(
       '350.000000'
     );
+
     expect(container.textContent).toContain('Disposals: 1.');
     expect(container.textContent).not.toContain('No Tax activities for');
   });

@@ -1,6 +1,7 @@
 import { Card } from '../card/card';
 import { Table } from '../table/table';
 import type { TableColumn } from '../table/table';
+import { formatTaxMoney } from '../tax-workspace/format-tax-money';
 import type {
   RealizedGainSale,
   RealizedGainsData
@@ -40,43 +41,47 @@ const columns: TableColumn<RealizedGainSale>[] = [
   },
   {
     align: 'right',
-    cell: (sale) => sale.grossProceeds,
+    cell: (sale) => formatTaxMoney(sale.grossProceeds),
     header: 'Gross proceeds',
     key: 'proceeds'
   },
   {
     align: 'right',
-    cell: (sale) => sale.grossCostBasis,
+    cell: (sale) => formatTaxMoney(sale.grossCostBasis),
     header: 'Gross cost basis',
     key: 'basis'
   },
   {
     align: 'right',
-    cell: (sale) => sale.grossRealizedGain,
+    cell: (sale) => formatTaxMoney(sale.grossRealizedGain),
     header: 'Gross realized gain',
     key: 'grossGain'
   },
   {
     align: 'right',
-    cell: (sale) => sale.allocatedAcquisitionFees,
+    cell: (sale) => formatTaxMoney(sale.allocatedAcquisitionFees),
     header: 'Allocated acquisition fees',
     key: 'buyFees'
   },
   {
     align: 'right',
-    cell: (sale) => sale.allocatedSellFee,
+    cell: (sale) => formatTaxMoney(sale.allocatedSellFee),
     header: 'Allocated sell fee',
     key: 'sellFees'
   },
   {
     align: 'right',
-    cell: (sale) => sale.realizedGainAfterActivityFees,
+    cell: (sale) => formatTaxMoney(sale.realizedGainAfterActivityFees),
     header: 'Gain after activity fees',
     key: 'netGain'
   }
 ];
 
-/** Table only displays authoritative per-sale amounts, never sums currencies. */
+/**
+ * Displays authoritative per-sale amounts without recalculating gains
+ * or summing different currencies.
+ * Monetary formatting applies only to the rendered values.
+ */
 export function RealizedGainsTable({ data }: RealizedGainsTableProps) {
   const rows = [...data.sales].sort((a, b) => {
     if (a.sellDate !== b.sellDate) {
@@ -94,7 +99,8 @@ export function RealizedGainsTable({ data }: RealizedGainsTableProps) {
       <p>
         These are realized sales included by the backend Tax eligibility rules.
         Amounts are shown in each sale's transaction currency; values from
-        different currencies are not added together.
+        different currencies are not added together. Monetary amounts are
+        rounded to two decimal places for display only.
       </p>
       {data.isComplete === false ? (
         <div role="alert">

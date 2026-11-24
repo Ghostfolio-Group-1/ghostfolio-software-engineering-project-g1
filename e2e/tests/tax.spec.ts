@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { Big } from 'big.js';
 
 // Issue #263: real-browser coverage of the mounted Angular -> React TaxWorkspace.
 // Requires the *existing* synthetic seed users from seed-risk-demo-data.mts
@@ -9,6 +10,27 @@ import type { Page } from '@playwright/test';
 const TAX_PAGE = '/en/portfolio/tax';
 const TAX_API = '/api/v1/tax';
 const FIXTURE_YEAR = '2026';
+
+/**
+ * Independently derives the expected monetary display from a live
+ * API response without using the production UI formatter.
+ */
+function expectedMoneyDisplay(value: string | null): string {
+  if (value === null) {
+    return 'Not available';
+  }
+
+  expect(value).toMatch(/^-?\d+(\.\d+)?$/);
+
+  const rounded = new Big(value).toFixed(2, Big.roundHalfUp);
+  const [whole, fraction] = rounded.split('.');
+
+  const negative = rounded.startsWith('-') && rounded !== '-0.00';
+
+  const grouped = BigInt(whole.replace('-', '')).toLocaleString('en-US');
+
+  return `${negative ? '-' : ''}${grouped}.${fraction}`;
+}
 
 interface ApiEnvelope<T> {
   data: T | null;
@@ -319,14 +341,15 @@ test.describe('TaxWorkspace authenticated browser journeys (#263)', () => {
       'Realized-gain amounts provided by the Tax API',
       firstFifoSale.sellActivityId
     );
+
     await expect(fifoRow.locator('td').nth(5)).toHaveText(
-      firstFifoSale.grossProceeds
+      expectedMoneyDisplay(firstFifoSale.grossProceeds)
     );
     await expect(fifoRow.locator('td').nth(6)).toHaveText(
-      firstFifoSale.grossCostBasis
+      expectedMoneyDisplay(firstFifoSale.grossCostBasis)
     );
     await expect(fifoRow.locator('td').nth(10)).toHaveText(
-      firstFifoSale.realizedGainAfterActivityFees
+      expectedMoneyDisplay(firstFifoSale.realizedGainAfterActivityFees)
     );
 
     const average = await requestFromAction<GainsData>(
@@ -343,14 +366,15 @@ test.describe('TaxWorkspace authenticated browser journeys (#263)', () => {
       'Realized-gain amounts provided by the Tax API',
       firstAverageSale.sellActivityId
     );
+
     await expect(averageRow.locator('td').nth(5)).toHaveText(
-      firstAverageSale.grossProceeds
+      expectedMoneyDisplay(firstAverageSale.grossProceeds)
     );
     await expect(averageRow.locator('td').nth(6)).toHaveText(
-      firstAverageSale.grossCostBasis
+      expectedMoneyDisplay(firstAverageSale.grossCostBasis)
     );
     await expect(averageRow.locator('td').nth(10)).toHaveText(
-      firstAverageSale.realizedGainAfterActivityFees
+      expectedMoneyDisplay(firstAverageSale.realizedGainAfterActivityFees)
     );
 
     const initialYear = String(new Date().getUTCFullYear());
@@ -374,14 +398,15 @@ test.describe('TaxWorkspace authenticated browser journeys (#263)', () => {
       'Dividend amounts from the Tax record',
       dividend.sourceActivityId
     );
+
     await expect(dividendRow.locator('td').nth(3)).toHaveText(
-      dividend.grossDividend
+      expectedMoneyDisplay(dividend.grossDividend)
     );
     await expect(dividendRow.locator('td').nth(4)).toHaveText(
-      dividend.withholdingTax ?? 'Not available'
+      expectedMoneyDisplay(dividend.withholdingTax)
     );
     await expect(dividendRow.locator('td').nth(5)).toHaveText(
-      dividend.netDividend ?? 'Not available'
+      expectedMoneyDisplay(dividend.netDividend)
     );
 
     let yearly = await selectView<YearlyData>(
@@ -405,17 +430,18 @@ test.describe('TaxWorkspace authenticated browser journeys (#263)', () => {
       page.getByRole('heading', { name: 'Yearly Tax summary — 2026' })
     ).toBeVisible();
 
-    // Compare decimal strings from the actual authenticated HTTP response;
-    // no frontend recomputation, mixing currencies, or null -> zero coercion.
+    // Compare formatted monetary values against the actual authenticated
+    // HTTP response without recalculating Tax amounts or coercing null to zero.
     await expect(annualTotal(page, 'Gross proceeds')).toHaveText(
-      yearly.grossProceedsBaseCurrency ?? 'Not available'
+      expectedMoneyDisplay(yearly.grossProceedsBaseCurrency)
     );
     await expect(annualTotal(page, 'Gross cost basis')).toHaveText(
-      yearly.grossCostBasisBaseCurrency ?? 'Not available'
+      expectedMoneyDisplay(yearly.grossCostBasisBaseCurrency)
     );
     await expect(annualTotal(page, 'Gross realized gain')).toHaveText(
-      yearly.grossRealizedGainBaseCurrency ?? 'Not available'
+      expectedMoneyDisplay(yearly.grossRealizedGainBaseCurrency)
     );
+
     await expect(
       page.getByText(`Disposals: ${yearly.disposalCount}.`, { exact: false })
     ).toBeVisible();

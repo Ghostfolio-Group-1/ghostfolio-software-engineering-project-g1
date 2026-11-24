@@ -239,41 +239,51 @@ describeLive(
       );
     });
 
-    it('renders exact live realized-gain values in the React table', async () => {
+    it('renders formatted live realized-gain values in the React table', async () => {
       await render(<RealizedGainsScreen request={session.request} />);
       await settled();
 
       expect(container.querySelector('[role="alert"]')).toBeNull();
-      expect(gainCell('Gross proceeds')).toBe(EXPECTED.proceeds);
-      expect(gainCell('Gross cost basis')).toBe(EXPECTED.costBasis);
-      expect(gainCell('Gross realized gain')).toBe(EXPECTED.grossGain);
-      expect(gainCell('Allocated acquisition fees')).toBe(
-        EXPECTED.allocatedAcquisitionFees
-      );
-      expect(gainCell('Gain after activity fees')).toBe(
-        fixture.expected.realizedGainAfterActivityFees
-      );
+
+      expect(gainCell('Gross proceeds')).toBe('480.00');
+      expect(gainCell('Gross cost basis')).toBe('400.00');
+      expect(gainCell('Gross realized gain')).toBe('80.00');
+      expect(gainCell('Allocated acquisition fees')).toBe('0.40');
+      expect(gainCell('Allocated sell fee')).toBe('1.00');
+      expect(gainCell('Gain after activity fees')).toBe('78.60');
     });
 
-    it('renders live yearly totals and marks unknown withholding unavailable, not zero', async () => {
+    it('renders formatted live yearly totals and marks unknown withholding unavailable, not zero', async () => {
       await render(
         <YearlyTaxSummaryScreen
           initialYear={fixture.expected.dividendYear}
           load={createYearlyTaxSummaryLoader(session.request)}
         />
       );
+
       await settled();
 
       expect(container.textContent).toContain('Disposals: 1.');
-      expect(annualTotal('Gross proceeds')).toBe(EXPECTED.proceeds);
-      expect(annualTotal('Gross cost basis')).toBe(EXPECTED.costBasis);
-      expect(annualTotal('Gross realized gain')).toBe(EXPECTED.grossGain);
-      expect(annualTotal('Realized gain after activity fees')).toBe(
-        fixture.expected.realizedGainAfterActivityFees
-      );
+      expect(annualTotal('Gross proceeds')).toBe('480.00');
+      expect(annualTotal('Gross cost basis')).toBe('400.00');
+      expect(annualTotal('Gross realized gain')).toBe('80.00');
+      expect(annualTotal('Realized gain after activity fees')).toBe('78.60');
+      expect(annualTotal('Total activity fees')).toBe('1.40');
+      expect(annualTotal('Gross dividends')).toBe('3.00');
+
       expect(annualTotal('Withholding tax')).toBe('Not available');
       expect(annualTotal('Net dividends')).toBe('Not available');
-      expect(container.textContent).toContain('UNKNOWN_DIVIDEND_WITHHOLDING');
+
+      expect(container.querySelector('[role="alert"]')).not.toBeNull();
+
+      expect(container.textContent).toContain(
+        'One or more dividend activities have unknown withholding tax, so complete withholding and net-dividend totals are unavailable.'
+      );
+
+      expect(container.textContent).not.toContain(
+        'UNKNOWN_DIVIDEND_WITHHOLDING'
+      );
+
       expect(container.textContent).not.toContain(
         `No Tax activities for ${fixture.expected.dividendYear}`
       );
