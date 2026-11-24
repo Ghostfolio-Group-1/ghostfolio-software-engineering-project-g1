@@ -1,11 +1,17 @@
 import type { ReactNode } from 'react';
 
-import {
-  DashboardCard,
-  DashboardCardStatus
-} from '../dashboard-card/dashboard-card';
+import type { DashboardCardStatus } from '../dashboard-card/dashboard-card';
 import { RiskIndicator } from '../risk-indicator/risk-indicator';
 import type { RiskSeverity } from '../risk-indicator/risk-indicator';
+import { useRiskPalette } from '../risk-ui/risk-palette';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingSkeletonGroup,
+  MetricTile,
+  ProgressBar,
+  RiskCard
+} from '../risk-ui/risk-ui';
 import { useTheme } from '../theme/theme-provider';
 import { designTokens, px } from '../tokens/design-tokens';
 
@@ -55,11 +61,18 @@ export interface RiskDashboardCardProps {
   status: DashboardCardStatus;
 }
 
-// Issue #26, built on top of DashboardCard so the risk section follows the
-// same available/unavailable per-section idiom as every other dashboard
-// card (GET /api/v1/dashboard/overview's "risk" section). score comes from
-// GET /risk/score, topConcentration from GET /risk/concentration - wiring
-// this card up to those routes is a separate task.
+// Issue #26, now redesigned (issue #<ISSUE_NUMBER>) as the page's summary
+// row: an overall score/grade/severity on the left, the top concentration
+// and category scores as metric tiles on the right. score comes from GET
+// /risk/score, topConcentration from GET /risk/concentration.
+//
+// This used to delegate loading/error/empty rendering to the shared
+// DashboardCard. It renders its own states directly instead (same reasons
+// as RiskThresholdsList/RiskWarningsList), while keeping every literal
+// message, data-testid and aria-label the "ready" body already had -
+// "Risk" still appears while loading (as this card's own title), "No
+// holdings yet" for the empty state, and the default/overridden error
+// message with a retry action.
 export function RiskDashboardCard({
   data,
   errorMessage,
@@ -67,16 +80,39 @@ export function RiskDashboardCard({
   status
 }: RiskDashboardCardProps) {
   return (
-    <DashboardCard
-      emptyMessage="No holdings yet - your risk score will appear once you add some."
-      errorMessage={errorMessage ?? 'Risk data is unavailable'}
-      onRetry={onRetry}
-      status={status}
-      title="Risk"
-    >
-      {data ? <RiskDashboardCardBody data={data} /> : null}
-    </DashboardCard>
+    <RiskCard>
+      <h2 style={{ fontSize: px(designTokens.fontSize.lg), margin: 0 }}>
+        Risk
+      </h2>
+      <div style={{ marginTop: px(designTokens.spacing.md) }}>
+        {renderBody()}
+      </div>
+    </RiskCard>
   );
+
+  function renderBody() {
+    switch (status) {
+      case 'loading':
+        return (
+          <div aria-busy="true" role="status">
+            <LoadingSkeletonGroup rows={2} />
+          </div>
+        );
+      case 'error':
+        return (
+          <ErrorState
+            message={errorMessage ?? 'Risk data is unavailable'}
+            onRetry={onRetry}
+          />
+        );
+      case 'empty':
+        return (
+          <EmptyState message="No holdings yet - your risk score will appear once you add some." />
+        );
+      default:
+        return data ? <RiskDashboardCardBody data={data} /> : null;
+    }
+  }
 }
 
 function RiskDashboardCardBody({
@@ -85,6 +121,7 @@ function RiskDashboardCardBody({
   data: RiskDashboardSummary;
 }): ReactNode {
   const theme = useTheme();
+  const palette = useRiskPalette();
 
   return (
     <div>
@@ -92,6 +129,7 @@ function RiskDashboardCardBody({
         style={{
           alignItems: 'baseline',
           display: 'flex',
+          flexWrap: 'wrap',
           gap: px(designTokens.spacing.sm)
         }}
       >
@@ -102,7 +140,14 @@ function RiskDashboardCardBody({
           {data.score ?? '—'}
         </span>
         {data.grade ? (
-          <span style={{ color: theme.color.textMuted }}>
+          <span
+            style={{
+              backgroundColor: palette.bgElevated,
+              borderRadius: 999,
+              color: theme.color.textMuted,
+              padding: `${px(designTokens.spacing.xs)} ${px(designTokens.spacing.sm)}`
+            }}
+          >
             Grade {data.grade}
           </span>
         ) : null}
@@ -131,40 +176,34 @@ function RiskDashboardCardBody({
       ) : null}
 
       {data.categories.length > 0 ? (
-        <ul
+        <div
           style={{
-            listStyle: 'none',
-            margin: `${px(designTokens.spacing.sm)} 0 0`,
-            padding: 0
+            display: 'grid',
+            gap: px(designTokens.spacing.sm),
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            marginTop: px(designTokens.spacing.md)
           }}
         >
           {data.categories.map((category) => (
-            <li
+            <MetricTile
               key={category.key}
-              style={{
-                alignItems: 'center',
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: `${px(designTokens.spacing.xs)} 0`
-              }}
+              label={category.name}
+              value={<RiskIndicator severity={category.severity} />}
             >
-              <RiskIndicator
-                label={category.name}
-                severity={category.severity}
-              />
-              {/* QA R-07 (Mon 11/23): this used to render as a bare number
-                  ("Concentration Red 0"), so a new user had no way to tell
-                  it was a rule score out of 100, let alone that 100 is the
-                  best possible value. "/ 100" makes both of those explicit
-                  without needing a separate label element. */}
               <span>
                 {category.score !== null
                   ? `${Math.round(category.score)} / 100`
                   : '—'}
               </span>
-            </li>
+              {category.score !== null ? (
+                <ProgressBar
+                  severity={category.severity}
+                  value={category.score}
+                />
+              ) : null}
+            </MetricTile>
           ))}
-        </ul>
+        </div>
       ) : null}
     </div>
   );
