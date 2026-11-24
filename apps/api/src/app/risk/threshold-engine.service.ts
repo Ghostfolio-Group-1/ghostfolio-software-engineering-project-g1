@@ -13,6 +13,18 @@ export interface ThresholdEngineInput {
   overrides?: WarningThresholds;
   ruleKey: string;
   subject: RiskWarning['subject'];
+  // QA R-04 (Mon 11/23, issue #343): TargetAllocationDeviation's `actual` is
+  // the bucket's deviation (how far off target), not its real holding
+  // percentage - buildMessage() used to treat it as the latter, producing
+  // "FIXED_INCOME is 50.0% of your portfolio" for a bucket the user holds
+  // 0% of (its deviation from a 50% target). Present only for
+  // TargetAllocationDeviation inputs; carries the two numbers the design's
+  // dedicated message template needs that a single `actual` can't.
+  targetAllocationDetail?: {
+    actualAllocation: number;
+    deviation: number;
+    targetAllocation: number;
+  };
 }
 
 // Spec: docs/sesha-notes/07-warning-threshold-rules.md, Sections 4 and 7.
@@ -110,19 +122,27 @@ export class ThresholdEngineService {
   // low-side (min) line was crossed, actual > threshold means the high-side
   // (max) line was crossed - no separate shape lookup needed for direction.
   //
-  // Known gap: TargetAllocationDeviation is modeled as a 'ceiling' shape
-  // (so severity computation is correct), but the design's third message
-  // template ("{bucket} is {actual} of your portfolio, {n} points
-  // {above|below} your {target} target") needs both the bucket's actual
-  // allocation and its target percentage, which ThresholdEngineInput does
-  // not carry today (only a single `actual`). It currently falls back to
-  // the ceiling template below rather than the dedicated one - flagging
-  // this explicitly rather than faking the richer wording.
+  // TargetAllocationDeviation is modeled as a 'ceiling' shape (so severity
+  // computation is correct), but its `actual` is the bucket's deviation,
+  // not a holding percentage - the design's dedicated third template (fixed
+  // Tue 11/24, issue #343) needs targetAllocationDetail instead and is
+  // built before either of the two generic templates below run.
   private buildMessage(
     input: ThresholdEngineInput,
     severity: Severity,
     threshold: number
   ): string {
+    if (input.targetAllocationDetail) {
+      const { actualAllocation, deviation, targetAllocation } =
+        input.targetAllocationDetail;
+      const actualPercentage = (actualAllocation * 100).toFixed(1);
+      const targetPercentage = (targetAllocation * 100).toFixed(1);
+      const points = (Math.abs(deviation) * 100).toFixed(1);
+      const direction = deviation >= 0 ? 'above' : 'below';
+
+      return `${input.subject.value} is ${actualPercentage}% of your portfolio, ${points} points ${direction} your ${targetPercentage}% target.`;
+    }
+
     const definition = getThresholdDefault(input.ruleKey);
     const level = severity === 'RED' ? 'red' : 'yellow';
     const actualPercentage = (input.actual * 100).toFixed(1);

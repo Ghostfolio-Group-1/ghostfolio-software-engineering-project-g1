@@ -152,8 +152,15 @@ function RiskDashboardCardBody({
                 label={category.name}
                 severity={category.severity}
               />
+              {/* QA R-07 (Mon 11/23): this used to render as a bare number
+                  ("Concentration Red 0"), so a new user had no way to tell
+                  it was a rule score out of 100, let alone that 100 is the
+                  best possible value. "/ 100" makes both of those explicit
+                  without needing a separate label element. */}
               <span>
-                {category.score !== null ? Math.round(category.score) : '—'}
+                {category.score !== null
+                  ? `${Math.round(category.score)} / 100`
+                  : '—'}
               </span>
             </li>
           ))}

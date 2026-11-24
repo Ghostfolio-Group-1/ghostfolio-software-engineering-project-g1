@@ -97,16 +97,23 @@ export function WhatIfResultPanel({ result }: { result: WhatIfResultSummary }) {
         <span aria-hidden="true">→</span>
         <ScoreBadge label="After" score={result.score.after} />
         {result.score.change !== null ? (
-          <span
-            style={{
-              color:
-                result.score.change < 0
-                  ? designTokens.color.danger
-                  : designTokens.color.success
-            }}
-          >
-            {result.score.change > 0 ? '+' : ''}
-            {result.score.change}
+          // QA R-05 (Mon 11/23, issue #341): this used to render as a bare
+          // "+5" / "0" with nothing saying what it was a change *of* - the
+          // Before/After badges have a visible "Before:"/"After:" label
+          // (see ScoreBadge below), so this one needs the same treatment.
+          <span>
+            <span>Change: </span>
+            <span
+              style={{
+                color:
+                  result.score.change < 0
+                    ? designTokens.color.danger
+                    : designTokens.color.success
+              }}
+            >
+              {result.score.change > 0 ? '+' : ''}
+              {result.score.change}
+            </span>
           </span>
         ) : null}
       </div>

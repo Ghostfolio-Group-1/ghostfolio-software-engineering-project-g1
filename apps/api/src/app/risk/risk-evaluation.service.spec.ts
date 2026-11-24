@@ -262,6 +262,52 @@ describe('RiskEvaluationService', () => {
     expect(target.actual).toBeCloseTo(0.1667, 4);
   });
 
+  // QA R-04 (Mon 11/23, issue #343): evaluateTargetAllocation() used to
+  // build thresholdInputs/warningInputs with only the deviation magnitude
+  // in `actual`, so the resulting warning claimed the user held 66.7% of a
+  // bucket they actually hold 33.3% of (actual vs deviation swapped in the
+  // rendered message). Deleting targetAllocationDetail here locally
+  // reproduces that wrong "AAPL is 16.7% of your portfolio" string
+  // (confirmed - 16.7% is the deviation, not AAPL's real 33.3% weight).
+  it('produces a target-allocation warning message with the real holding percentage, not the deviation', () => {
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 0,
+      holdings,
+      targetAllocation: {
+        groupBy: 'symbol',
+        isActive: true,
+        targets: [
+          { key: 'AAPL', percentage: 0.5 },
+          { key: 'MSFT', percentage: 0.5 }
+        ]
+      }
+    });
+
+    const warnings = service.calculateWarnings(evaluation);
+    const targetWarnings = warnings.filter(
+      (warning) => warning.ruleKey === 'TargetAllocationDeviation'
+    );
+    const aapl = targetWarnings.find(
+      (warning) => warning.subject.value === 'AAPL'
+    );
+    const msft = targetWarnings.find(
+      (warning) => warning.subject.value === 'MSFT'
+    );
+
+    // AAPL: holds 30000/90000 = 33.3%, 16.7 points below its 50% target.
+    expect(aapl).toBeDefined();
+    expect(aapl.message).toBe(
+      'AAPL is 33.3% of your portfolio, 16.7 points below your 50.0% target.'
+    );
+
+    // MSFT: holds 60000/90000 = 66.7%, 16.7 points above its 50% target.
+    expect(msft).toBeDefined();
+    expect(msft.message).toBe(
+      'MSFT is 66.7% of your portfolio, 16.7 points above your 50.0% target.'
+    );
+  });
+
   it('calculateWarnings() returns the same warnings ThresholdEngineService would produce from the evaluation', () => {
     const evaluation = service.evaluate({
       baseCurrency: 'USD',
