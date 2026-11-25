@@ -12,7 +12,10 @@ demo. Unit tests (`jest.config.ts`) stay fast and never need a database.
 | `RiskDashboardCard` (+ client loader)  | `GET /api/v1/risk/score`, `/concentration` | both responses parse; the card renders the live grade        |
 | `TaxLotsScreen`                        | `GET /api/v1/tax/lots`                     | settles into a table, no error                               |
 | `DividendWithholdingScreen`            | `GET /api/v1/tax/dividends?year=2025`      | settles into a table, no error                               |
-| `InteractiveChart` then `DrawdownCard` | `GET /api/v1/charts/series`, `/drawdown`   | Max → YTD → invested capital → cash, then YTD drawdown is 0  |
+| `InteractiveChart` (series + drawdown) | `GET /api/v1/charts/series`, `/drawdown`   | Max → YTD → invested capital → cash; YTD drawdown stays at 0 |
+
+Benchmark comparison (#160) and return comparison (#105) are not on `main`,
+so the harness does not import those screens.
 
 ## Fixture
 

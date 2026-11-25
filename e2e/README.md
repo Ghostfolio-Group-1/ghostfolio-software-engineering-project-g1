@@ -98,9 +98,31 @@ The cards have no links to their feature pages yet, so the journey opens each
 page directly; the click-through step is reported as **BLOCKED** in the test
 annotations until the cards get links.
 
+## Charts journey
+
+`tests/charts.spec.ts` signs up its own user, imports the integration fixture
+portfolio, signs in, and walks `/en/home`:
+
+1. Open the chart: Max series and drawdown both load (drawdown shares the
+   range toggle; see #356).
+2. Change range to YTD: series latest value is still 1055.
+3. Toggle series to invested capital, then cash (cash is all 0).
+4. Drawdown on that YTD range shows max drawdown 0.00%.
+
+**BLOCKED** on the same journey (test annotations):
+
+- Benchmark comparison — screen and `GET /charts/benchmark-comparison` are
+  still on open PR #160.
+- Return comparison — `GET /charts/return-comparison` is still on open PR
+  #105; there is no React screen on `main`.
+
+The UI-to-API half of the same sprint walk lives in
+`libs/react-ui/integration/charts-journey.integration.tsx` (series → toggles
+→ drawdown against the running demo API). Both halves ship in one PR.
+
 ## Cross-feature run on a clean environment
 
-Runs every spec (route smoke, Risk, Tax, Dashboard, and Charts once merged)
+Runs every spec (route smoke, Risk, Tax, Dashboard, and Charts)
 together against a fresh database, the same way the CI `E2E tests` job does:
 
 ```
