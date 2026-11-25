@@ -35,6 +35,14 @@ export const SEVERITY_LABEL: Record<RiskSeverity, string> = {
 export interface RiskIndicatorProps {
   label?: string;
   severity: RiskSeverity;
+  // Folded into the aria-label ("<text>: <severity>") like `label`, but
+  // never rendered visibly - for callers (e.g. a MetricTile) that already
+  // show the subject's name themselves, so the indicator would otherwise
+  // duplicate it on screen while still needing it in the accessible name
+  // (fixes PR #351: the redesign dropped `label` from the per-category
+  // indicators to avoid that visible duplication, which silently dropped
+  // the accessible name too - e.g. "Target Allocation: Red" became "Red").
+  visuallyHiddenLabel?: string;
 }
 
 // A small coloured dot plus an optional label, used on every risk
@@ -43,9 +51,16 @@ export interface RiskIndicatorProps {
 // glance. Severity must be understandable without relying on colour alone
 // (Tharun's review on PR #211) - the word, not just the dot/aria-label, is
 // rendered visibly alongside it.
-export function RiskIndicator({ label, severity }: RiskIndicatorProps) {
+export function RiskIndicator({
+  label,
+  severity,
+  visuallyHiddenLabel
+}: RiskIndicatorProps) {
   const severityWord = SEVERITY_LABEL[severity];
-  const accessibleLabel = label ? `${label}: ${severityWord}` : severityWord;
+  const subjectLabel = label ?? visuallyHiddenLabel;
+  const accessibleLabel = subjectLabel
+    ? `${subjectLabel}: ${severityWord}`
+    : severityWord;
 
   return (
     <span

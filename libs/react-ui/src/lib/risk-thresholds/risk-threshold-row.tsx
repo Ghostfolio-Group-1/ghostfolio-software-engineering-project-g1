@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { useTheme } from '../theme/theme-provider';
+import { useRiskPalette } from '../risk-ui/risk-palette';
+import { PercentField, RangeBar, RiskButton, Toggle } from '../risk-ui/risk-ui';
 import { designTokens, px } from '../tokens/design-tokens';
 import {
   createThresholdRowFormValues,
@@ -39,7 +40,7 @@ export function RiskThresholdRow({
   onReset,
   onSave
 }: RiskThresholdRowProps) {
-  const theme = useTheme();
+  const palette = useRiskPalette();
   const [values, setValues] = useState<ThresholdRowFormValues>(() =>
     createThresholdRowFormValues(item.thresholds)
   );
@@ -76,71 +77,95 @@ export function RiskThresholdRow({
     onSave(isActive, values);
   }
 
+  const rangeBarProps =
+    item.shape === 'band'
+      ? {
+          redMax: item.thresholds.redMax,
+          redMin: item.thresholds.redMin ?? 0,
+          warnMax: item.thresholds.max,
+          warnMin: item.thresholds.min
+        }
+      : {
+          redMax: item.thresholds.redMax,
+          redMin: 0,
+          warnMax: item.thresholds.max
+        };
+
   return (
     <li
       style={{
-        borderBottom: `1px solid ${theme.color.border}`,
+        borderBottom: `1px solid ${palette.border}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: px(designTokens.spacing.sm),
         marginBottom: px(designTokens.spacing.md),
         paddingBottom: px(designTokens.spacing.md)
       }}
     >
-      <div style={{ fontWeight: 600 }}>
-        {item.name}
-        {item.isCustomized ? (
-          <span
-            style={{
-              color: theme.color.textMuted,
-              fontWeight: 400,
-              marginLeft: px(designTokens.spacing.xs)
-            }}
-          >
-            — Customized
-          </span>
-        ) : null}
+      <div
+        style={{
+          alignItems: 'center',
+          display: 'flex',
+          justifyContent: 'space-between'
+        }}
+      >
+        <div>
+          <span style={{ fontWeight: 600 }}>{item.name}</span>
+          {item.isCustomized ? (
+            <span
+              style={{
+                color: palette.textMuted,
+                fontWeight: 400,
+                marginLeft: px(designTokens.spacing.xs)
+              }}
+            >
+              — Customized
+            </span>
+          ) : null}
+        </div>
+        {/* A real checkbox under the hood (Toggle), so this stays the same
+            input[type="checkbox"] element and "Active" label text every
+            existing test already queries for - only its look changes. */}
+        <Toggle checked={isActive} label="Active" onChange={setIsActive} />
       </div>
-      <label>
-        <input
-          checked={isActive}
-          onChange={(event) => setIsActive(event.target.checked)}
-          type="checkbox"
-        />
-        Active
-      </label>
-      {fields.map((field) => (
-        <label
-          key={field}
-          style={{
-            display: 'inline-block',
-            marginRight: px(designTokens.spacing.sm)
-          }}
-        >
-          {FIELD_LABEL[field]}
-          {/* The nested <label> text alone ("Red max") is identical across
-              every rule's row, so a screen reader can't tell which rule an
-              input belongs to - the explicit aria-label disambiguates with
-              the rule's name. It used to be `${item.ruleKey}-${field}`
-              (e.g. "SingleStockConcentration-redMax"), a raw PascalCase key
-              nobody would actually say; using item.name instead (Mon 11/23
-              usability pass) keeps it unique but readable. */}
-          <input
+
+      <RangeBar {...rangeBarProps} />
+
+      <div
+        style={{
+          display: 'grid',
+          gap: px(designTokens.spacing.sm),
+          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))'
+        }}
+      >
+        {fields.map((field) => (
+          // The nested label text alone ("Red max") is identical across
+          // every rule's row, so a screen reader can't tell which rule an
+          // input belongs to - the explicit aria-label disambiguates with
+          // the rule's name (Mon 11/23 usability pass).
+          <PercentField
             aria-label={`${item.name} ${FIELD_LABEL[field]}`}
-            onChange={(event) => updateField(field, event.target.value)}
-            type="number"
+            key={field}
+            label={FIELD_LABEL[field]}
+            onChange={(value) => updateField(field, value)}
             value={values[field]}
           />
-          %
-        </label>
-      ))}
+        ))}
+      </div>
+
       {validationError ? <p role="alert">{validationError}</p> : null}
       {errorMessage ? <p role="alert">{errorMessage}</p> : null}
-      <button disabled={isSaving} onClick={submit} type="button">
-        {isSaving ? 'Saving…' : 'Save'}
-      </button>
-      {item.isCustomized ? (
-        <button disabled={isSaving} onClick={onReset} type="button">
-          Reset to default
-        </button>
-      ) : null}
+
+      <div style={{ display: 'flex', gap: px(designTokens.spacing.sm) }}>
+        <RiskButton disabled={isSaving} onClick={submit} variant="primary">
+          {isSaving ? 'Saving…' : 'Save'}
+        </RiskButton>
+        {item.isCustomized ? (
+          <RiskButton disabled={isSaving} onClick={onReset} variant="ghost">
+            Reset to default
+          </RiskButton>
+        ) : null}
+      </div>
     </li>
   );
 }

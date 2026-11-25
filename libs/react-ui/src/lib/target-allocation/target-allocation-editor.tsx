@@ -1,7 +1,13 @@
-import { Button } from '../button/button';
-import { DashboardCard } from '../dashboard-card/dashboard-card';
 import type { DashboardCardStatus } from '../dashboard-card/dashboard-card';
 import { RiskIndicator } from '../risk-indicator/risk-indicator';
+import { useRiskPalette } from '../risk-ui/risk-palette';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingSkeletonGroup,
+  RiskButton,
+  RiskCard
+} from '../risk-ui/risk-ui';
 import { designTokens, px } from '../tokens/design-tokens';
 import { TargetAllocationForm } from './target-allocation-form';
 import type {
@@ -46,13 +52,42 @@ export function TargetAllocationEditor({
   submitErrorMessage,
   values
 }: TargetAllocationEditorProps) {
+  const palette = useRiskPalette();
+
   return (
-    <DashboardCard
-      errorMessage={errorMessage}
-      onRetry={onRetry}
-      status={status}
-      title="Target allocation"
-    >
+    <RiskCard>
+      <h2 style={{ fontSize: px(designTokens.fontSize.lg), margin: 0 }}>
+        Target allocation
+      </h2>
+      <div style={{ marginTop: px(designTokens.spacing.md) }}>
+        {renderBody()}
+      </div>
+    </RiskCard>
+  );
+
+  function renderBody() {
+    if (status === 'loading') {
+      return (
+        <div aria-busy="true" role="status">
+          <LoadingSkeletonGroup />
+        </div>
+      );
+    }
+
+    if (status === 'error') {
+      return (
+        <ErrorState
+          message={errorMessage ?? 'Something went wrong'}
+          onRetry={onRetry}
+        />
+      );
+    }
+
+    if (status === 'empty' && !isSet) {
+      return <EmptyState message="No target allocation configured yet." />;
+    }
+
+    return (
       <div
         style={{
           display: 'flex',
@@ -61,7 +96,7 @@ export function TargetAllocationEditor({
         }}
       >
         {!isSet ? (
-          <p style={{ color: designTokens.color.textMuted, margin: 0 }}>
+          <p style={{ color: palette.textMuted, margin: 0 }}>
             No target allocation configured yet.
           </p>
         ) : null}
@@ -88,7 +123,7 @@ export function TargetAllocationEditor({
                 }}
               >
                 <RiskIndicator label={bucket.key} severity={bucket.severity} />
-                <span style={{ color: designTokens.color.textMuted }}>
+                <span style={{ color: palette.textMuted }}>
                   {Math.round(bucket.actual * 1000) / 10}% actual /{' '}
                   {Math.round(bucket.target * 1000) / 10}% target
                 </span>
@@ -106,22 +141,19 @@ export function TargetAllocationEditor({
         />
 
         {submitErrorMessage ? (
-          <p
-            role="alert"
-            style={{ color: designTokens.color.danger, margin: 0 }}
-          >
+          <p role="alert" style={{ color: palette.statusRed, margin: 0 }}>
             {submitErrorMessage}
           </p>
         ) : null}
 
         {isSet && onClear ? (
           <div>
-            <Button onClick={onClear} variant="secondary">
+            <RiskButton onClick={onClear} variant="secondary">
               Clear target allocation
-            </Button>
+            </RiskButton>
           </div>
         ) : null}
       </div>
-    </DashboardCard>
-  );
+    );
+  }
 }

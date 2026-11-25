@@ -1,4 +1,5 @@
-import { Button } from '../button/button';
+import { useRiskPalette } from '../risk-ui/risk-palette';
+import { PercentField, RiskButton, TextField } from '../risk-ui/risk-ui';
 import { designTokens, px } from '../tokens/design-tokens';
 import type {
   TargetAllocationFormErrors,
@@ -6,9 +7,19 @@ import type {
   TargetAllocationRowValues
 } from './target-allocation-form.model';
 import {
+  SUM_TOLERANCE,
   TARGET_ALLOCATION_GROUP_BY_OPTIONS,
   createEmptyTargetAllocationRow
 } from './target-allocation-form.model';
+
+// Live total, purely a display aid - validateTargetAllocationForm (the
+// actual sum-to-100% rule enforced on submit) is untouched.
+function totalPercentage(rows: TargetAllocationRowValues[]): number {
+  return rows.reduce((total, row) => {
+    const value = Number(row.percentage.trim());
+    return total + (Number.isNaN(value) ? 0 : value);
+  }, 0);
+}
 
 export interface TargetAllocationFormProps {
   errors?: TargetAllocationFormErrors;
@@ -51,6 +62,13 @@ export function TargetAllocationForm({
     });
   }
 
+  const total = totalPercentage(values.rows);
+  // Same tolerance validateTargetAllocationForm enforces on submit (PR #351
+  // review - Tharun): this indicator must never read "complete" for a total
+  // submission would actually reject.
+  const totalIsComplete = Math.abs(total - 100) <= SUM_TOLERANCE * 100;
+  const palette = useRiskPalette();
+
   return (
     <div
       style={{
@@ -71,6 +89,14 @@ export function TargetAllocationForm({
           onChange={(event) =>
             onChange({ ...values, groupBy: event.target.value })
           }
+          style={{
+            backgroundColor: palette.bgElevated,
+            border: `1px solid ${palette.border}`,
+            borderRadius: 10,
+            color: palette.textPrimary,
+            height: 40,
+            padding: `0 ${px(designTokens.spacing.sm)}`
+          }}
           value={values.groupBy}
         >
           {TARGET_ALLOCATION_GROUP_BY_OPTIONS.map((option) => (
@@ -99,29 +125,24 @@ export function TargetAllocationForm({
               the same name for every row with no way to tell them apart.
               The row number makes each one unique (Mon 11/23 usability
               pass). */}
-          <input
+          <TextField
             aria-label={`Key (row ${index + 1})`}
-            onChange={(event) => updateRow(index, { key: event.target.value })}
+            onChange={(value) => updateRow(index, { key: value })}
             placeholder="e.g. EQUITY"
-            type="text"
             value={row.key}
           />
-          <input
+          <PercentField
             aria-label={`Percentage (row ${index + 1})`}
             max={100}
             min={0}
-            onChange={(event) =>
-              updateRow(index, { percentage: event.target.value })
-            }
+            onChange={(value) => updateRow(index, { percentage: value })}
             placeholder="e.g. 60"
-            type="number"
             value={row.percentage}
           />
-          <span style={{ color: designTokens.color.textMuted }}>%</span>
           {values.rows.length > 1 ? (
-            <Button onClick={() => removeRow(index)} variant="secondary">
+            <RiskButton onClick={() => removeRow(index)} variant="secondary">
               Remove
-            </Button>
+            </RiskButton>
           ) : null}
         </div>
       ))}
@@ -132,18 +153,34 @@ export function TargetAllocationForm({
         </p>
       ) : null}
 
+      {/* Live total, purely a display aid alongside the server-equivalent
+          validation message above - not itself a validation gate. */}
+      <p
+        style={{
+          color: totalIsComplete ? palette.textMuted : palette.statusRed,
+          fontWeight: 600,
+          margin: 0
+        }}
+      >
+        Total: {Math.round(total * 10) / 10}% / 100%
+      </p>
+
       <div
         style={{
           display: 'flex',
           gap: px(designTokens.spacing.sm)
         }}
       >
-        <Button onClick={addRow} variant="secondary">
+        <RiskButton onClick={addRow} variant="secondary">
           Add row
-        </Button>
-        <Button disabled={isSubmitting} onClick={onSubmit} variant="primary">
+        </RiskButton>
+        <RiskButton
+          disabled={isSubmitting}
+          onClick={onSubmit}
+          variant="primary"
+        >
           {isSubmitting ? 'Saving…' : 'Save target allocation'}
-        </Button>
+        </RiskButton>
       </div>
     </div>
   );
