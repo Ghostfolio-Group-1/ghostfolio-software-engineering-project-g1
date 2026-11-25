@@ -160,4 +160,101 @@ describe('InteractiveChart', () => {
     expect(rangeButton('5y').getAttribute('aria-pressed')).toBe('true');
     expect(rangeButton('max').getAttribute('aria-pressed')).toBe('false');
   });
+
+  it('keeps the range toggle visible while the chart is loading', async () => {
+    let resolveRequest: ((value: Response) => void) | undefined;
+    const pending = new Promise<Response>((resolve) => {
+      resolveRequest = resolve;
+    });
+    const request = jest
+      .fn()
+      .mockReturnValue(pending) as unknown as ChartSeriesFetch;
+
+    await render(request);
+
+    expect(container.textContent).toContain('Loading…');
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelector('svg')).toBeNull();
+    expect(rangeButton('max').getAttribute('aria-pressed')).toBe('true');
+    expect(rangeButton('ytd')).not.toBeNull();
+
+    await act(async () => {
+      rangeButton('1y').click();
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/charts/series?range=1y&kind=portfolioValue',
+      expect.any(Object)
+    );
+    expect(rangeButton('1y').getAttribute('aria-pressed')).toBe('true');
+    expect(container.textContent).toContain('Loading…');
+
+    await act(async () => {
+      resolveRequest?.(success(seriesByRange['1y']));
+    });
+  });
+
+  it('shows an empty chart state and keeps the range toggle', async () => {
+    const request = jest.fn().mockImplementation((url: string) => {
+      const range = new URL(url, 'http://localhost').searchParams.get('range');
+
+      return Promise.resolve(
+        success(series(range === 'ytd' ? seriesByRange.ytd.points : []))
+      );
+    }) as unknown as ChartSeriesFetch;
+
+    await render(request);
+
+    expect(container.textContent).toContain(
+      'No portfolio value data for this range'
+    );
+    expect(container.querySelector('svg')).toBeNull();
+    expect(rangeButton('max').getAttribute('aria-pressed')).toBe('true');
+
+    await act(async () => {
+      rangeButton('ytd').click();
+    });
+
+    expect(container.querySelector('svg')).not.toBeNull();
+    expect(rangeButton('ytd').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('shows a generic error and keeps the range toggle usable', async () => {
+    const request = jest.fn().mockImplementation((url: string) => {
+      const range = new URL(url, 'http://localhost').searchParams.get('range');
+
+      if (range === '1y') {
+        return Promise.resolve(success(seriesByRange['1y']));
+      }
+
+      return Promise.resolve({
+        json: jest.fn().mockResolvedValue({
+          data: null,
+          error: {
+            code: 'CHARTS_SERIES_FAILED',
+            message: 'private detail'
+          },
+          meta: {}
+        }),
+        ok: false,
+        status: 500
+      } as unknown as Response);
+    }) as unknown as ChartSeriesFetch;
+
+    await render(request);
+
+    expect(container.textContent).toContain('Unable to load the chart series');
+    expect(container.textContent).not.toContain('private detail');
+    expect(container.textContent).toContain('Try again');
+    expect(container.querySelector('svg')).toBeNull();
+    expect(rangeButton('max').getAttribute('aria-pressed')).toBe('true');
+
+    await act(async () => {
+      rangeButton('1y').click();
+    });
+
+    expect(container.querySelector('svg')).not.toBeNull();
+    expect(rangeButton('1y').getAttribute('aria-pressed')).toBe('true');
+    expect(container.textContent).not.toContain('private detail');
+  });
 });
