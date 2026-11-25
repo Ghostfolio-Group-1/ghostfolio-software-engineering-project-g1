@@ -125,7 +125,7 @@ describe('RealizedGainsScreen', () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it('renders exact decimal text from the live Tax endpoint through the injected adapter', async () => {
+  it('renders formatted monetary values from the Tax endpoint through the injected adapter', async () => {
     const request = jest.fn().mockResolvedValue(success(fifoData));
     await render(request as unknown as AuthenticatedFetch);
 
@@ -133,11 +133,33 @@ describe('RealizedGainsScreen', () => {
       '/api/v1/tax/realized-gains?method=FIFO',
       expect.objectContaining({ method: 'GET' })
     );
-    expect(container.textContent).toContain('fifo-sell-1');
-    expect(container.textContent).toContain('2026-01-01');
-    expect(container.textContent).toContain('1.876543210987654321099');
-    expect(container.textContent).toContain('1.501543210987654321099');
+
     expect(container.querySelectorAll('table')).toHaveLength(1);
+
+    const cells = Array.from(
+      container.querySelectorAll('tbody tr td'),
+      (cell) => cell.textContent
+    );
+
+    expect(cells).toEqual([
+      '2026-01-01',
+      'fifo-sell-1',
+      'USD',
+      '0.5',
+      '0.5',
+      '12.00',
+      '10.12',
+      '1.88',
+      '0.13',
+      '0.25',
+      '1.50'
+    ]);
+
+    // Preserve the original API precision.
+    expect(fifoSale.grossRealizedGain).toBe('1.876543210987654321099');
+    expect(fifoSale.realizedGainAfterActivityFees).toBe(
+      '1.501543210987654321099'
+    );
   });
 
   it('shows an empty state for complete history with no sales', async () => {
@@ -250,6 +272,27 @@ describe('RealizedGainsScreen', () => {
     );
     expect(container.textContent).toContain('average-sell-2');
     expect(container.textContent).not.toContain('fifo-sell-1');
+
+    const cells = Array.from(
+      container.querySelectorAll('tbody tr td'),
+      (cell) => cell.textContent
+    );
+
+    expect(cells).toEqual([
+      '2026-01-01',
+      'average-sell-2',
+      'USD',
+      '0.5',
+      '0.5',
+      '12.00',
+      '10.12',
+      '1.88',
+      '0.13',
+      '0.25',
+      '1.50'
+    ]);
+
+    expect(averageSale.grossRealizedGain).toBe('1.876543210987654321099');
   });
 
   it('ignores a stale FIFO response arriving after average cost is selected', async () => {

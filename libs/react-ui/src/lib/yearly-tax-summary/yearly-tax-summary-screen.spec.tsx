@@ -69,6 +69,12 @@ describe('YearlyTaxSummaryScreen', () => {
   const request = (response: unknown): YearlySummaryLoader =>
     jest.fn().mockResolvedValue(response) as YearlySummaryLoader;
 
+  function displayedTotal(label: string): string | null | undefined {
+    return Array.from(container.querySelectorAll('dt')).find(
+      (element) => element.textContent === label
+    )?.nextElementSibling?.textContent;
+  }
+
   it('shows an accessible loading state during a pending request', async () => {
     const load: YearlySummaryLoader = jest.fn(
       () => new Promise<unknown>(() => undefined)
@@ -79,15 +85,28 @@ describe('YearlyTaxSummaryScreen', () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  it('shows server-derived totals and the selected UTC year and method', async () => {
+  it('shows formatted server-derived totals and the selected UTC year and method', async () => {
     const load = request(summary);
     await render(load);
-    expect(container.textContent).toContain('0.000000000000000001');
+
+    expect(displayedTotal('Gross dividends')).toBe('0.00');
+    expect(displayedTotal('Withholding tax')).toBe('0.00');
+    expect(displayedTotal('Net dividends')).toBe('0.00');
+    expect(displayedTotal('Gross proceeds')).toBe('3.00');
+    expect(displayedTotal('Gross cost basis')).toBe('1.00');
+    expect(displayedTotal('Gross realized gain')).toBe('2.00');
+    expect(displayedTotal('Total activity fees')).toBe('0.00');
+    expect(displayedTotal('Realized gain after activity fees')).toBe('2.00');
+
     expect(container.textContent).toContain('FIFO');
     expect(container.textContent).toContain('2026');
+
     expect(load).toHaveBeenCalledWith(
       expect.objectContaining({ year: 2026, method: 'FIFO' })
     );
+
+    // Display rounding must not change the original API value.
+    expect(summary.grossDividendsBaseCurrency).toBe('0.000000000000000001');
   });
 
   it('shows a true empty year only when the response is complete', async () => {
@@ -142,22 +161,36 @@ describe('YearlyTaxSummaryScreen', () => {
     }
   );
 
-  it('allows retry after server failure and then shows data', async () => {
+  it('allows retry after server failure and then shows formatted data', async () => {
     const load = jest
       .fn()
       .mockRejectedValueOnce(new ApiRequestError(503, 'TAX_FAILED', 'secret'))
       .mockResolvedValueOnce(summary) as YearlySummaryLoader;
+
     await render(load);
+
     expect(container.textContent).toContain('temporarily unavailable');
+
     const button = Array.from(container.querySelectorAll('button')).find(
       (item) => item.textContent?.includes('Try again')
     );
+
     expect(button).toBeDefined();
+
     await act(async () => {
       button?.click();
     });
+
     expect(load).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('0.000000000000000001');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).not.toContain('temporarily unavailable');
+
+    expect(displayedTotal('Gross dividends')).toBe('0.00');
+    expect(displayedTotal('Gross proceeds')).toBe('3.00');
+    expect(displayedTotal('Gross cost basis')).toBe('1.00');
+    expect(displayedTotal('Gross realized gain')).toBe('2.00');
+
+    expect(summary.grossDividendsBaseCurrency).toBe('0.000000000000000001');
   });
 
   it('rejects malformed responses with a safe error message', async () => {

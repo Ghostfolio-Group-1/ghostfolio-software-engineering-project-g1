@@ -1,12 +1,11 @@
 import { Card } from '../card/card';
 import { Table } from '../table/table';
 import type { TableColumn } from '../table/table';
+import { formatTaxMoney } from '../tax-workspace/format-tax-money';
 import type {
   YearlyCurrencySummary,
   YearlyTaxSummaryData
 } from './yearly-tax-summary.client';
-
-const money = (value: string | null): string => value ?? 'Not available';
 
 const columns: TableColumn<YearlyCurrencySummary>[] = [
   {
@@ -16,37 +15,37 @@ const columns: TableColumn<YearlyCurrencySummary>[] = [
   },
   {
     align: 'right',
-    cell: (row) => row.totalGrossDividends,
+    cell: (row) => formatTaxMoney(row.totalGrossDividends),
     header: 'Gross dividends',
     key: 'dividends'
   },
   {
     align: 'right',
-    cell: (row) => money(row.totalWithholdingTax),
+    cell: (row) => formatTaxMoney(row.totalWithholdingTax),
     header: 'Withholding',
     key: 'withholding'
   },
   {
     align: 'right',
-    cell: (row) => money(row.totalNetDividends),
+    cell: (row) => formatTaxMoney(row.totalNetDividends),
     header: 'Net dividends',
     key: 'net'
   },
   {
     align: 'right',
-    cell: (row) => row.grossRealizedGain,
+    cell: (row) => formatTaxMoney(row.grossRealizedGain),
     header: 'Gross realized gain',
     key: 'gain'
   },
   {
     align: 'right',
-    cell: (row) => row.allocatedFees,
+    cell: (row) => formatTaxMoney(row.allocatedFees),
     header: 'Allocated fees',
     key: 'fees'
   },
   {
     align: 'right',
-    cell: (row) => row.realizedGainAfterActivityFees,
+    cell: (row) => formatTaxMoney(row.realizedGainAfterActivityFees),
     header: 'Realized gain after fees',
     key: 'afterFees'
   }
@@ -66,6 +65,11 @@ const totals: { field: keyof YearlyTaxSummaryData; label: string }[] = [
   }
 ];
 
+/**
+ * Displays authoritative yearly Tax totals.
+ * Formatting is presentation-only; unavailable amounts remain unavailable.
+ * Diagnostic messages are shown without exposing internal codes as UI text.
+ */
 export function YearlyTaxSummaryTable({
   summary
 }: {
@@ -82,6 +86,9 @@ export function YearlyTaxSummaryTable({
         Dividend records: {summary.dividendCount}. Disposals:{' '}
         {summary.disposalCount}.
       </p>
+      <p>
+        Monetary amounts are rounded to two decimal places for display only.
+      </p>
       {!summary.isComplete ? (
         <div role="alert">
           <p>
@@ -92,18 +99,14 @@ export function YearlyTaxSummaryTable({
           {summary.warnings.length > 0 ? (
             <ul>
               {summary.warnings.map((warning, index) => (
-                <li key={`warning-${index}`}>
-                  {warning.code}: {warning.message}
-                </li>
+                <li key={`warning-${index}`}>{warning.message}</li>
               ))}
             </ul>
           ) : null}
           {summary.errors.length > 0 ? (
             <ul>
               {summary.errors.map((error, index) => (
-                <li key={`error-${index}`}>
-                  {error.code}: {error.message}
-                </li>
+                <li key={`error-${index}`}>{error.message}</li>
               ))}
             </ul>
           ) : null}
@@ -114,7 +117,7 @@ export function YearlyTaxSummaryTable({
         {totals.map(({ field, label }) => (
           <div key={field}>
             <dt>{label}</dt>
-            <dd>{money(summary[field] as string | null)}</dd>
+            <dd>{formatTaxMoney(summary[field] as string | null)}</dd>
           </div>
         ))}
       </dl>

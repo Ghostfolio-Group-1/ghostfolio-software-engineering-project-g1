@@ -20,15 +20,22 @@ function render(records: DividendWithholdingViewRecord[]): string {
 }
 
 describe('DividendWithholdingTable', () => {
-  it('shows gross, withholding and net as unchanged decimal strings', () => {
+  it('formats gross, withholding and net without changing source precision', () => {
+    const originalDividend = { ...dividend };
     const html = render([dividend]);
 
     expect(html).toContain('Gross dividend');
     expect(html).toContain('Withholding tax');
     expect(html).toContain('Net dividend');
-    expect(html).toContain('10.123456789012345678901234');
-    expect(html).toContain('1.000000000000000000000000');
-    expect(html).toContain('9.123456789012345678901234');
+
+    expect(html).toContain('>10.12<');
+    expect(html).toContain('>1.00<');
+    expect(html).toContain('>9.12<');
+    expect(html).toContain('>0.00<');
+
+    expect(dividend).toEqual(originalDividend);
+    expect(dividend.grossDividend).toBe('10.123456789012345678901234');
+    expect(dividend.netDividend).toBe('9.123456789012345678901234');
   });
 
   it('distinguishes unknown withholding and net from known zero', () => {
@@ -36,8 +43,10 @@ describe('DividendWithholdingTable', () => {
       { ...dividend, netDividend: null, withholdingTax: null }
     ]);
 
-    expect((unknownHtml.match(/>Not available</g) ?? []).length).toBe(2);
-    expect(unknownHtml).not.toContain('>0<');
+    expect(unknownHtml.match(/>Not available</g) ?? []).toHaveLength(2);
+
+    // Only the known zero activity fee should display 0.00.
+    expect(unknownHtml.match(/>0\.00</g) ?? []).toHaveLength(1);
 
     const zeroHtml = render([
       {
@@ -47,7 +56,9 @@ describe('DividendWithholdingTable', () => {
         withholdingTax: '0'
       }
     ]);
-    expect((zeroHtml.match(/>0</g) ?? []).length).toBe(3);
+
+    // Gross, withholding, net and activity fee are all known zero.
+    expect(zeroHtml.match(/>0\.00</g) ?? []).toHaveLength(4);
     expect(zeroHtml).not.toContain('>Not available<');
   });
 
@@ -90,8 +101,8 @@ describe('DividendWithholdingTable', () => {
     const html = render([{ ...dividend, activityFee: '0.375' }]);
 
     expect(html).toContain('Activity fee');
-    expect(html).toContain('0.375');
-    expect(html).toContain('1.000000000000000000000000');
+    expect(html).toContain('>0.38<');
+    expect(html).toContain('>1.00<');
     expect(html).toContain('Activity fees are separate');
   });
 
@@ -108,5 +119,33 @@ describe('DividendWithholdingTable', () => {
     expect(html).toContain('No dividend records in the supplied data.');
     expect(html).not.toContain('dividend-1');
     expect(html).not.toContain('>0<');
+    expect(html).not.toContain('>0.00<');
+  });
+
+  // Regression test for Issue #344.
+  it('formats dividend money without changing authoritative values', () => {
+    const record: DividendWithholdingViewRecord = {
+      ...dividend,
+      grossDividend: '1234.5',
+      withholdingTax: '36.4',
+      netDividend: '1198.1',
+      activityFee: '0.125'
+    };
+
+    const originalRecord = { ...record };
+    const html = render([record]);
+
+    expect(html).toContain('>1,234.50<');
+    expect(html).toContain('>36.40<');
+    expect(html).toContain('>1,198.10<');
+    expect(html).toContain('>0.13<');
+    expect(html).toContain('>USD<');
+
+    expect(html).not.toContain('>1234.5<');
+    expect(html).not.toContain('>36.4<');
+    expect(html).not.toContain('NaN');
+    expect(html).toContain('for display only');
+
+    expect(record).toEqual(originalRecord);
   });
 });
