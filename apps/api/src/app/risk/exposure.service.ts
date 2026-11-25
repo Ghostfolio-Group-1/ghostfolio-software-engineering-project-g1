@@ -12,6 +12,24 @@ import { RiskSummary } from './interfaces/risk-summary.interface';
 
 const ELIGIBLE_STOCK_SUB_CLASSES = ['CRYPTOCURRENCY', 'STOCK'];
 
+// Issue #323: PortfolioService.getHoldings() can return a synthetic CASH
+// position (assetSubClass CASH, e.g. a "USD" holding backing the account's
+// cash balance) alongside real stock holdings. Cash is already tracked
+// separately via AccountService.getCashDetails()'s cashBalance - counting
+// it again here as a "holding" doubles it into totalValue (and, via
+// RiskEvaluationService.portfolioValue, into the portfolio total too),
+// which also understates every concentration percentage computed against
+// that inflated totalValue. Only the concentration buckets below are
+// filtered; exposure.currency/assetClass intentionally keep cash so they
+// can still show it as a legitimate currency/asset-class slice.
+function excludeCashHoldings(
+  holdings: PortfolioPosition[]
+): PortfolioPosition[] {
+  return holdings.filter(
+    (holding) => holding.assetProfile.assetSubClass !== 'CASH'
+  );
+}
+
 // Combines the concentration breakdowns (stock/sector/country/currency - the
 // same buckets the X-Ray rules evaluate internally) with the exposure
 // breakdowns (currency/asset-class) into one RiskSummary, per
@@ -27,7 +45,9 @@ export class ExposureService {
     holdings: PortfolioPosition[],
     baseCurrency: string
   ): RiskSummary {
-    const totalValue = holdings.reduce((sum, holding) => {
+    const investableHoldings = excludeCashHoldings(holdings);
+
+    const totalValue = investableHoldings.reduce((sum, holding) => {
       return (
         sum +
         this.exchangeRateDataService.toCurrency(
@@ -38,7 +58,7 @@ export class ExposureService {
       );
     }, 0);
 
-    const stockHoldings = holdings.filter((holding) =>
+    const stockHoldings = investableHoldings.filter((holding) =>
       ELIGIBLE_STOCK_SUB_CLASSES.includes(holding.assetProfile.assetSubClass)
     );
 
@@ -60,7 +80,7 @@ export class ExposureService {
         sector: this.toBuckets(
           groupHoldingsByWeightedAttribute({
             baseCurrency,
-            holdings,
+            holdings: investableHoldings,
             exchangeRateDataService: this.exchangeRateDataService,
             getBuckets: (holding) =>
               holding.assetProfile.sectors?.map(({ name, weight }) => ({
@@ -73,7 +93,7 @@ export class ExposureService {
         country: this.toBuckets(
           groupHoldingsByWeightedAttribute({
             baseCurrency,
-            holdings,
+            holdings: investableHoldings,
             exchangeRateDataService: this.exchangeRateDataService,
             getBuckets: (holding) =>
               holding.assetProfile.countries?.map(({ code, weight }) => ({
@@ -84,7 +104,7 @@ export class ExposureService {
           totalValue
         ),
         currency: this.exposureCalculatorService.calculateCurrencyExposure(
-          holdings,
+          investableHoldings,
           baseCurrency
         ).buckets
       },
