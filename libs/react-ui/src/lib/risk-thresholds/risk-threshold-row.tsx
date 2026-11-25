@@ -98,39 +98,50 @@ export function RiskThresholdRow({
           </span>
         ) : null}
       </div>
-      <label>
-        <input
-          checked={isActive}
-          onChange={(event) => setIsActive(event.target.checked)}
-          type="checkbox"
-        />
-        Active
-      </label>
-      {fields.map((field) => (
-        <label
-          key={field}
-          style={{
-            display: 'inline-block',
-            marginRight: px(designTokens.spacing.sm)
-          }}
-        >
-          {FIELD_LABEL[field]}
-          {/* The nested <label> text alone ("Red max") is identical across
-              every rule's row, so a screen reader can't tell which rule an
-              input belongs to - the explicit aria-label disambiguates with
-              the rule's name. It used to be `${item.ruleKey}-${field}`
-              (e.g. "SingleStockConcentration-redMax"), a raw PascalCase key
-              nobody would actually say; using item.name instead (Mon 11/23
-              usability pass) keeps it unique but readable. */}
+      {/* Issue #361: the Active label used to sit in the same inline flow
+          as the field labels right below it, with no block boundary or
+          margin between them, so they rendered run-together
+          ("ActiveWarning max"). Each gets its own block-level div so a
+          wording or order change can't reintroduce the same bug by
+          accident - not just a one-off space character. */}
+      <div style={{ marginBottom: px(designTokens.spacing.sm) }}>
+        <label>
           <input
-            aria-label={`${item.name} ${FIELD_LABEL[field]}`}
-            onChange={(event) => updateField(field, event.target.value)}
-            type="number"
-            value={values[field]}
+            checked={isActive}
+            onChange={(event) => setIsActive(event.target.checked)}
+            type="checkbox"
           />
-          %
+          Active
         </label>
-      ))}
+      </div>
+      <div>
+        {fields.map((field) => (
+          <label
+            key={field}
+            style={{
+              display: 'inline-block',
+              marginRight: px(designTokens.spacing.sm)
+            }}
+          >
+            {FIELD_LABEL[field]}
+            {/* The nested <label> text alone ("Red max") is identical
+                across every rule's row, so a screen reader can't tell which
+                rule an input belongs to - the explicit aria-label
+                disambiguates with the rule's name. It used to be
+                `${item.ruleKey}-${field}` (e.g.
+                "SingleStockConcentration-redMax"), a raw PascalCase key
+                nobody would actually say; using item.name instead (Mon
+                11/23 usability pass) keeps it unique but readable. */}
+            <input
+              aria-label={`${item.name} ${FIELD_LABEL[field]}`}
+              onChange={(event) => updateField(field, event.target.value)}
+              type="number"
+              value={values[field]}
+            />
+            %
+          </label>
+        ))}
+      </div>
       {validationError ? <p role="alert">{validationError}</p> : null}
       {errorMessage ? <p role="alert">{errorMessage}</p> : null}
       <button disabled={isSaving} onClick={submit} type="button">
