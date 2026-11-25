@@ -8,6 +8,7 @@ import {
 import { AssetClass } from '@prisma/client';
 
 import { UpdateTargetAllocationDto } from './dtos/update-target-allocation.dto';
+import { excludeCashHoldings } from './holdings.util';
 import {
   TargetAllocationBucket,
   TargetAllocationResponse
@@ -117,7 +118,18 @@ export function toTargetAllocationResponse({
   }
 
   const groupBy = targetAllocation.groupBy ?? 'assetClass';
-  const rule = new TargetDeviation(exchangeRateDataService, holdings);
+  // Issue #323 (Tharun's review on PR #362): GET/PUT /risk/target-allocation
+  // builds its own TargetDeviation directly from PortfolioService's raw
+  // holdings, bypassing RiskEvaluationService.evaluate()'s CASH-subclass
+  // filter entirely. TargetDeviation already injects its own dedicated
+  // 'CASH' bucket from cashBalance (see its own evaluate()), so a synthetic
+  // CASH-subclass holding here would double-count the same cash into
+  // holdingsValue and create a second, conflicting bucket - the same bug,
+  // same fix, just this endpoint's own copy of the holdings array.
+  const rule = new TargetDeviation(
+    exchangeRateDataService,
+    excludeCashHoldings(holdings)
+  );
   const { buckets } = rule.evaluate({
     baseCurrency,
     cashBalance,

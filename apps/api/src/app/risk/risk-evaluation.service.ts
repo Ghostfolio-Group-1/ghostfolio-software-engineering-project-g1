@@ -10,6 +10,7 @@ import { Injectable } from '@nestjs/common';
 
 import { ExposureBucket } from './exposure-calculator.service';
 import { ExposureService } from './exposure.service';
+import { excludeCashHoldings } from './holdings.util';
 import { WeightedRuleResult } from './interfaces/health-score.interface';
 import { RiskWarning } from './interfaces/risk-warning.interface';
 import {
@@ -121,9 +122,7 @@ export class RiskEvaluationService {
     // into holdingsValue/portfolioValue. TargetDeviation (below) already
     // injects its own dedicated 'CASH' bucket from cashBalance too, so it
     // gets the same filtered holdings to avoid a second, conflicting entry.
-    const investableHoldings = request.holdings.filter(
-      (holding) => holding.assetProfile.assetSubClass !== 'CASH'
-    );
+    const investableHoldings = excludeCashHoldings(request.holdings);
     const holdingsValue = this.calculateTotalValue(
       investableHoldings,
       request.baseCurrency

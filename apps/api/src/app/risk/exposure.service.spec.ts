@@ -64,4 +64,36 @@ describe('ExposureService', () => {
     expect(summary.totalValue).toBe(0);
     expect(summary.concentration.stock).toHaveLength(0);
   });
+
+  // Issue #323 (Tharun's review on PR #362, asked to verify this explicitly):
+  // a synthetic CASH-subclass holding is excluded from totalValue and the
+  // concentration buckets (stock/sector/country/currency - it would
+  // double-count against the separately-tracked cashBalance there), but
+  // exposure.currency/assetClass intentionally keep it, since that
+  // breakdown's job is to show the dashboard the full mix including cash,
+  // not to avoid double-counting against a separate cashBalance figure.
+  it('excludes a synthetic CASH holding from totalValue and concentration, but keeps it in exposure.currency/assetClass', () => {
+    const holdings = [
+      holding({ symbol: 'AAPL', value: 9000 }),
+      holding({ symbol: 'MSFT', value: 640 }),
+      holding({ assetSubClass: 'CASH', symbol: 'USD', value: 500 })
+    ];
+
+    const summary = service.getRiskSummary(holdings, 'USD');
+
+    // totalValue and concentration.stock exclude the $500 cash holding.
+    expect(summary.totalValue).toBe(9640);
+    expect(summary.concentration.stock[0]).toMatchObject({
+      key: 'AAPL',
+      percentage: 9000 / 9640
+    });
+
+    // exposure.currency/assetClass still show the cash holding - all three
+    // positions are USD, so the full $10,140 shows up here.
+    expect(summary.exposure.currency[0]).toMatchObject({
+      key: 'USD',
+      value: 10140,
+      percentage: 1
+    });
+  });
 });

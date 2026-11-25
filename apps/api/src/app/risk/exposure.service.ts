@@ -8,27 +8,10 @@ import {
   ExposureBucket,
   ExposureCalculatorService
 } from './exposure-calculator.service';
+import { excludeCashHoldings } from './holdings.util';
 import { RiskSummary } from './interfaces/risk-summary.interface';
 
 const ELIGIBLE_STOCK_SUB_CLASSES = ['CRYPTOCURRENCY', 'STOCK'];
-
-// Issue #323: PortfolioService.getHoldings() can return a synthetic CASH
-// position (assetSubClass CASH, e.g. a "USD" holding backing the account's
-// cash balance) alongside real stock holdings. Cash is already tracked
-// separately via AccountService.getCashDetails()'s cashBalance - counting
-// it again here as a "holding" doubles it into totalValue (and, via
-// RiskEvaluationService.portfolioValue, into the portfolio total too),
-// which also understates every concentration percentage computed against
-// that inflated totalValue. Only the concentration buckets below are
-// filtered; exposure.currency/assetClass intentionally keep cash so they
-// can still show it as a legitimate currency/asset-class slice.
-function excludeCashHoldings(
-  holdings: PortfolioPosition[]
-): PortfolioPosition[] {
-  return holdings.filter(
-    (holding) => holding.assetProfile.assetSubClass !== 'CASH'
-  );
-}
 
 // Combines the concentration breakdowns (stock/sector/country/currency - the
 // same buckets the X-Ray rules evaluate internally) with the exposure
