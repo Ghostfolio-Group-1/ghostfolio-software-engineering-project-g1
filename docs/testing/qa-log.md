@@ -147,25 +147,25 @@ Tester: Raniya. Date: 2026-11-25. Run on this PR (`main` plus the #342 fix)
 before the 6 PM freeze, so CI covers all four features: Risk, Tax, Charts and
 the Dashboard.
 
-| Check                                         | Workflow         | Run       | Result |
-| --------------------------------------------- | ---------------- | --------- | ------ |
-| Lint and format, unit, component tests, build | Build code       | BUILD_RUN | TODO   |
-| Integration tests (demo-smoke + harness), E2E | Demo environment | DEMO_RUN  | TODO   |
-| Clean rebuild of the demo stack with this PR  | local            | -         | TODO   |
+| Check                                         | Workflow         | Run         | Result                    |
+| --------------------------------------------- | ---------------- | ----------- | ------------------------- |
+| Lint and format, unit, component tests, build | Build code       | 45680046804 | PASS                      |
+| Integration tests (demo-smoke + harness), E2E | Demo environment | 45680046633 | PASS                      |
+| Clean rebuild of the demo stack with this PR  | local            | -           | PASS (healthy after 438s) |
 
 ### QA failures at the freeze
 
 Every FAIL from parts 1 and 2 has a merged fix or an owned issue.
 
-| Rows                   | Issue | Owner                 | State at freeze | Re-test on Nov 25 |
-| ---------------------- | ----- | --------------------- | --------------- | ----------------- |
-| R-07                   | #341  | Sesha                 | CLOSED          | TODO              |
-| R-04                   | #343  | Sesha                 | CLOSED          | TODO              |
-| R-09, T-09, C-06, D-09 | #342  | Raniya                | Fixed here      | TODO              |
-| T-07 (T-04, T-06)      | #344  | Tharun                | OPEN            | -                 |
-| C-01                   | #353  | Arthur                | OPEN            | -                 |
-| C-05                   | #338  | Arthur                | PR OPEN         | -                 |
-| C-07                   | #356  | Arthur                | OPEN            | -                 |
-| D-02                   | #355  | Raniya, Arthur, Sesha | OPEN            | -                 |
-| X-02                   | #357  | Raniya                | OPEN            | -                 |
-| D-07 (BLOCKED)         | #354  | Raniya                | OPEN            | -                 |
+| Rows                   | Issue | Owner                 | State at freeze | Re-test on Nov 25                                     |
+| ---------------------- | ----- | --------------------- | --------------- | ----------------------------------------------------- |
+| R-07                   | #341  | Sesha                 | CLOSED          | PASS (scores shown out of 100; Change label shown)    |
+| R-04                   | #343  | Sesha                 | CLOSED          | PASS (warning shows real share and points off target) |
+| R-09, T-09, C-06, D-09 | #342  | Raniya                | Fixed here      | PASS (dark cards on Risk, Tax, Overview, Dashboard)   |
+| T-07 (T-04, T-06)      | #344  | Tharun                | OPEN            | -                                                     |
+| C-01                   | #353  | Arthur                | OPEN            | -                                                     |
+| C-05                   | #338  | Arthur                | PR OPEN         | -                                                     |
+| C-07                   | #356  | Arthur                | OPEN            | -                                                     |
+| D-02                   | #355  | Raniya, Arthur, Sesha | OPEN            | -                                                     |
+| X-02                   | #357  | Raniya                | OPEN            | -                                                     |
+| D-07 (BLOCKED)         | #354  | Raniya                | OPEN            | -                                                     |
