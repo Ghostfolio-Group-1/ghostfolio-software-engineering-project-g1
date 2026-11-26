@@ -340,6 +340,20 @@ describe('WhatIfService', () => {
       amount: 10140,
       currency: 'USD'
     });
+
+    // After a 10% AAPL drop: AAPL 9000 -> 8100, holdings 8740, cash 500 ->
+    // portfolio 9240. Change: 9240 - 10140 = -900 (-8.88%). cashBalance
+    // itself is untouched by the shock, which is exactly why a correct
+    // portfolioValue has to add it once, not twice.
+    expect(result.portfolio.valueAfter).toEqual({
+      amount: 9240,
+      currency: 'USD'
+    });
+    expect(result.portfolio.change).toEqual({
+      amount: -900,
+      currency: 'USD'
+    });
+    expect(result.portfolio.changePercentage).toBeCloseTo(-900 / 10140, 4);
   });
 
   it('passes RiskEvaluationService.skippedRuleKeys through as skippedRules', () => {
