@@ -220,6 +220,8 @@ describe('GfReactHostComponent', () => {
       await renderWith(null);
       expect(await lastTheme()).toBe('light');
 
+      // A real MediaQueryList updates .matches before firing change.
+      osDark = true;
       changeListener?.({ matches: true });
       await settleHost();
 

@@ -143,7 +143,7 @@ Bug issues filed: #353 (C-01) and #356 (C-07) for Arthur; #355 (D-02), #354 (D-0
 
 ## Regression run (Wed Nov 25)
 
-Tester: Raniya. Date: 2026-11-25. Run on this PR (`main` plus the #342 fix)
+Tester: Raniya. Date: 2026-11-25. Run on this PR (`main` plus the #342 fix; main has since taken the equivalent fix from #295, and this PR keeps its 4 regression tests)
 before the 6 PM freeze, so CI covers all four features: Risk, Tax, Charts and
 the Dashboard.
 
@@ -157,15 +157,15 @@ the Dashboard.
 
 Every FAIL from parts 1 and 2 has a merged fix or an owned issue.
 
-| Rows                   | Issue | Owner                 | State at freeze | Re-test on Nov 25                                     |
-| ---------------------- | ----- | --------------------- | --------------- | ----------------------------------------------------- |
-| R-07                   | #341  | Sesha                 | CLOSED          | PASS (scores shown out of 100; Change label shown)    |
-| R-04                   | #343  | Sesha                 | CLOSED          | PASS (warning shows real share and points off target) |
-| R-09, T-09, C-06, D-09 | #342  | Raniya                | Fixed here      | PASS (dark cards on Risk, Tax, Overview, Dashboard)   |
-| T-07 (T-04, T-06)      | #344  | Tharun                | OPEN            | -                                                     |
-| C-01                   | #353  | Arthur                | OPEN            | -                                                     |
-| C-05                   | #338  | Arthur                | PR OPEN         | -                                                     |
-| C-07                   | #356  | Arthur                | OPEN            | -                                                     |
-| D-02                   | #355  | Raniya, Arthur, Sesha | OPEN            | -                                                     |
-| X-02                   | #357  | Raniya                | OPEN            | -                                                     |
-| D-07 (BLOCKED)         | #354  | Raniya                | OPEN            | -                                                     |
+| Rows                   | Issue | Owner                 | State at freeze           | Re-test on Nov 25                                     |
+| ---------------------- | ----- | --------------------- | ------------------------- | ----------------------------------------------------- |
+| R-07                   | #341  | Sesha                 | CLOSED                    | PASS (scores shown out of 100; Change label shown)    |
+| R-04                   | #343  | Sesha                 | CLOSED                    | PASS (warning shows real share and points off target) |
+| R-09, T-09, C-06, D-09 | #342  | Raniya, Arthur        | Fixed in #295; tests here | PASS (dark cards on Risk, Tax, Overview, Dashboard)   |
+| T-07 (T-04, T-06)      | #344  | Tharun                | CLOSED (#349)             | Merged 4:07 PM, after this run; not re-tested         |
+| C-01                   | #353  | Arthur                | OPEN                      | -                                                     |
+| C-05                   | #338  | Arthur                | PR OPEN                   | -                                                     |
+| C-07                   | #356  | Arthur                | OPEN                      | -                                                     |
+| D-02                   | #355  | Raniya, Arthur, Sesha | OPEN                      | -                                                     |
+| X-02                   | #357  | Raniya                | OPEN                      | -                                                     |
+| D-07 (BLOCKED)         | #354  | Raniya                | OPEN                      | -                                                     |
