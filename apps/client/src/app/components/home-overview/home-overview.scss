@@ -2,47 +2,106 @@
   display: block;
   height: 100%;
 
-  .chart-container {
-    aspect-ratio: 16 / 9;
-    height: auto;
-    max-width: 50rem;
-
-    // Fallback for aspect-ratio (using padding hack)
-    @supports not (aspect-ratio: 16 / 9) {
-      &::before {
-        float: left;
-        padding-top: 56.25%;
-        content: '';
-      }
-
-      &::after {
-        display: block;
-        content: '';
-        clear: both;
-      }
-    }
-
-    gf-line-chart {
-      bottom: 0;
-      left: 0;
-      right: 0;
-      top: 0;
-    }
-  }
-
-  .introduction,
-  .value-chart {
-    max-width: 50rem;
+  .overview {
+    // Scroll from the top — vertical centering shoved the chart into the nav.
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-block: 2rem 3rem;
   }
 
   .overview-stack {
     display: flex;
     flex-direction: column;
+    gap: 0;
+    margin-inline: auto;
+    max-width: 42rem;
     width: 100%;
   }
 
-  .value-chart {
-    margin-bottom: 1rem;
+  .overview-hero {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    justify-content: center;
+    // Keep the number + performance chart as a centered block in the upper view.
+    min-height: min(52vh, 26rem);
+    max-width: 42rem;
+    padding-bottom: 2rem;
+    text-align: center;
     width: 100%;
+  }
+
+  .overview-chart-caption {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  .chart-container {
+    aspect-ratio: 3 / 1;
+    height: auto;
+    margin-inline: auto;
+    max-height: 11rem;
+    max-width: 42rem;
+    width: 100%;
+
+    @supports not (aspect-ratio: 3 / 1) {
+      &::before {
+        content: '';
+        float: left;
+        padding-top: 33.33%;
+      }
+
+      &::after {
+        clear: both;
+        content: '';
+        display: block;
+      }
+    }
+
+    gf-line-chart {
+      bottom: 0;
+      height: 100%;
+      left: 0;
+      right: 0;
+      top: 0;
+      width: 100%;
+    }
+  }
+
+  .value-chart {
+    border-top: 1px solid rgba(var(--dark-dividers));
+    margin-inline: auto;
+    max-width: 42rem;
+    padding-top: 2rem;
+    text-align: center;
+    width: 100%;
+
+    gf-react-host {
+      display: block;
+      margin-inline: auto;
+      width: 100%;
+    }
+  }
+
+  :host-context(.theme-dark) .value-chart {
+    border-top-color: rgba(var(--light-dividers));
+  }
+
+  .overview-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+  }
+
+  .overview-section-subtitle {
+    font-size: 0.8125rem;
+    margin: 0 0 1.25rem;
+  }
+
+  .introduction {
+    max-width: 42rem;
   }
 }

@@ -16,6 +16,8 @@ export type InteractiveChartRange =
   (typeof INTERACTIVE_CHART_RANGES)[number]['id'];
 
 export interface InteractiveChartProps {
+  /** Skip Card surface — Overview embeds this over the existing dark/light page. */
+  embedded?: boolean;
   initialRange?: InteractiveChartRange;
   request: ChartSeriesFetch;
 }
@@ -26,6 +28,7 @@ export interface InteractiveChartProps {
  * Kind can still be switched from the card; the chart opens on value.
  */
 export function InteractiveChart({
+  embedded = false,
   initialRange = 'max',
   request
 }: InteractiveChartProps) {
@@ -41,6 +44,7 @@ export function InteractiveChart({
           display: 'flex',
           flexWrap: 'wrap',
           gap: px(designTokens.spacing.xs),
+          justifyContent: embedded ? 'center' : 'flex-start',
           marginBottom: px(designTokens.spacing.sm)
         }}
       >
@@ -73,6 +77,7 @@ export function InteractiveChart({
         })}
       </div>
       <ChartSeriesCard
+        embedded={embedded}
         initialKind="portfolioValue"
         range={{ range }}
         request={request}

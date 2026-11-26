@@ -65,7 +65,7 @@ export class GfHomeOverviewComponent implements OnInit {
     const { InteractiveChart } =
       await import('@ghostfolio/react-ui/chart-series/interactive-chart');
 
-    return createElement(InteractiveChart, { request });
+    return createElement(InteractiveChart, { embedded: true, request });
   };
 
   protected readonly precision = signal(2);

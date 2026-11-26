@@ -130,7 +130,7 @@ export const taxWorkspaceStyles = `
     background: var(--gf-tax-primary);
     border: 1px solid var(--gf-tax-primary);
     border-radius: ${px(designTokens.borderRadius.sm)};
-    color: #212121;
+    color: var(--gf-tax-primary-text);
     cursor: pointer;
     font-family: inherit;
     font-size: ${px(designTokens.fontSize.sm)};
