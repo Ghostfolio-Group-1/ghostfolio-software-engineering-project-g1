@@ -315,6 +315,33 @@ describe('WhatIfService', () => {
     expect(request.holdings[0].marketPrice).toBe(originalMarketPrice);
   });
 
+  // Issue #355 (QA D-02): the demo-risk-concentrated account showed 10,640
+  // here but 10,140 in Charts/Dashboard - a synthetic CASH-subclass holding
+  // was being double-counted against the separately-tracked cashBalance.
+  // #323 fixed this inside RiskEvaluationService; this locks in that the
+  // what-if endpoint - a separate caller of that service - inherited the
+  // fix and now agrees with Charts/Dashboard's holdings-plus-cash total.
+  it('does not double-count a synthetic CASH holding in portfolio.valueBefore, matching the Charts/Dashboard total', () => {
+    const request = baseRequest({
+      cashBalance: 500,
+      holdings: [
+        holding({ symbol: 'AAPL', value: 9000 }),
+        holding({ symbol: 'MSFT', value: 640 }),
+        holding({ assetSubClass: 'CASH', symbol: 'USD', value: 500 })
+      ],
+      scenario: { dataSource: 'YAHOO', dropPercentage: 0.1, symbol: 'AAPL' }
+    });
+
+    const result = service.calculateWhatIf(request);
+
+    // 9000 + 640 (holdings, cash excluded) + 500 (real cashBalance) = 10140,
+    // not 9000 + 640 + 500 (double-counted) + 500 = 10640.
+    expect(result.portfolio.valueBefore).toEqual({
+      amount: 10140,
+      currency: 'USD'
+    });
+  });
+
   it('passes RiskEvaluationService.skippedRuleKeys through as skippedRules', () => {
     const result = service.calculateWhatIf(baseRequest());
 
