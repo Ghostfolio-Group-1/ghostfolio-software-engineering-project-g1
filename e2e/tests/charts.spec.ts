@@ -96,25 +96,38 @@ async function signIn(page: Page, accessToken: string) {
   ).toBeVisible({ timeout: 15000 });
 }
 
+/** Match a GET response for `path` and read its body immediately (before any
+ * later navigation can drop Network.getResponseBody). */
+function waitForApiEnvelope<T>(
+  page: Page,
+  path: string
+): Promise<{ envelope: ApiEnvelope<T>; status: number }> {
+  return page
+    .waitForResponse(
+      (candidate: Response) =>
+        candidate.request().method() === 'GET' &&
+        new URL(candidate.url()).pathname === path,
+      { timeout: 30000 }
+    )
+    .then(async (response) => {
+      const status = response.status();
+      const envelope = (await response.json()) as ApiEnvelope<T>;
+
+      return { envelope, status };
+    });
+}
+
 async function responseFromAction<T>(
   page: Page,
   path: string,
   action: () => Promise<unknown>
 ): Promise<T> {
-  const [response] = await Promise.all([
-    page.waitForResponse(
-      (candidate: Response) =>
-        candidate.request().method() === 'GET' &&
-        new URL(candidate.url()).pathname === path,
-      { timeout: 30000 }
-    ),
+  const [{ envelope, status }] = await Promise.all([
+    waitForApiEnvelope<T>(page, path),
     action()
   ]);
 
-  expect(response.status(), `${path} should return HTTP 200`).toBe(200);
-
-  const envelope = (await response.json()) as ApiEnvelope<T>;
-
+  expect(status, `${path} should return HTTP 200`).toBe(200);
   expect(envelope.error, `${path} should not return an error`).toBeNull();
 
   return envelope.data as T;
@@ -154,33 +167,30 @@ test.describe('Charts browser journey', () => {
 
     await signIn(page, accessToken);
 
-    const seriesPromise = page.waitForResponse(
-      (candidate: Response) =>
-        candidate.request().method() === 'GET' &&
-        new URL(candidate.url()).pathname === '/api/v1/charts/series',
-      { timeout: 30000 }
+    // Read each body as soon as that response arrives — waiting for both
+    // Response objects first, then calling .json(), loses the body when
+    // Overview finishes loading / navigates (Network.getResponseBody).
+    const seriesPromise = waitForApiEnvelope<ChartSeries>(
+      page,
+      '/api/v1/charts/series'
     );
-    const drawdownPromise = page.waitForResponse(
-      (candidate: Response) =>
-        candidate.request().method() === 'GET' &&
-        new URL(candidate.url()).pathname === '/api/v1/charts/drawdown',
-      { timeout: 30000 }
+    const drawdownPromise = waitForApiEnvelope<Drawdown>(
+      page,
+      '/api/v1/charts/drawdown'
     );
 
     await page.goto(HOME_PAGE);
 
-    const [seriesResponse, drawdownResponse] = await Promise.all([
+    const [seriesResult, drawdownResult] = await Promise.all([
       seriesPromise,
       drawdownPromise
     ]);
 
-    expect(seriesResponse.status()).toBe(200);
-    expect(drawdownResponse.status()).toBe(200);
+    expect(seriesResult.status).toBe(200);
+    expect(drawdownResult.status).toBe(200);
 
-    const seriesEnvelope =
-      (await seriesResponse.json()) as ApiEnvelope<ChartSeries>;
-    const drawdownEnvelope =
-      (await drawdownResponse.json()) as ApiEnvelope<Drawdown>;
+    const seriesEnvelope = seriesResult.envelope;
+    const drawdownEnvelope = drawdownResult.envelope;
 
     expect(seriesEnvelope.error).toBeNull();
     expect(drawdownEnvelope.error).toBeNull();
