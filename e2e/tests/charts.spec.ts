@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, Page, Response } from '@playwright/test';
 
 import fixture from '../../libs/react-ui/integration/fixtures/portfolio.json';
 
@@ -103,7 +103,7 @@ async function responseFromAction<T>(
 ): Promise<T> {
   const [response] = await Promise.all([
     page.waitForResponse(
-      (candidate) =>
+      (candidate: Response) =>
         candidate.request().method() === 'GET' &&
         new URL(candidate.url()).pathname === path,
       { timeout: 30000 }
@@ -131,6 +131,9 @@ test.describe('Charts browser journey', () => {
   test('open chart -> change range -> toggle series -> drawdown', async ({
     page,
     request
+  }: {
+    page: Page;
+    request: APIRequestContext;
   }) => {
     test.info().annotations.push({
       type: 'BLOCKED',
@@ -145,20 +148,20 @@ test.describe('Charts browser journey', () => {
 
     const errors: string[] = [];
 
-    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('pageerror', (error: Error) => errors.push(error.message));
 
     const accessToken = await createUserWithPortfolio(request);
 
     await signIn(page, accessToken);
 
     const seriesPromise = page.waitForResponse(
-      (candidate) =>
+      (candidate: Response) =>
         candidate.request().method() === 'GET' &&
         new URL(candidate.url()).pathname === '/api/v1/charts/series',
       { timeout: 30000 }
     );
     const drawdownPromise = page.waitForResponse(
-      (candidate) =>
+      (candidate: Response) =>
         candidate.request().method() === 'GET' &&
         new URL(candidate.url()).pathname === '/api/v1/charts/drawdown',
       { timeout: 30000 }
