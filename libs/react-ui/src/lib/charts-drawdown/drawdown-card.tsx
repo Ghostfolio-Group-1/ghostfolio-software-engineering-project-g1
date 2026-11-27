@@ -13,6 +13,8 @@ import { drawdownErrorMessage, useDrawdown } from './use-drawdown';
 export type DrawdownRangeSelection = DrawdownRangeQuery;
 
 export interface DrawdownCardProps {
+  /** Skip ChartWrapper Card chrome when embedding in an existing page shell. */
+  embedded?: boolean;
   /** Shared time-range only — this card does not invent a second range control. */
   range: DrawdownRangeSelection;
   /** Host authenticated fetch — required (no native-fetch default). */
@@ -34,6 +36,7 @@ function toChartPoints(data: DrawdownData) {
  * history) with max drawdown at 0%.
  */
 export function DrawdownCard({
+  embedded = false,
   range,
   request,
   title = 'Drawdown'
@@ -49,7 +52,8 @@ export function DrawdownCard({
           <p
             data-testid="drawdown-max"
             style={{
-              margin: `0 0 ${px(designTokens.spacing.xs)} 0`
+              margin: `0 0 ${px(designTokens.spacing.xs)} 0`,
+              textAlign: embedded ? 'center' : 'start'
             }}
           >
             <span style={{ color: theme.color.textMuted }}>Max drawdown </span>
@@ -66,13 +70,18 @@ export function DrawdownCard({
               data-testid="drawdown-short-history"
               style={{
                 color: theme.color.textMuted,
-                margin: `0 0 ${px(designTokens.spacing.sm)} 0`
+                margin: `0 0 ${px(designTokens.spacing.sm)} 0`,
+                textAlign: embedded ? 'center' : 'start'
               }}
             >
               Not enough history for a meaningful drawdown yet.
             </p>
           ) : null}
-          <ChartWrapper points={toChartPoints(data)} title={title} />
+          <ChartWrapper
+            embedded={embedded}
+            points={toChartPoints(data)}
+            title={title}
+          />
         </div>
       ) : (
         <DashboardCard

@@ -45,12 +45,16 @@ async function createUserWithPortfolio(request: APIRequestContext) {
 
   expect(userResponse.ok()).toBeTruthy();
 
-  const { accessToken } = (await userResponse.json()) as {
+  // API calls need authToken; the sign-in dialog uses accessToken (same as
+  // e2e/tests/dashboard.spec.ts). Using accessToken for Authorization makes
+  // POST /import return 401 and fails createUserWithPortfolio.
+  const { accessToken, authToken } = (await userResponse.json()) as {
     accessToken: string;
+    authToken: string;
   };
   const runId = Date.now().toString(36).toUpperCase();
   const symbolFor = (symbol: string) => `${symbol}_${runId}`;
-  const headers = { Authorization: `Bearer ${accessToken}` };
+  const headers = { Authorization: `Bearer ${authToken}` };
 
   const importResponse = await request.post('/api/v1/import', {
     data: {
@@ -216,18 +220,20 @@ test.describe('Charts browser journey', () => {
     );
 
     // Toggle series: portfolio value -> invested capital -> cash.
+    // Overview mounts InteractiveChart with embedded=true, which hides the
+    // "Showing …" kind label — assert pressed state on the toggle instead.
     await responseFromAction<ChartSeries>(page, '/api/v1/charts/series', () =>
       page
         .getByRole('button', { name: 'Invested capital', exact: true })
         .click()
     );
 
-    await expect(page.getByTestId('chart-series-kind-label')).toHaveText(
-      'Showing Invested capital'
-    );
     await expect(
       page.getByRole('button', { name: 'Invested capital', exact: true })
     ).toHaveAttribute('aria-pressed', 'true');
+    await expect(
+      page.getByRole('button', { name: 'Portfolio value', exact: true })
+    ).toHaveAttribute('aria-pressed', 'false');
 
     const cashSeries = await responseFromAction<ChartSeries>(
       page,
@@ -235,9 +241,9 @@ test.describe('Charts browser journey', () => {
       () => page.getByRole('button', { name: 'Cash', exact: true }).click()
     );
 
-    await expect(page.getByTestId('chart-series-kind-label')).toHaveText(
-      'Showing Cash'
-    );
+    await expect(
+      page.getByRole('button', { name: 'Cash', exact: true })
+    ).toHaveAttribute('aria-pressed', 'true');
     expect(cashSeries.kind).toBe('cash');
     expect(cashSeries.points.every((point) => point.value === 0)).toBe(true);
 

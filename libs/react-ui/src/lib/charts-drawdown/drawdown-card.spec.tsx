@@ -62,12 +62,13 @@ describe('DrawdownCard', () => {
     request: DrawdownFetch,
     range: { range: string } | { endDate: string; startDate: string } = {
       range: '1y'
-    }
+    },
+    embedded = false
   ) {
     await act(async () => {
       root.render(
         <ThemeProvider>
-          <DrawdownCard range={range} request={request} />
+          <DrawdownCard embedded={embedded} range={range} request={request} />
         </ThemeProvider>
       );
     });
@@ -92,6 +93,18 @@ describe('DrawdownCard', () => {
     expect(
       container.querySelector('[data-testid="drawdown-short-history"]')
     ).toBeNull();
+  });
+
+  it('skips ChartWrapper Card chrome when embedded', async () => {
+    const request = jest.fn().mockResolvedValue(apiResponse(drawdown));
+
+    await render(request as unknown as DrawdownFetch, { range: '1y' }, true);
+
+    expect(
+      container.querySelector('[data-testid="chart-wrapper-embedded"]')
+    ).not.toBeNull();
+    // ChartWrapper without embedded wraps the SVG in a Card <section>.
+    expect(container.querySelector('section')).toBeNull();
   });
 
   it('uses custom start and end dates from the shared range', async () => {
