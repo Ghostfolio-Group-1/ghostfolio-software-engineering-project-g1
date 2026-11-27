@@ -8,6 +8,7 @@ import {
   ExposureBucket,
   ExposureCalculatorService
 } from './exposure-calculator.service';
+import { excludeCashHoldings } from './holdings.util';
 import { RiskSummary } from './interfaces/risk-summary.interface';
 
 const ELIGIBLE_STOCK_SUB_CLASSES = ['CRYPTOCURRENCY', 'STOCK'];
@@ -27,7 +28,9 @@ export class ExposureService {
     holdings: PortfolioPosition[],
     baseCurrency: string
   ): RiskSummary {
-    const totalValue = holdings.reduce((sum, holding) => {
+    const investableHoldings = excludeCashHoldings(holdings);
+
+    const totalValue = investableHoldings.reduce((sum, holding) => {
       return (
         sum +
         this.exchangeRateDataService.toCurrency(
@@ -38,7 +41,7 @@ export class ExposureService {
       );
     }, 0);
 
-    const stockHoldings = holdings.filter((holding) =>
+    const stockHoldings = investableHoldings.filter((holding) =>
       ELIGIBLE_STOCK_SUB_CLASSES.includes(holding.assetProfile.assetSubClass)
     );
 
@@ -60,7 +63,7 @@ export class ExposureService {
         sector: this.toBuckets(
           groupHoldingsByWeightedAttribute({
             baseCurrency,
-            holdings,
+            holdings: investableHoldings,
             exchangeRateDataService: this.exchangeRateDataService,
             getBuckets: (holding) =>
               holding.assetProfile.sectors?.map(({ name, weight }) => ({
@@ -73,7 +76,7 @@ export class ExposureService {
         country: this.toBuckets(
           groupHoldingsByWeightedAttribute({
             baseCurrency,
-            holdings,
+            holdings: investableHoldings,
             exchangeRateDataService: this.exchangeRateDataService,
             getBuckets: (holding) =>
               holding.assetProfile.countries?.map(({ code, weight }) => ({
@@ -84,7 +87,7 @@ export class ExposureService {
           totalValue
         ),
         currency: this.exposureCalculatorService.calculateCurrencyExposure(
-          holdings,
+          investableHoldings,
           baseCurrency
         ).buckets
       },

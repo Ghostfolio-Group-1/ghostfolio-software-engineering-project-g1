@@ -4,8 +4,6 @@ import {
 } from '@ghostfolio/client/components/react-host/react-host.component';
 import { ImpersonationStorageService } from '@ghostfolio/client/services/impersonation-storage.service';
 import { UserService } from '@ghostfolio/client/services/user/user.service';
-import { DEFAULT_COLOR_SCHEME } from '@ghostfolio/common/config';
-import type { ColorScheme } from '@ghostfolio/common/types';
 
 import {
   ChangeDetectionStrategy,
@@ -33,7 +31,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   `
 })
 export class GfTaxPageComponent {
-  protected readonly colorScheme = signal<ColorScheme>(DEFAULT_COLOR_SCHEME);
+  // Leave unset when the user has no explicit preference so gf-react-host
+  // can follow Angular's theme-dark / OS dark (same as Risk/Dashboard).
+  protected readonly colorScheme = signal<'DARK' | 'LIGHT' | undefined>(
+    undefined
+  );
   protected readonly impersonationId = signal<string | null>(null);
   protected readonly userId = signal<string | undefined>(undefined);
 
@@ -42,7 +44,7 @@ export class GfTaxPageComponent {
   // not reset the active Tax view or trigger extra live API requests.
   protected readonly renderKey = computed(
     () =>
-      `${this.colorScheme()}:${this.impersonationId() ?? ''}:${this.userId() ?? ''}`
+      `${this.colorScheme() ?? 'LIGHT'}:${this.impersonationId() ?? ''}:${this.userId() ?? ''}`
   );
 
   protected readonly renderTaxWorkspace = async ({
@@ -65,10 +67,7 @@ export class GfTaxPageComponent {
     this.userService.stateChanged
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((state) => {
-        this.colorScheme.set(
-          state?.user?.settings?.colorScheme ?? DEFAULT_COLOR_SCHEME
-        );
-
+        this.colorScheme.set(state?.user?.settings?.colorScheme);
         this.userId.set(state?.user?.id);
       });
 

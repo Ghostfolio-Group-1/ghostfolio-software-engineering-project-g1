@@ -1,5 +1,15 @@
 <div
-  class="align-items-center container d-flex flex-column h-100 justify-content-center overview p-0 position-relative"
+  class="align-items-center container d-flex flex-column h-100 overview p-0 position-relative"
+  [class.justify-content-center]="
+    !hasImpersonationId() &&
+    hasPermissionToCreateActivity() &&
+    user()?.activitiesCount === 0
+  "
+  [class.justify-content-start]="
+    hasImpersonationId() ||
+    !hasPermissionToCreateActivity() ||
+    user()?.activitiesCount !== 0
+  "
 >
   @if (
     !hasImpersonationId() &&
@@ -62,47 +72,52 @@
     </div>
   } @else {
     <div class="overview-stack">
-      <div class="value-chart mx-auto">
+      <section aria-label="Performance" class="overview-hero mx-auto w-100">
+        <div class="overview-container row">
+          <div class="col">
+            <gf-portfolio-performance
+              [errors]="errors()"
+              [isLoading]="isLoadingPerformance()"
+              [locale]="user()?.settings?.locale"
+              [performance]="performance()"
+              [precision]="precision()"
+              [showDetails]="showDetails()"
+              [unit]="unit()"
+            />
+          </div>
+        </div>
+
+        <p class="overview-chart-caption text-muted" i18n>Performance (%)</p>
+        <div class="chart-container position-relative">
+          <gf-line-chart
+            class="position-absolute"
+            unit="%"
+            [class.pr-3]="deviceType() === 'mobile'"
+            [colorScheme]="user()?.settings?.colorScheme"
+            [hidden]="historicalDataItems()?.length === 0"
+            [historicalDataItems]="historicalDataItems()"
+            [isAnimated]="user()?.settings?.dateRange === '1d' ? false : true"
+            [label]="performanceLabel"
+            [locale]="user()?.settings?.locale"
+            [maintainAspectRatio]="false"
+            [showGradient]="true"
+            [showLoader]="false"
+            [showXAxis]="false"
+            [showYAxis]="false"
+          />
+        </div>
+      </section>
+
+      <section aria-label="Portfolio value" class="value-chart mx-auto">
+        <h2 class="overview-section-title text-center" i18n>Portfolio value</h2>
+        <p class="overview-section-subtitle text-center text-muted" i18n>
+          Holdings over time — pick a range below
+        </p>
         <gf-react-host
           [colorScheme]="user()?.settings?.colorScheme"
           [renderReact]="renderPortfolioChart"
         />
-      </div>
-      <div class="row w-100">
-        <div class="col p-0">
-          <div class="chart-container mx-auto position-relative">
-            <gf-line-chart
-              class="position-absolute"
-              unit="%"
-              [class.pr-3]="deviceType() === 'mobile'"
-              [colorScheme]="user()?.settings?.colorScheme"
-              [hidden]="historicalDataItems()?.length === 0"
-              [historicalDataItems]="historicalDataItems()"
-              [isAnimated]="user()?.settings?.dateRange === '1d' ? false : true"
-              [label]="performanceLabel"
-              [locale]="user()?.settings?.locale"
-              [showGradient]="true"
-              [showLoader]="false"
-              [showXAxis]="false"
-              [showYAxis]="false"
-            />
-          </div>
-        </div>
-      </div>
-      <div class="overview-container row mt-1">
-        <div class="col">
-          <gf-portfolio-performance
-            class="pb-4"
-            [errors]="errors()"
-            [isLoading]="isLoadingPerformance()"
-            [locale]="user()?.settings?.locale"
-            [performance]="performance()"
-            [precision]="precision()"
-            [showDetails]="showDetails()"
-            [unit]="unit()"
-          />
-        </div>
-      </div>
+      </section>
     </div>
   }
 </div>

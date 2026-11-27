@@ -10,6 +10,7 @@ import { Injectable } from '@nestjs/common';
 
 import { ExposureBucket } from './exposure-calculator.service';
 import { ExposureService } from './exposure.service';
+import { excludeCashHoldings } from './holdings.util';
 import { WeightedRuleResult } from './interfaces/health-score.interface';
 import { RiskWarning } from './interfaces/risk-warning.interface';
 import {
@@ -113,8 +114,17 @@ export class RiskEvaluationService {
   ) {}
 
   public evaluate(request: RiskEvaluationRequest): RiskEvaluation {
+    // Issue #323: PortfolioService.getHoldings() can return a synthetic
+    // CASH-subclass position (e.g. a "USD" holding backing the account's
+    // cash balance) alongside real stock holdings. Cash is already carried
+    // separately as request.cashBalance (from AccountService.getCashDetails),
+    // so counting that same cash again as a "holding" here would double it
+    // into holdingsValue/portfolioValue. TargetDeviation (below) already
+    // injects its own dedicated 'CASH' bucket from cashBalance too, so it
+    // gets the same filtered holdings to avoid a second, conflicting entry.
+    const investableHoldings = excludeCashHoldings(request.holdings);
     const holdingsValue = this.calculateTotalValue(
-      request.holdings,
+      investableHoldings,
       request.baseCurrency
     );
     const portfolioValue = holdingsValue + request.cashBalance;
@@ -159,7 +169,7 @@ export class RiskEvaluationService {
     ];
 
     const targetEvaluation = this.evaluateTargetAllocation(
-      request.holdings,
+      investableHoldings,
       request.baseCurrency,
       request.cashBalance,
       request.targetAllocation,

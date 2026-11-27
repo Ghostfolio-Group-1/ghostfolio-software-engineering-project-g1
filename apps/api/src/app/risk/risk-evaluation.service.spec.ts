@@ -113,6 +113,51 @@ describe('RiskEvaluationService', () => {
     expect(cash.actual).toBeCloseTo(0.1, 4); // 10000 / 100000
   });
 
+  // Issue #323 (confirmed live against the demo-risk-concentrated seed data
+  // on Wed 11/25): PortfolioService.getHoldings() can return a synthetic
+  // CASH-subclass position (here, a "USD" holding worth the account's cash
+  // balance) in the same holdings array passed to evaluate() - in addition
+  // to that same cash being passed separately as cashBalance. Before the
+  // fix this double-counted the $500 cash into both holdingsValue and
+  // portfolioValue (9000 + 640 + 500 = 10,140 holdingsValue, +500 cashBalance
+  // = 10,640 portfolioValue - the exact numbers Raniya reported from the
+  // live what-if response), and understated SingleStockConcentration's
+  // percentage (9000/10,140 instead of 9000/9,640). Reverting the
+  // investableHoldings filter in RiskEvaluationService.evaluate() locally
+  // reproduces both wrong numbers (confirmed).
+  it('excludes a synthetic CASH holding from holdingsValue/portfolioValue and concentration %, since it duplicates cashBalance', () => {
+    const holdingsWithSyntheticCash = [
+      holding({ symbol: 'AAPL', value: 9000 }),
+      holding({ symbol: 'MSFT', value: 640 }),
+      {
+        assetProfile: { assetSubClass: 'CASH', currency: 'USD', symbol: 'USD' },
+        quantity: 500,
+        marketPrice: 1
+      } as unknown as PortfolioPosition
+    ];
+
+    const evaluation = service.evaluate({
+      baseCurrency: 'USD',
+      cashBalance: 500,
+      holdings: holdingsWithSyntheticCash
+    });
+
+    expect(evaluation.holdingsValue).toBe(9640);
+    expect(evaluation.portfolioValue).toBe(10140);
+
+    const singleStock = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'SingleStockConcentration'
+    );
+
+    expect(singleStock.actual).toBeCloseTo(9000 / 9640, 4);
+
+    const cash = evaluation.thresholdInputs.find(
+      (input) => input.ruleKey === 'CashAllocation'
+    );
+
+    expect(cash.actual).toBeCloseTo(500 / 10140, 4);
+  });
+
   it('reports PortfolioVolatility as NO_DATA when no volatility input is supplied', () => {
     const evaluation = service.evaluate({
       baseCurrency: 'USD',

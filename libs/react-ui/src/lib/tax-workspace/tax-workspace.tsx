@@ -54,6 +54,7 @@ export function TaxWorkspace({ authRevision = 0, request }: TaxWorkspaceProps) {
           '--gf-tax-border': theme.color.border,
           '--gf-tax-muted': theme.color.textMuted,
           '--gf-tax-primary': theme.color.primary,
+          '--gf-tax-primary-text': theme.color.primaryText,
           '--gf-tax-surface': theme.color.surface,
           '--gf-tax-text': theme.color.text
         } as CSSProperties

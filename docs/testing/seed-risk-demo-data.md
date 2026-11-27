@@ -50,18 +50,35 @@ numbers.
 
 ## A note on currency conversion
 
-The "balanced" account's 10 holdings are deliberately engineered — see the
+The "balanced" account's 12 holdings are deliberately engineered — see the
 comment on `demo-risk-user-balanced` in the script — so that every
 concentration rule lands GREEN or YELLOW, never RED. Confirmed against a
 real throwaway database: a fresh database has no EUR/USD rate recorded, so
 `ExchangeRateDataService` converts EUR at 1:1 until a price-gathering run
-populates one. Under that 1:1 conversion, single-stock sits at GREEN
-(9.95% against a 10% ceiling) and country produces no warning; currency is
-the one bucket that lands YELLOW. With a real (non-1:1) EUR/USD rate, the
-1,000 EUR holding could cross the 10% single-stock ceiling and tip that
-bucket to YELLOW too, but the margin to the next boundary up (RED at 25%)
-is large, so this should not produce a RED either way. Treat the exact
-split as approximate until confirmed against a live run with real rates.
+populates one. Under that 1:1 conversion, single-stock (9.22%), country
+(42.8%) and sector (25.0%) all sit clearly GREEN with real margin; currency
+is the one bucket that lands YELLOW (57.2% against a 50% ceiling, with a
+real two-currency split, not a bug). Score 80 / grade B.
+
+Originally this account had only 10 holdings, and single-stock sat right at
+the 10% ceiling (9.95%) with essentially no margin — fine on its own
+(YELLOW isn't RED), but issue #323 showed that 3 simultaneous YELLOWs
+(single-stock, country, currency) drop the health score's passed-rule
+ratio low enough to roll up to Overall: RED, grade F, even though no
+individual rule is RED. That bug was partly self-masking: a synthetic
+CASH holding was being double-counted into totalValue, which artificially
+kept single-stock's percentage under its ceiling. Fixing that
+double-count (see `RiskEvaluationService`/`ExposureService`) correctly
+raised every concentration percentage, pushing single-stock from
+"barely GREEN" to YELLOW and breaking "no RED anywhere". With exactly 10
+near-equal holdings, the largest one is mathematically forced to sit at
+~10% (the average share), leaving no real margin regardless of exact
+prices — so two more small, distinct-sector EUR holdings
+(`demo-risk-sym-eureal`, `demo-risk-sym-eutele`) were added specifically to
+widen the holding count and give single-stock concentration genuine
+headroom, rather than relying on a precise, fragile quantity balance.
+Treat the exact split as approximate until confirmed against a live run
+with real rates.
 
 ## How to view each demo account
 
