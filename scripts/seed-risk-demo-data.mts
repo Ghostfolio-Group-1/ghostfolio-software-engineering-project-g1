@@ -171,6 +171,32 @@ const SYMBOLS: SeedSymbol[] = [
     price: 100,
     sector: 'Utilities',
     symbol: 'DEMO-EUUTIL'
+  },
+  // Added for issue #323: with cash correctly excluded from totalValue (it
+  // used to be double-counted, masking this), 10 roughly-equal holdings
+  // put the "balanced" user's largest single stock right at the 10%
+  // SingleStockConcentration ceiling - any 10-holding, near-equal split
+  // averages to exactly 10% per holding, leaving no real margin. These 2
+  // extra holdings aren't about currency/country (already intentionally
+  // YELLOW by design - see demo-risk-user-balanced below) - they widen n
+  // so the largest single holding's share has real headroom under 10%.
+  {
+    id: 'demo-risk-sym-eureal',
+    country: 'ES',
+    currency: 'EUR',
+    name: 'Demo European Real Estate Co.',
+    price: 100,
+    sector: 'Real Estate',
+    symbol: 'DEMO-EUREAL'
+  },
+  {
+    id: 'demo-risk-sym-eutele',
+    country: 'IT',
+    currency: 'EUR',
+    name: 'Demo European Telecom Co.',
+    price: 100,
+    sector: 'Communication Services',
+    symbol: 'DEMO-EUTELE'
   }
 ];
 
@@ -210,17 +236,21 @@ const SEED_USERS: SeedUser[] = [
     accessToken: 'demo-risk-balanced',
     cashBalance: 800,
     // Verified against the real RiskEvaluationService (not asserted on
-    // faith - see the PR #225 review): no RED anywhere. Sector and cash
-    // land clearly GREEN; single-stock, country and currency sit just
-    // above their GREEN boundary (YELLOW) because the worst bucket in each
-    // is ~50-51% against a 50% GREEN ceiling - an inherent result of only
-    // having two home currencies (USD/EUR) to split 10 holdings across,
-    // not a bug. (The original version of this account wrongly tagged
-    // every symbol's country as "US", including DEMO-SAP, which actually
-    // produced ~86-100% RED country/currency concentration - the opposite
-    // of what "balanced" was supposed to demonstrate.)
+    // faith - see the PR #225 review, and re-verified against the live
+    // demo stack for issue #323): no RED anywhere. Sector, single-stock
+    // and cash land clearly GREEN with real margin (added demo-risk-sym-
+    // eureal/eutele below specifically for this - see their comment:
+    // cash no longer dilutes totalValue, so 10 near-equal holdings alone
+    // left single-stock right at its 10% ceiling with no headroom).
+    // Currency sits just above its GREEN boundary (YELLOW) at ~57% against
+    // a 50% ceiling - an inherent result of only having two home
+    // currencies (USD/EUR) among the stock holdings, not a bug. (The
+    // original version of this account wrongly tagged every symbol's
+    // country as "US", including DEMO-SAP, which actually produced
+    // ~86-100% RED country/currency concentration - the opposite of what
+    // "balanced" was supposed to demonstrate.)
     demonstrates:
-      'No RED anywhere: GREEN sector mix and cash ratio, YELLOW (not RED) single-stock/country/currency concentration',
+      'No RED anywhere: GREEN sector, single-stock and cash ratio with real margin; YELLOW (not RED) currency concentration',
     holdings: [
       { quantity: 5, symbolId: 'demo-risk-sym-aapl' },
       { quantity: 7, symbolId: 'demo-risk-sym-sap' },
@@ -231,7 +261,9 @@ const SEED_USERS: SeedUser[] = [
       { quantity: 10, symbolId: 'demo-risk-sym-euind' },
       { quantity: 10, symbolId: 'demo-risk-sym-usenr' },
       { quantity: 10, symbolId: 'demo-risk-sym-usmat' },
-      { quantity: 9, symbolId: 'demo-risk-sym-euutil' }
+      { quantity: 9, symbolId: 'demo-risk-sym-euutil' },
+      { quantity: 8, symbolId: 'demo-risk-sym-eureal' },
+      { quantity: 8, symbolId: 'demo-risk-sym-eutele' }
     ]
   },
   {

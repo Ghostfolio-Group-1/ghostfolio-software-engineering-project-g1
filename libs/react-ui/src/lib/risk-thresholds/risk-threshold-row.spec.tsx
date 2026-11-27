@@ -202,4 +202,33 @@ describe('RiskThresholdRow', () => {
       redMin: ''
     });
   });
+
+  // Issue #361 (Wed 11/25, reported by Raniya in today's QA regression run):
+  // the Active label and the first field label used to sit in the same
+  // inline flow with no block boundary between them, rendering as
+  // "ActiveWarning max". Reverting the two wrapping <div>s around them
+  // locally reproduces that: both labels become siblings under the same
+  // parent again (confirmed).
+  it('keeps the Active toggle in its own block, separate from the threshold fields', async () => {
+    await act(async () => {
+      root.render(
+        <RiskThresholdRow
+          item={ceilingItem}
+          onReset={() => {}}
+          onSave={() => {}}
+        />
+      );
+    });
+
+    const activeLabel = container
+      .querySelector('input[type="checkbox"]')
+      ?.closest('label');
+    const firstFieldLabel = container
+      .querySelector('input[type="number"]')
+      ?.closest('label');
+
+    expect(activeLabel).not.toBeNull();
+    expect(firstFieldLabel).not.toBeNull();
+    expect(activeLabel?.parentElement).not.toBe(firstFieldLabel?.parentElement);
+  });
 });
