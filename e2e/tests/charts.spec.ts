@@ -77,7 +77,7 @@ async function createUserWithPortfolio(request: APIRequestContext) {
     expect(priceResponse.ok()).toBeTruthy();
   }
 
-  return accessToken;
+  return { accessToken, authToken };
 }
 
 async function signIn(page: Page, accessToken: string) {
@@ -96,38 +96,47 @@ async function signIn(page: Page, accessToken: string) {
   ).toBeVisible({ timeout: 15000 });
 }
 
-/** Match a GET response for `path` and read its body immediately (before any
- * later navigation can drop Network.getResponseBody). */
-function waitForApiEnvelope<T>(
-  page: Page,
+/** Authenticated GET that does not depend on a page Network response body
+ * (those are dropped when Overview navigates during goto). */
+async function fetchApiEnvelope<T>(
+  request: APIRequestContext,
+  authToken: string,
   path: string
-): Promise<{ envelope: ApiEnvelope<T>; status: number }> {
-  return page
-    .waitForResponse(
-      (candidate: Response) =>
-        candidate.request().method() === 'GET' &&
-        new URL(candidate.url()).pathname === path,
-      { timeout: 30000 }
-    )
-    .then(async (response) => {
-      const status = response.status();
-      const envelope = (await response.json()) as ApiEnvelope<T>;
+): Promise<T> {
+  const response = await request.get(path, {
+    headers: { Authorization: `Bearer ${authToken}` }
+  });
 
-      return { envelope, status };
-    });
+  expect(response.status(), `${path} should return HTTP 200`).toBe(200);
+
+  const envelope = (await response.json()) as ApiEnvelope<T>;
+
+  expect(envelope.error, `${path} should not return an error`).toBeNull();
+
+  return envelope.data as T;
 }
 
+/** Capture a GET body for `path` after a same-document UI action (range /
+ * series toggle). Not safe around page.goto — use fetchApiEnvelope there. */
 async function responseFromAction<T>(
   page: Page,
   path: string,
   action: () => Promise<unknown>
 ): Promise<T> {
-  const [{ envelope, status }] = await Promise.all([
-    waitForApiEnvelope<T>(page, path),
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (candidate: Response) =>
+        candidate.request().method() === 'GET' &&
+        new URL(candidate.url()).pathname === path,
+      { timeout: 30000 }
+    ),
     action()
   ]);
 
-  expect(status, `${path} should return HTTP 200`).toBe(200);
+  expect(response.status(), `${path} should return HTTP 200`).toBe(200);
+
+  const envelope = (await response.json()) as ApiEnvelope<T>;
+
   expect(envelope.error, `${path} should not return an error`).toBeNull();
 
   return envelope.data as T;
@@ -163,37 +172,13 @@ test.describe('Charts browser journey', () => {
 
     page.on('pageerror', (error: Error) => errors.push(error.message));
 
-    const accessToken = await createUserWithPortfolio(request);
+    const { accessToken, authToken } = await createUserWithPortfolio(request);
 
     await signIn(page, accessToken);
 
-    // Read each body as soon as that response arrives — waiting for both
-    // Response objects first, then calling .json(), loses the body when
-    // Overview finishes loading / navigates (Network.getResponseBody).
-    const seriesPromise = waitForApiEnvelope<ChartSeries>(
-      page,
-      '/api/v1/charts/series'
-    );
-    const drawdownPromise = waitForApiEnvelope<Drawdown>(
-      page,
-      '/api/v1/charts/drawdown'
-    );
-
+    // Do not waitForResponse around goto — Overview navigates enough that
+    // Playwright drops Network.getResponseBody before .json() can run.
     await page.goto(HOME_PAGE);
-
-    const [seriesResult, drawdownResult] = await Promise.all([
-      seriesPromise,
-      drawdownPromise
-    ]);
-
-    expect(seriesResult.status).toBe(200);
-    expect(drawdownResult.status).toBe(200);
-
-    const seriesEnvelope = seriesResult.envelope;
-    const drawdownEnvelope = drawdownResult.envelope;
-
-    expect(seriesEnvelope.error).toBeNull();
-    expect(drawdownEnvelope.error).toBeNull();
 
     await expect(page.getByTestId('interactive-chart')).toBeVisible({
       timeout: 20000
@@ -207,11 +192,26 @@ test.describe('Charts browser journey', () => {
     await expect(
       page.getByRole('button', { name: 'Max', exact: true })
     ).toHaveAttribute('aria-pressed', 'true');
-    expect(
-      seriesEnvelope.data?.points[seriesEnvelope.data.points.length - 1]?.value
-    ).toBe(EXPECTED_PORTFOLIO_VALUE);
 
-    // Change range: Max -> YTD. Both series and drawdown refetch for that range.
+    // Same Max series/drawdown the Overview chart just loaded — via API, not
+    // a page response body that navigation can invalidate.
+    const maxSeries = await fetchApiEnvelope<ChartSeries>(
+      request,
+      authToken,
+      '/api/v1/charts/series?range=max&kind=portfolioValue'
+    );
+    const maxDrawdown = await fetchApiEnvelope<Drawdown>(
+      request,
+      authToken,
+      '/api/v1/charts/drawdown?range=max'
+    );
+
+    expect(maxSeries.points[maxSeries.points.length - 1]?.value).toBe(
+      EXPECTED_PORTFOLIO_VALUE
+    );
+    expect(maxDrawdown.points.length).toBeGreaterThan(0);
+
+    // Change range: Max -> YTD. Same-document click — waitForResponse is safe.
     const ytdSeries = await responseFromAction<ChartSeries>(
       page,
       '/api/v1/charts/series',
