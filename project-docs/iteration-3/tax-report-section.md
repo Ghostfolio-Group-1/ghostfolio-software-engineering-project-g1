@@ -432,7 +432,7 @@ The shared dark-theme issue, tracked under Issue #342, was resolved through shar
 
 The two blocked checks concerned browser CSV/PDF downloads and dedicated tax-relevance filtering.
 
-These checks remain blocked rather than being counted as passed. The separate Tax QA checklist also records partial or unexecuted checks, including a verified closed-lot filter transition, exact mobile-width behavior, external CSV/PDF viewer checks and controlled API failure/retry verification. These should not be represented as completed manual checks.
+These checks remain blocked rather than being counted as passed. The separate Tax QA checklist records the Open/All lot-status filter check (TAX-QA-03) as partial. The dropdown was successfully changed to All lots, and the table remained populated, but no closed lots or exact row-count differences were verified. Other outstanding checks include exact mobile-width behavior, external CSV/PDF viewer checks and controlled API failure/retry verification. These should not be represented as completed manual checks.
 
 **Supporting evidence:** [November 23 Tax QA checklist](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/blob/3b1179fe1/docs/testing/tax/2026-11-23-tax-qa.md), [shared QA log](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/blob/3b1179fe1/docs/testing/qa-log.md), and [Issue #337](https://github.com/Ghostfolio-Group-1/ghostfolio-software-engineering-project-g1/issues/337).
 
