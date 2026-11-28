@@ -15,13 +15,14 @@ Acceptance criteria (Appendix B) status. **Note:** no Nov 12 demo Scrum-notes/ac
 (`accepted / not accepted per story`) exists yet in the repo — `project-docs/iteration-3/daily-log/`
 only goes up to Nov 9, and no other committed record of that day's demo outcome was found. This
 is flagged to Arthur (Scrum notes owner) as a gap rather than papered over. The table below
-reflects that both acceptance criteria were met on main by their target date (verified against the
-merged PRs below), not a formal recorded acceptance:
+reflects that both acceptance criteria were met on main (verified against the merged PRs below),
+not a formal recorded acceptance — the Risk dashboard/indicators card met its target date, while
+the what-if simulator's #282 merged two days after its Nov 10 target:
 
 | Story                             | Done when                                                                                                       | Working by                       | Status (criteria met on main; demo acceptance not recorded in repo) |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------- |
-| Risk dashboard + indicators (#26) | Concentration/score in dashboard cards; indicator colour follows Risk-engine severity; component tests pass     | Nov 6 (card), Nov 9 (indicators) | Criteria met (#211/#213/#223, merged Nov 4-6)                       |
-| What-if simulator                 | Form posts to the what-if route; shows before/after score and warning differences; invalid input shows an error | Nov 10                           | Criteria met (#282, merged Nov 12)                                  |
+| Risk dashboard + indicators (#26) | Concentration/score in dashboard cards; indicator colour follows Risk-engine severity; component tests pass     | Nov 6 (card), Nov 9 (indicators) | Criteria met on target (#211/#213/#223, merged Nov 4-6)             |
+| What-if simulator                 | Form posts to the what-if route; shows before/after score and warning differences; invalid input shows an error | Nov 10                           | Criteria met, 2 days after target (#282, merged Nov 12)             |
 
 Key merged PRs (chronological; full list is the GitHub audit, Section 4, due Dec 4):
 
