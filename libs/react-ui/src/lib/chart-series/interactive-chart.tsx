@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { DrawdownCard } from '../charts-drawdown/drawdown-card';
 import { useTheme } from '../theme/theme-provider';
 import { designTokens, px } from '../tokens/design-tokens';
 import { ChartSeriesCard } from './chart-series-card';
@@ -24,8 +25,9 @@ export interface InteractiveChartProps {
 
 /**
  * Portfolio value series on the shared ChartWrapper, with the YTD, 1Y, 5Y,
- * and Max presets. Custom start/end dates and a zoom viewport stay on #196.
- * Kind can still be switched from the card; the chart opens on value.
+ * and Max presets. Drawdown uses the same range (#356). Custom start/end
+ * dates and a zoom viewport stay on #196. Kind can still be switched from
+ * the card; the chart opens on value.
  */
 export function InteractiveChart({
   embedded = false,
@@ -83,6 +85,9 @@ export function InteractiveChart({
         request={request}
         title="Portfolio value"
       />
+      <div style={{ marginTop: px(designTokens.spacing.md) }}>
+        <DrawdownCard embedded={embedded} range={{ range }} request={request} />
+      </div>
     </div>
   );
 }

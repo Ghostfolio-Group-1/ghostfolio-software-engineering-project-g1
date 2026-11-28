@@ -4,6 +4,7 @@ import type { Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 
 import { toPath } from '../chart-wrapper/chart-wrapper';
+import type { DrawdownData } from '../charts-drawdown/drawdown.client';
 import { ThemeProvider } from '../theme/theme-provider';
 import { InteractiveChart } from './interactive-chart';
 import type { ChartSeriesData, ChartSeriesFetch } from './use-chart-series';
@@ -41,6 +42,54 @@ const seriesByRange = {
   ])
 };
 
+const drawdownByRange: Record<string, DrawdownData> = {
+  '1y': {
+    endDate: '2026-04-01',
+    granularity: 'daily',
+    maxDrawdown: 0,
+    maxDrawdownDate: '2026-01-05',
+    points: [
+      { date: '2026-01-05', drawdown: 0, isNewPeak: true },
+      { date: '2026-04-01', drawdown: 0, isNewPeak: true }
+    ],
+    startDate: '2026-01-05'
+  },
+  '5y': {
+    endDate: '2026-04-01',
+    granularity: 'daily',
+    maxDrawdown: -0.5,
+    maxDrawdownDate: '2026-04-01',
+    points: [
+      { date: '2026-01-05', drawdown: 0, isNewPeak: true },
+      { date: '2026-02-01', drawdown: 0, isNewPeak: true },
+      { date: '2026-04-01', drawdown: -0.5, isNewPeak: false }
+    ],
+    startDate: '2026-01-05'
+  },
+  max: {
+    endDate: '2026-04-01',
+    granularity: 'daily',
+    maxDrawdown: 0,
+    maxDrawdownDate: '2026-01-05',
+    points: [
+      { date: '2026-01-05', drawdown: 0, isNewPeak: true },
+      { date: '2026-04-01', drawdown: 0, isNewPeak: true }
+    ],
+    startDate: '2026-01-05'
+  },
+  ytd: {
+    endDate: '2026-04-01',
+    granularity: 'daily',
+    maxDrawdown: -0.33,
+    maxDrawdownDate: '2026-04-01',
+    points: [
+      { date: '2026-01-05', drawdown: 0, isNewPeak: true },
+      { date: '2026-04-01', drawdown: -0.33, isNewPeak: false }
+    ],
+    startDate: '2026-01-05'
+  }
+};
+
 function httpResponse(body: unknown): Response {
   return {
     json: jest.fn().mockResolvedValue(body),
@@ -49,12 +98,23 @@ function httpResponse(body: unknown): Response {
   } as unknown as Response;
 }
 
-function success(data: ChartSeriesData) {
+function success(data: unknown) {
   return httpResponse({ data, error: null, meta: {} });
 }
 
 function chartPath(points: ChartSeriesData['points']): string {
   return toPath(points, CHART_WIDTH, CHART_HEIGHT);
+}
+
+function respond(url: string): Response {
+  const params = new URL(url, 'http://localhost').searchParams;
+  const range = params.get('range') ?? 'max';
+
+  if (url.includes('/charts/drawdown')) {
+    return success(drawdownByRange[range] ?? drawdownByRange.max);
+  }
+
+  return success(seriesByRange[range as keyof typeof seriesByRange]);
 }
 
 describe('InteractiveChart', () => {
@@ -81,8 +141,12 @@ describe('InteractiveChart', () => {
     ) as HTMLButtonElement;
   }
 
-  function drawnPath(): string | null {
-    return container.querySelector('path')?.getAttribute('d') ?? null;
+  function seriesPath(): string | null {
+    return (
+      container
+        .querySelector('[data-testid="chart-series-card"] path')
+        ?.getAttribute('d') ?? null
+    );
   }
 
   async function render(request: ChartSeriesFetch) {
@@ -95,21 +159,25 @@ describe('InteractiveChart', () => {
     });
   }
 
-  it('draws each preset from its own series', async () => {
-    const request = jest.fn().mockImplementation((url: string) => {
-      const range = new URL(url, 'http://localhost').searchParams.get(
-        'range'
-      ) as keyof typeof seriesByRange;
+  it('draws each preset from its own series and shares the range with drawdown', async () => {
+    const request = jest
+      .fn()
+      .mockImplementation((url: string) => Promise.resolve(respond(url)));
 
-      return Promise.resolve(success(seriesByRange[range]));
-    }) as unknown as ChartSeriesFetch;
+    await render(request as unknown as ChartSeriesFetch);
 
-    await render(request);
-
-    expect(container.querySelector('svg')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="chart-series-card"] svg')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="drawdown-card"]')
+    ).not.toBeNull();
     expect(container.textContent).toContain('Portfolio value');
-    expect(drawnPath()).toBe(chartPath(seriesByRange.max.points));
+    expect(seriesPath()).toBe(chartPath(seriesByRange.max.points));
     expect(rangeButton('max').getAttribute('aria-pressed')).toBe('true');
+    expect(
+      container.querySelector('[data-testid="drawdown-max"]')?.textContent
+    ).toContain('0.00%');
 
     for (const range of ['ytd', '1y', '5y'] as const) {
       await act(async () => {
@@ -120,14 +188,25 @@ describe('InteractiveChart', () => {
         `/api/v1/charts/series?range=${range}&kind=portfolioValue`,
         expect.any(Object)
       );
+      expect(request).toHaveBeenCalledWith(
+        `/api/v1/charts/drawdown?range=${range}`,
+        expect.any(Object)
+      );
       expect(rangeButton(range).getAttribute('aria-pressed')).toBe('true');
-      expect(drawnPath()).toBe(chartPath(seriesByRange[range].points));
+      expect(seriesPath()).toBe(chartPath(seriesByRange[range].points));
+      expect(
+        container.querySelector('[data-testid="drawdown-max"]')
+      ).not.toBeNull();
     }
   });
 
   it('keeps the selected range when an older request resolves later', async () => {
     const pending = new Map<string, (response: Response) => void>();
     const request = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('/charts/drawdown')) {
+        return Promise.resolve(respond(url));
+      }
+
       return new Promise<Response>((resolve) => {
         pending.set(url, resolve);
       });
@@ -137,7 +216,9 @@ describe('InteractiveChart', () => {
 
     const maxUrl = '/api/v1/charts/series?range=max&kind=portfolioValue';
     expect(pending.has(maxUrl)).toBe(true);
-    expect(container.querySelector('svg')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="chart-series-card"] svg')
+    ).toBeNull();
 
     await act(async () => {
       rangeButton('5y').click();
@@ -149,14 +230,14 @@ describe('InteractiveChart', () => {
       pending.get(fiveYearUrl)?.(success(seriesByRange['5y']));
     });
 
-    expect(drawnPath()).toBe(chartPath(seriesByRange['5y'].points));
+    expect(seriesPath()).toBe(chartPath(seriesByRange['5y'].points));
     expect(rangeButton('5y').getAttribute('aria-pressed')).toBe('true');
 
     await act(async () => {
       pending.get(maxUrl)?.(success(seriesByRange.max));
     });
 
-    expect(drawnPath()).toBe(chartPath(seriesByRange['5y'].points));
+    expect(seriesPath()).toBe(chartPath(seriesByRange['5y'].points));
     expect(rangeButton('5y').getAttribute('aria-pressed')).toBe('true');
     expect(rangeButton('max').getAttribute('aria-pressed')).toBe('false');
   });

@@ -6,7 +6,6 @@ import { act } from 'react-dom/test-utils';
 import { InteractiveChart } from '../src/lib/chart-series/interactive-chart';
 import { fetchChartSeries } from '../src/lib/chart-series/use-chart-series';
 import { toPath } from '../src/lib/chart-wrapper/chart-wrapper';
-import { DrawdownCard } from '../src/lib/charts-drawdown/drawdown-card';
 import {
   fetchDrawdown,
   formatDrawdownPercent
@@ -14,10 +13,12 @@ import {
 import { createIntegrationSession, INTEGRATION_API_URL } from './api-session';
 import type { IntegrationSession } from './api-session';
 
-// Live journey on the running demo API. Without INTEGRATION_API_URL the suite
-// is skipped. Benchmark comparison is not on main (screen and
-// GET /api/v1/charts/benchmark-comparison are still on open PRs), so this
-// walk stops after the kind toggle and then opens drawdown on the same range.
+// Live UI-to-API journey (sprint: series -> toggles -> drawdown). Without
+// INTEGRATION_API_URL the suite is skipped. Benchmark comparison (#160) and
+// return comparison (#105) are not on main — no React screen and no
+// GET /charts/benchmark-comparison or /charts/return-comparison — so those
+// steps stay BLOCKED here. Drawdown shares the range toggle on
+// InteractiveChart (#356).
 const describeLive = INTEGRATION_API_URL ? describe : describe.skip;
 
 const CHART_WIDTH = 480;
@@ -125,8 +126,20 @@ describeLive(
       await settled();
     }
 
-    function chartPath(): string | null {
-      return container.querySelector('svg path')?.getAttribute('d') ?? null;
+    function seriesPath(): string | null {
+      return (
+        container
+          .querySelector('[data-testid="chart-series-card"] path')
+          ?.getAttribute('d') ?? null
+      );
+    }
+
+    function drawdownPath(): string | null {
+      return (
+        container
+          .querySelector('[data-testid="drawdown-card"] path')
+          ?.getAttribute('d') ?? null
+      );
     }
 
     function kindLabel(): string | null | undefined {
@@ -149,6 +162,9 @@ describeLive(
           ?.getAttribute('aria-pressed')
       ).toBe('true');
       expect(kindLabel()).toBe('Showing Portfolio value');
+      expect(
+        container.querySelector('[data-testid="drawdown-card"]')
+      ).not.toBeNull();
       expect(maxValue.startDate).toBe(DAY_BEFORE_FIRST_BUY);
       expect(maxValue.points[0]).toEqual({
         date: DAY_BEFORE_FIRST_BUY,
@@ -162,12 +178,16 @@ describeLive(
           return { date, value: marketValue(date) };
         })
       );
-      expect(chartPath()).toBe(
+      expect(seriesPath()).toBe(
         toPath(maxValue.points, CHART_WIDTH, CHART_HEIGHT)
       );
 
       const ytdValue = await fetchChartSeries(
         { kind: 'portfolioValue', range: 'ytd' },
+        session.request
+      );
+      const ytdDrawdown = await fetchDrawdown(
+        { range: 'ytd' },
         session.request
       );
 
@@ -199,10 +219,10 @@ describeLive(
       expect(ytdValue.points[ytdValue.points.length - 1]?.value).toBe(
         marketValue(LATEST_PRICE_DATE)
       );
-      expect(chartPath()).toBe(
+      expect(seriesPath()).toBe(
         toPath(ytdValue.points, CHART_WIDTH, CHART_HEIGHT)
       );
-      expect(chartPath()).not.toBe(
+      expect(seriesPath()).not.toBe(
         toPath(maxValue.points, CHART_WIDTH, CHART_HEIGHT)
       );
 
@@ -231,7 +251,7 @@ describeLive(
           return { date, value: investedCapital(date) };
         })
       );
-      expect(chartPath()).toBe(
+      expect(seriesPath()).toBe(
         toPath(ytdInvested.points, CHART_WIDTH, CHART_HEIGHT)
       );
 
@@ -239,36 +259,30 @@ describeLive(
 
       expect(kindLabel()).toBe('Showing Cash');
       expect(ytdCash.points.every(({ value }) => value === 0)).toBe(true);
-      expect(chartPath()).toBe(
+      expect(seriesPath()).toBe(
         toPath(ytdCash.points, CHART_WIDTH, CHART_HEIGHT)
       );
       expect(container.querySelector('[role="alert"]')).toBeNull();
 
-      const drawdown = await fetchDrawdown({ range: 'ytd' }, session.request);
-
-      await render(
-        <DrawdownCard range={{ range: 'ytd' }} request={session.request} />
-      );
-      await settled();
-
       // YTD starts after the fee drag and the 2025-06-02 sale. Prices only
-      // rise after that, so the window is a peak the whole way.
-      expect(drawdown.granularity).toBe('daily');
-      expect(drawdown.points.length).toBeGreaterThan(1);
+      // rise after that, so the window is a peak the whole way. Drawdown
+      // already shares this range on the same InteractiveChart.
+      expect(ytdDrawdown.granularity).toBe('daily');
+      expect(ytdDrawdown.points.length).toBeGreaterThan(1);
       expect(
-        drawdown.points.every(
+        ytdDrawdown.points.every(
           ({ drawdown: value, isNewPeak }) => value === 0 && isNewPeak
         )
       ).toBe(true);
-      expect(drawdown.maxDrawdown).toBe(0);
+      expect(ytdDrawdown.maxDrawdown).toBe(0);
       expect(
         container.querySelector('[data-testid="drawdown-max"]')?.textContent
       ).toBe(
-        `Max drawdown ${formatDrawdownPercent(drawdown.maxDrawdown)} on ${drawdown.maxDrawdownDate}`
+        `Max drawdown ${formatDrawdownPercent(ytdDrawdown.maxDrawdown)} on ${ytdDrawdown.maxDrawdownDate}`
       );
-      expect(chartPath()).toBe(
+      expect(drawdownPath()).toBe(
         toPath(
-          drawdown.points.map(({ date, drawdown: value }) => {
+          ytdDrawdown.points.map(({ date, drawdown: value }) => {
             return { date, value };
           }),
           CHART_WIDTH,
