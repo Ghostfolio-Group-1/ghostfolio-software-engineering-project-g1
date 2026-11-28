@@ -31,7 +31,13 @@ async function post(
   });
 
   if (!response.ok) {
-    throw new Error(`POST ${url} failed with HTTP ${response.status}`);
+    const detail = await response.text().catch(() => '');
+
+    throw new Error(
+      `POST ${url} failed with HTTP ${response.status}${
+        detail ? `: ${detail}` : ''
+      }`
+    );
   }
 
   return (await response.json()) as unknown;
@@ -48,7 +54,12 @@ export async function createIntegrationSession(
   baseUrl: string,
   portfolio: PortfolioFixture = fixture
 ): Promise<IntegrationSession> {
-  const runId = Date.now().toString(36).toUpperCase();
+  // Date.now() alone collides when suites create sessions in the same ms
+  // (Integration CI runs several *.integration.tsx files); duplicate MANUAL
+  // symbols then make POST /import return 400.
+  const runId = `${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`.toUpperCase();
   const symbolFor = (symbol: string) => `${symbol}_${runId}`;
 
   const { authToken } = (await post(`${baseUrl}/api/v1/user`, {})) as {

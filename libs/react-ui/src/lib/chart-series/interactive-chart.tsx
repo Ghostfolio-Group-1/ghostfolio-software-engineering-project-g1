@@ -86,7 +86,7 @@ export function InteractiveChart({
         title="Portfolio value"
       />
       <div style={{ marginTop: px(designTokens.spacing.md) }}>
-        <DrawdownCard range={{ range }} request={request} />
+        <DrawdownCard embedded={embedded} range={{ range }} request={request} />
       </div>
     </div>
   );

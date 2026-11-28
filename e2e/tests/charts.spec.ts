@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, Page, Response } from '@playwright/test';
 
 import fixture from '../../libs/react-ui/integration/fixtures/portfolio.json';
 
@@ -45,12 +45,18 @@ async function createUserWithPortfolio(request: APIRequestContext) {
 
   expect(userResponse.ok()).toBeTruthy();
 
-  const { accessToken } = (await userResponse.json()) as {
+  // API calls need authToken; the sign-in dialog uses accessToken (same as
+  // e2e/tests/dashboard.spec.ts). Using accessToken for Authorization makes
+  // POST /import return 401 and fails createUserWithPortfolio.
+  const { accessToken, authToken } = (await userResponse.json()) as {
     accessToken: string;
+    authToken: string;
   };
-  const runId = Date.now().toString(36).toUpperCase();
+  const runId = `${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`.toUpperCase();
   const symbolFor = (symbol: string) => `${symbol}_${runId}`;
-  const headers = { Authorization: `Bearer ${accessToken}` };
+  const headers = { Authorization: `Bearer ${authToken}` };
 
   const importResponse = await request.post('/api/v1/import', {
     data: {
@@ -73,7 +79,7 @@ async function createUserWithPortfolio(request: APIRequestContext) {
     expect(priceResponse.ok()).toBeTruthy();
   }
 
-  return accessToken;
+  return { accessToken, authToken };
 }
 
 async function signIn(page: Page, accessToken: string) {
@@ -92,6 +98,28 @@ async function signIn(page: Page, accessToken: string) {
   ).toBeVisible({ timeout: 15000 });
 }
 
+/** Authenticated GET that does not depend on a page Network response body
+ * (those are dropped when Overview navigates during goto). */
+async function fetchApiEnvelope<T>(
+  request: APIRequestContext,
+  authToken: string,
+  path: string
+): Promise<T> {
+  const response = await request.get(path, {
+    headers: { Authorization: `Bearer ${authToken}` }
+  });
+
+  expect(response.status(), `${path} should return HTTP 200`).toBe(200);
+
+  const envelope = (await response.json()) as ApiEnvelope<T>;
+
+  expect(envelope.error, `${path} should not return an error`).toBeNull();
+
+  return envelope.data as T;
+}
+
+/** Capture a GET body for `path` after a same-document UI action (range /
+ * series toggle). Not safe around page.goto — use fetchApiEnvelope there. */
 async function responseFromAction<T>(
   page: Page,
   path: string,
@@ -99,7 +127,7 @@ async function responseFromAction<T>(
 ): Promise<T> {
   const [response] = await Promise.all([
     page.waitForResponse(
-      (candidate) =>
+      (candidate: Response) =>
         candidate.request().method() === 'GET' &&
         new URL(candidate.url()).pathname === path,
       { timeout: 30000 }
@@ -127,6 +155,9 @@ test.describe('Charts browser journey', () => {
   test('open chart -> change range -> toggle series -> drawdown', async ({
     page,
     request
+  }: {
+    page: Page;
+    request: APIRequestContext;
   }) => {
     test.info().annotations.push({
       type: 'BLOCKED',
@@ -141,42 +172,15 @@ test.describe('Charts browser journey', () => {
 
     const errors: string[] = [];
 
-    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('pageerror', (error: Error) => errors.push(error.message));
 
-    const accessToken = await createUserWithPortfolio(request);
+    const { accessToken, authToken } = await createUserWithPortfolio(request);
 
     await signIn(page, accessToken);
 
-    const seriesPromise = page.waitForResponse(
-      (candidate) =>
-        candidate.request().method() === 'GET' &&
-        new URL(candidate.url()).pathname === '/api/v1/charts/series',
-      { timeout: 30000 }
-    );
-    const drawdownPromise = page.waitForResponse(
-      (candidate) =>
-        candidate.request().method() === 'GET' &&
-        new URL(candidate.url()).pathname === '/api/v1/charts/drawdown',
-      { timeout: 30000 }
-    );
-
+    // Do not waitForResponse around goto — Overview navigates enough that
+    // Playwright drops Network.getResponseBody before .json() can run.
     await page.goto(HOME_PAGE);
-
-    const [seriesResponse, drawdownResponse] = await Promise.all([
-      seriesPromise,
-      drawdownPromise
-    ]);
-
-    expect(seriesResponse.status()).toBe(200);
-    expect(drawdownResponse.status()).toBe(200);
-
-    const seriesEnvelope =
-      (await seriesResponse.json()) as ApiEnvelope<ChartSeries>;
-    const drawdownEnvelope =
-      (await drawdownResponse.json()) as ApiEnvelope<Drawdown>;
-
-    expect(seriesEnvelope.error).toBeNull();
-    expect(drawdownEnvelope.error).toBeNull();
 
     await expect(page.getByTestId('interactive-chart')).toBeVisible({
       timeout: 20000
@@ -190,11 +194,26 @@ test.describe('Charts browser journey', () => {
     await expect(
       page.getByRole('button', { name: 'Max', exact: true })
     ).toHaveAttribute('aria-pressed', 'true');
-    expect(
-      seriesEnvelope.data?.points[seriesEnvelope.data.points.length - 1]?.value
-    ).toBe(EXPECTED_PORTFOLIO_VALUE);
 
-    // Change range: Max -> YTD. Both series and drawdown refetch for that range.
+    // Same Max series/drawdown the Overview chart just loaded — via API, not
+    // a page response body that navigation can invalidate.
+    const maxSeries = await fetchApiEnvelope<ChartSeries>(
+      request,
+      authToken,
+      '/api/v1/charts/series?range=max&kind=portfolioValue'
+    );
+    const maxDrawdown = await fetchApiEnvelope<Drawdown>(
+      request,
+      authToken,
+      '/api/v1/charts/drawdown?range=max'
+    );
+
+    expect(maxSeries.points[maxSeries.points.length - 1]?.value).toBe(
+      EXPECTED_PORTFOLIO_VALUE
+    );
+    expect(maxDrawdown.points.length).toBeGreaterThan(0);
+
+    // Change range: Max -> YTD. Same-document click — waitForResponse is safe.
     const ytdSeries = await responseFromAction<ChartSeries>(
       page,
       '/api/v1/charts/series',
@@ -216,18 +235,20 @@ test.describe('Charts browser journey', () => {
     );
 
     // Toggle series: portfolio value -> invested capital -> cash.
+    // Overview mounts InteractiveChart with embedded=true, which hides the
+    // "Showing …" kind label — assert pressed state on the toggle instead.
     await responseFromAction<ChartSeries>(page, '/api/v1/charts/series', () =>
       page
         .getByRole('button', { name: 'Invested capital', exact: true })
         .click()
     );
 
-    await expect(page.getByTestId('chart-series-kind-label')).toHaveText(
-      'Showing Invested capital'
-    );
     await expect(
       page.getByRole('button', { name: 'Invested capital', exact: true })
     ).toHaveAttribute('aria-pressed', 'true');
+    await expect(
+      page.getByRole('button', { name: 'Portfolio value', exact: true })
+    ).toHaveAttribute('aria-pressed', 'false');
 
     const cashSeries = await responseFromAction<ChartSeries>(
       page,
@@ -235,9 +256,9 @@ test.describe('Charts browser journey', () => {
       () => page.getByRole('button', { name: 'Cash', exact: true }).click()
     );
 
-    await expect(page.getByTestId('chart-series-kind-label')).toHaveText(
-      'Showing Cash'
-    );
+    await expect(
+      page.getByRole('button', { name: 'Cash', exact: true })
+    ).toHaveAttribute('aria-pressed', 'true');
     expect(cashSeries.kind).toBe('cash');
     expect(cashSeries.points.every((point) => point.value === 0)).toBe(true);
 
