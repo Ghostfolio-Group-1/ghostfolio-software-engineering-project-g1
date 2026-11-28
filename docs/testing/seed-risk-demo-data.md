@@ -50,15 +50,21 @@ numbers.
 
 ## A note on currency conversion
 
+The seed script also writes daily YAHOO `USD{EUR,GBP,JPY,CAD,AUD,INR}`
+market-data rows (rate `1`) covering the rich-user order window through a
+month past the seed price date. That stops Demo E2E from failing with
+`No exchange rate has been found for EURUSD at …` when Tax/Risk/Charts load
+multi-currency holdings. The rate is intentionally `1` so Risk severity
+calibrations that were designed around 1:1 conversion stay stable; this is
+coverage, not a realistic FX path.
+
 The "balanced" account's 12 holdings are deliberately engineered — see the
 comment on `demo-risk-user-balanced` in the script — so that every
-concentration rule lands GREEN or YELLOW, never RED. Confirmed against a
-real throwaway database: a fresh database has no EUR/USD rate recorded, so
-`ExchangeRateDataService` converts EUR at 1:1 until a price-gathering run
-populates one. Under that 1:1 conversion, single-stock (9.22%), country
-(42.8%) and sector (25.0%) all sit clearly GREEN with real margin; currency
-is the one bucket that lands YELLOW (57.2% against a 50% ceiling, with a
-real two-currency split, not a bug). Score 80 / grade B.
+concentration rule lands GREEN or YELLOW, never RED. Under the seeded 1:1
+FX, single-stock (9.22%), country (42.8%) and sector (25.0%) all sit clearly
+GREEN with real margin; currency is the one bucket that lands YELLOW (57.2%
+against a 50% ceiling, with a real two-currency split, not a bug). Score 80
+/ grade B.
 
 Originally this account had only 10 holdings, and single-stock sat right at
 the 10% ceiling (9.95%) with essentially no margin — fine on its own

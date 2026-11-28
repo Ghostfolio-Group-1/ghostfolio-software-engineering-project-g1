@@ -353,6 +353,21 @@ const RICH_SYMBOLS: SeedSymbol[] = Array.from(
 
 const ALL_SYMBOLS: SeedSymbol[] = [...SYMBOLS, ...RICH_SYMBOLS];
 
+// Quote currencies used by balanced + rich holdings. Ghostfolio looks up
+// YAHOO pairs as USD{quote} (e.g. USDEUR). Without these rows, Demo E2E logs
+// "No exchange rate has been found for EURUSD at …" (and GBP/JPY/CAD/AUD/INR)
+// whenever Tax/Risk/Charts load the multi-currency rich user.
+const FX_QUOTE_CURRENCIES = Array.from(
+  new Set(
+    RICH_COUNTRIES.map(({ currency }) => currency).filter((c) => c !== 'USD')
+  )
+);
+
+// Keep 1:1 so Risk severity calibrations that assumed missing FX stay valid
+// (see docs/testing/seed-risk-demo-data.md). The point of seeding is coverage
+// of every calendar day, not a realistic FX path.
+const FX_USD_TO_QUOTE = 1;
+
 function yearsBefore(date: Date, years: number): Date {
   const result = new Date(date);
   result.setUTCFullYear(result.getUTCFullYear() - years);
@@ -363,6 +378,23 @@ function monthsBefore(date: Date, months: number): Date {
   const result = new Date(date);
   result.setUTCMonth(result.getUTCMonth() - months);
   return result;
+}
+
+function daysBetween(start: Date, end: Date): Date[] {
+  const days: Date[] = [];
+  const cursor = new Date(
+    Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
+  );
+  const last = new Date(
+    Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())
+  );
+
+  while (cursor.getTime() <= last.getTime()) {
+    days.push(new Date(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return days;
 }
 
 interface RichOrder {
@@ -575,6 +607,68 @@ async function seedSymbols() {
   }
 }
 
+/**
+ * Seeds YAHOO USD{quote} market data for every day from the earliest rich
+ * order through a month past PRICE_DATE (covers CI "today"). dataSource must
+ * be YAHOO — that is DATA_SOURCE_EXCHANGE_RATES' default; MANUAL rows are
+ * ignored by ExchangeRateDataService.
+ */
+async function seedExchangeRates() {
+  const start = yearsBefore(PRICE_DATE, 2);
+  // Cover CI "today" even when it drifts past PRICE_DATE (seed is 2026-11-06).
+  const endCandidate = monthsBefore(PRICE_DATE, -1);
+  const end =
+    endCandidate.getTime() >= Date.now()
+      ? endCandidate
+      : monthsBefore(new Date(), -1);
+  const dates = daysBetween(start, end);
+
+  for (const quote of FX_QUOTE_CURRENCIES) {
+    const pair = `USD${quote}`;
+
+    await prisma.symbolProfile.upsert({
+      create: {
+        id: `demo-fx-${pair}`,
+        assetClass: 'LIQUIDITY',
+        assetSubClass: 'CASH',
+        currency: quote,
+        dataSource: 'YAHOO',
+        name: `${pair} (demo FX)`,
+        symbol: pair
+      },
+      update: {
+        currency: quote,
+        name: `${pair} (demo FX)`
+      },
+      where: {
+        dataSource_symbol: { dataSource: 'YAHOO', symbol: pair }
+      }
+    });
+
+    const rows = dates.map((date) => ({
+      dataSource: 'YAHOO' as const,
+      date,
+      marketPrice: FX_USD_TO_QUOTE,
+      symbol: pair
+    }));
+
+    // Chunk createMany — full range × pairs is thousands of rows.
+    const chunkSize = 500;
+
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      await prisma.marketData.createMany({
+        data: rows.slice(i, i + chunkSize),
+        skipDuplicates: true
+      });
+    }
+  }
+
+  console.log(
+    `Seeded demo FX: ${FX_QUOTE_CURRENCIES.map((q) => `USD${q}`).join(', ')} ` +
+      `(${dates.length} days each, rate ${FX_USD_TO_QUOTE})`
+  );
+}
+
 async function seedUser(seedUser: SeedUser) {
   const symbolById = new Map(SYMBOLS.map((symbol) => [symbol.id, symbol]));
   const accountId = `${seedUser.id}-account`;
@@ -709,6 +803,7 @@ async function seedUser(seedUser: SeedUser) {
 async function main() {
   assertSafeToSeed();
   await seedSymbols();
+  await seedExchangeRates();
 
   for (const user of SEED_USERS) {
     await seedUser(user);
