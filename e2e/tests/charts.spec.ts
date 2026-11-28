@@ -52,7 +52,9 @@ async function createUserWithPortfolio(request: APIRequestContext) {
     accessToken: string;
     authToken: string;
   };
-  const runId = Date.now().toString(36).toUpperCase();
+  const runId = `${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`.toUpperCase();
   const symbolFor = (symbol: string) => `${symbol}_${runId}`;
   const headers = { Authorization: `Bearer ${authToken}` };
 
